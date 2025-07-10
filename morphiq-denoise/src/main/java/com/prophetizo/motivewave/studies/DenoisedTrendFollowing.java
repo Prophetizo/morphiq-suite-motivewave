@@ -17,7 +17,6 @@ import org.slf4j.Logger;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.List;
-import java.util.ArrayList;
 
 @StudyHeader(
         namespace = "com.prophetizo.motivewave.studies",
@@ -73,11 +72,9 @@ public class DenoisedTrendFollowing extends Study {
 
         SettingGroup waveletGroup = generalTab.addGroup("Wavelet Configuration");
         
-        // Create NVP list for all available wavelets
-        List<NVP> waveletOptions = new ArrayList<>();
-        for (WaveletType type : WaveletType.values()) {
-            waveletOptions.add(new NVP(type.getDisplayName(), type.getDisplayName()));
-        }
+        // Use helper to create wavelet options for noise reduction
+        List<NVP> waveletOptions = StudyUIHelper.createWaveletOptionsForUseCase(
+                WaveletAnalyzerFactory.UseCase.NOISE_REDUCTION);
         
         waveletGroup.addRow(new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type",
                 WaveletType.DAUBECHIES6.getDisplayName(), waveletOptions));

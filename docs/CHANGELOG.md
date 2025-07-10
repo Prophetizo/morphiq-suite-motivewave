@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Symlet8 - Swing trading trend following
   - Coiflet3 - Position trading smooth trends
 - WaveletAnalyzerFactory for centralized wavelet creation
+- WaveletOptionsProvider for consistent wavelet selection logic
+- StudyUIHelper to eliminate code duplication in UI components
 - Comprehensive unit tests for all wavelets
 
 ### Changed
@@ -26,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Merged JWave analysis documents into unified capability guide
 - Refactored to eliminate WaveletType enum duplication
 - All studies now use shared WaveletType from morphiq-core
+- Extracted common UI code to StudyUIHelper (addresses code review feedback)
 
 ### Removed
 - Historical Claude prompt files (moved to archive)

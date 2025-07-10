@@ -15,7 +15,6 @@ import org.slf4j.Logger;
 import java.awt.*;
 import java.util.Arrays;
 import java.util.List;
-import java.util.ArrayList;
 
 @StudyHeader(
         namespace = "com.prophetizo.motivewave.studies",
@@ -67,11 +66,8 @@ public class AutoWavelets extends Study {
 
         SettingGroup waveletGroup = generalTab.addGroup("Wavelet Configuration");
         
-        // Create NVP list for all available wavelets
-        List<NVP> waveletOptions = new ArrayList<>();
-        for (WaveletType type : WaveletType.values()) {
-            waveletOptions.add(new NVP(type.getDisplayName(), type.getDisplayName()));
-        }
+        // Use helper to create wavelet options - show all for general analysis
+        List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
         
         waveletGroup.addRow(new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type",
                 WaveletType.DAUBECHIES4.getDisplayName(), waveletOptions));
