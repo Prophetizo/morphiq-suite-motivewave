@@ -70,7 +70,7 @@ public class AutoWavelets extends Study {
         // Use helper to create wavelet options - show all for general analysis
         List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
         
-        waveletGroup.addRow(new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type",
+        waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE,
                 WaveletType.DAUBECHIES4.getDisplayName(), waveletOptions));
 
         SettingTab displayTab = settings.addTab("Display");

@@ -77,7 +77,7 @@ public class DenoisedTrendFollowing extends Study {
         List<NVP> waveletOptions = StudyUIHelper.createWaveletOptionsForUseCase(
                 WaveletAnalyzerFactory.UseCase.NOISE_REDUCTION);
         
-        waveletGroup.addRow(new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type",
+        waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE,
                 WaveletType.DAUBECHIES6.getDisplayName(), waveletOptions));
         waveletGroup.addRow(new IntegerDescriptor(DECOMPOSITION_LEVELS, "Decomposition Levels", 5, 1, 8, 1));
         waveletGroup.addRow(new IntegerDescriptor(LOOKBACK_PERIOD, "Lookback Period", 512, 64, 1024, 32));

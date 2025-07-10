@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - StudyUIHelper to eliminate code duplication in UI components
 - Comprehensive unit tests for all wavelets
 - Named constants for all test values in NewWaveletsTest (addresses code review feedback)
+- morphiq-common module for shared MotiveWave utilities (addresses code review feedback)
+- createWaveletTypeDescriptor helper method in StudyUIHelper (addresses code review feedback)
 
 ### Changed
 - Upgraded JWave from 1.2.0-SNAPSHOT to 2.0.0
@@ -31,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All studies now use shared WaveletType from morphiq-core
 - Extracted common UI code to StudyUIHelper (addresses code review feedback)
 - Replaced magic numbers with named constants in test code (addresses code review feedback)
+- Fixed non-deterministic tests by using seeded Random (addresses code review feedback)
+- Moved StudyUIHelper to morphiq-common module to eliminate duplication (addresses code review feedback)
+- Refactored DiscreteDescriptor creation into helper method (addresses code review feedback)
 
 ### Removed
 - Historical Claude prompt files (moved to archive)

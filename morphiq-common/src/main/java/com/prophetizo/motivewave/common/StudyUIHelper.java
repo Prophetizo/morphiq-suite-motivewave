@@ -1,6 +1,7 @@
 package com.prophetizo.motivewave.common;
 
 import com.motivewave.platform.sdk.common.NVP;
+import com.motivewave.platform.sdk.common.desc.DiscreteDescriptor;
 import com.prophetizo.wavelets.WaveletType;
 import com.prophetizo.wavelets.WaveletOptionsProvider;
 import com.prophetizo.wavelets.WaveletAnalyzerFactory;
@@ -46,5 +47,34 @@ public class StudyUIHelper {
             options.add(new NVP(type.getDisplayName(), type.getDisplayName()));
         }
         return options;
+    }
+    
+    /**
+     * Creates a DiscreteDescriptor for wavelet type selection.
+     * This method encapsulates the common pattern of creating a wavelet type dropdown.
+     * 
+     * @param settingKey the setting key for the wavelet type
+     * @param label the label to display (defaults to "Wavelet Type" if null)
+     * @param defaultValue the default wavelet type
+     * @param options the list of NVP options for the dropdown
+     * @return DiscreteDescriptor configured for wavelet type selection
+     */
+    public static DiscreteDescriptor createWaveletTypeDescriptor(String settingKey, String label, 
+            String defaultValue, List<NVP> options) {
+        String displayLabel = (label != null) ? label : "Wavelet Type";
+        return new DiscreteDescriptor(settingKey, displayLabel, defaultValue, options);
+    }
+    
+    /**
+     * Creates a DiscreteDescriptor for wavelet type selection with default label.
+     * 
+     * @param settingKey the setting key for the wavelet type
+     * @param defaultValue the default wavelet type
+     * @param options the list of NVP options for the dropdown
+     * @return DiscreteDescriptor configured for wavelet type selection
+     */
+    public static DiscreteDescriptor createWaveletTypeDescriptor(String settingKey, 
+            String defaultValue, List<NVP> options) {
+        return createWaveletTypeDescriptor(settingKey, null, defaultValue, options);
     }
 }

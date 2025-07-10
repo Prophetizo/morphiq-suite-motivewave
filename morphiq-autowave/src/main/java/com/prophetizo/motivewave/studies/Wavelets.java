@@ -72,7 +72,7 @@ public class Wavelets extends Study {
         // Use helper to create wavelet options - show all for manual analysis
         List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
         
-        waveletGroup.addRow(new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type",
+        waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE,
                 WaveletType.DAUBECHIES4.getDisplayName(), waveletOptions));
         waveletGroup.addRow(new IntegerDescriptor(DECOMPOSITION_LEVELS, "Decomposition Levels", 5, 1, MAX_DECOMPOSITION_LEVELS, 1));
         waveletGroup.addRow(new IntegerDescriptor(LOOKBACK_PERIOD, "Lookback Period", 512, 64, 2048, 32));
