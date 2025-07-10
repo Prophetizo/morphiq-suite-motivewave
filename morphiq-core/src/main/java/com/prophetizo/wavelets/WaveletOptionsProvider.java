@@ -22,11 +22,7 @@ public class WaveletOptionsProvider {
      * @return List of all WaveletType values
      */
     public static List<WaveletType> getAllWavelets() {
-        List<WaveletType> wavelets = new ArrayList<>();
-        for (WaveletType type : WaveletType.values()) {
-            wavelets.add(type);
-        }
-        return wavelets;
+        return List.of(WaveletType.values());
     }
     
     /**
