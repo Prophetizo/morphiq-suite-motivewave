@@ -233,6 +233,13 @@ public class ContinuousWaveletAnalyzer {
      * @return COI as array of time indices for each scale
      */
     public int[] computeConeOfInfluence(int signalLength, double[] scales) {
+        if (scales == null || scales.length == 0) {
+            throw new IllegalArgumentException("Scales must be non-null and non-empty");
+        }
+        if (signalLength <= 0) {
+            throw new IllegalArgumentException("Signal length must be positive");
+        }
+        
         int[] coi = new int[scales.length];
         
         for (int i = 0; i < scales.length; i++) {
