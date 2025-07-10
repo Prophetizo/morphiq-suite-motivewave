@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed non-deterministic tests by using seeded Random (addresses code review feedback)
 - Moved StudyUIHelper to morphiq-common module to eliminate duplication (addresses code review feedback)
 - Refactored DiscreteDescriptor creation into helper method (addresses code review feedback)
+- Reordered WaveletType enum by family for better UI organization
 
 ### Removed
 - Historical Claude prompt files (moved to archive)

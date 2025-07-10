@@ -17,15 +17,19 @@ import org.slf4j.LoggerFactory;
  * and their properties.
  */
 public enum WaveletType {
-    // Existing wavelets
+    // Haar family (simplest)
+    HAAR("Haar", "Simplest wavelet, excellent for breakout detection"),
+    
+    // Daubechies family (ordered by vanishing moments)
+    DAUBECHIES2("Daubechies2", "Fast response, good for HFT"),
     DAUBECHIES4("Daubechies4", "General purpose, 4 vanishing moments"),
     DAUBECHIES6("Daubechies6", "Smoother than DB4, 6 vanishing moments"),
     
-    // New wavelets for expanded capabilities
-    HAAR("Haar", "Simplest wavelet, excellent for breakout detection"),
-    DAUBECHIES2("Daubechies2", "Fast response, good for HFT"),
+    // Symlet family (ordered by filter length)
     SYMLET4("Symlet4", "Minimal phase distortion, suitable for trend analysis"),
     SYMLET8("Symlet8", "Better trend preservation than Sym4"),
+    
+    // Coiflet family
     COIFLET3("Coiflet3", "Excellent for position trading with smooth trend extraction and minimal false signals");
 
     private static final Logger logger = LoggerFactory.getLogger(WaveletType.class);
