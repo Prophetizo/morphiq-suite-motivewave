@@ -1,28 +1,49 @@
 # Known Issues
 
-## MODWT Energy Distribution Inconsistency for Non-Power-of-2 Lengths (Mostly Resolved)
+## Current Issues
 
-### Issue Description
-When using JWave 1.0.7-SNAPSHOT's MODWT implementation, the energy distribution of wavelet coefficients varies between power-of-2 and non-power-of-2 signal lengths, though the latest version has significantly improved.
+### 1. Limited Wavelet Utilization
+- **Status**: Active
+- **Description**: Morphiq Suite uses only 2 of 74+ available wavelets (2.7% utilization)
+- **Impact**: Missing out on specialized wavelets for different market conditions and trading styles
+- **Resolution**: Implement wavelet selection framework as outlined in JWAVE_CAPABILITIES.md
 
-### Current Status (JWave 1.0.7-SNAPSHOT Latest)
-✅ **Energy Preservation**: Fixed - Total energy is now preserved for all signal lengths
-⚠️  **Energy Distribution**: Mostly fixed - Energy distribution across levels shows minor variations (up to 4:1 ratio for small energy levels < 2%)
+### 2. CWT Not Implemented
+- **Status**: Active
+- **Description**: Continuous Wavelet Transform available in JWave develop branch not yet integrated
+- **Impact**: Cannot perform time-frequency analysis for non-stationary market signals
+- **Resolution**: Upgrade to JWave develop branch (version 250105) and implement CWT studies
 
-### Historical Symptoms (Now Resolved)
-- Energy ratios between signals of length 288 vs 256 were as high as 37:1
-- This was originally reported as "lookbacks of 256, and 512 seem similar, whereas a lookback of 288 seems to result in values that are off"
+### 3. Single Wavelet per Study
+- **Status**: Active  
+- **Description**: Current architecture supports only one wavelet type per study instance
+- **Impact**: Cannot dynamically switch wavelets based on market conditions
+- **Resolution**: Implement adaptive wavelet selection framework
 
-### Current Test Results
-- Perfect reconstruction works correctly (MSE < 1e-24) ✅
-- Energy preservation works perfectly (ratio = 1.000000) ✅
-- Denoising functionality works well ✅
-- Energy distribution shows minor variations at high-frequency levels (< 2% of total energy) ⚠️
+## Resolved Issues
 
-### Recommendation
-The current implementation is suitable for production use. The minor variations in energy distribution at high-frequency levels (which contain < 2% of total energy) are unlikely to affect practical applications.
+### MODWT Energy Distribution (Resolved in JWave 1.0.7-SNAPSHOT)
+- **Previous Issue**: Energy distribution varied between power-of-2 and non-power-of-2 lengths
+- **Resolution**: JWave 1.0.7-SNAPSHOT fixes energy preservation completely
+- **Current State**: 
+  - ✅ Perfect reconstruction (MSE < 1e-24)
+  - ✅ Energy preservation (ratio = 1.000000)
+  - ✅ Minor variations at high frequencies acceptable (< 2% total energy)
+- **Date Resolved**: 2025-07-02
 
-### Update History
-- 2025-07-02 (Initial): Documented severe 37:1 energy ratio issue
-- 2025-07-02 (Update): JWave 1.0.7-SNAPSHOT latest fixes energy preservation
-- 2025-07-02 (Current): Minor energy distribution variations remain but are acceptable
+### Inverse MODWT Missing (Resolved in JWave 1.0.7-SNAPSHOT)
+- **Previous Issue**: No native inverse MODWT implementation
+- **Resolution**: JWave 1.0.7-SNAPSHOT includes native inverse MODWT
+- **Date Resolved**: 2025-07-02
+
+## Performance Considerations
+
+### 1. Parallel Processing Threshold
+- **Current**: Automatically enabled for data ≥ 512 points
+- **Consideration**: May need tuning for different hardware configurations
+- **Recommendation**: Make threshold configurable via study parameters
+
+### 2. Memory Usage with CWT
+- **Issue**: Full CWT scalogram requires O(n²) memory
+- **Mitigation**: Implement sliding window or scale-limited computation
+- **Status**: Planning required before CWT implementation
