@@ -21,6 +21,12 @@
             <artifactId>morphiq-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- MotiveWave Common Utilities -->
+        <dependency>
+            <groupId>ai.prophetizo</groupId>
+            <artifactId>morphiq-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!-- MotiveWave SDK -->
         <dependency>
             <groupId>com.motivewave.platform.sdk</groupId>
@@ -54,6 +60,7 @@
                             <artifactSet>
                                 <includes>
                                     <include>ai.prophetizo:morphiq-core</include>
+                                    <include>ai.prophetizo:morphiq-common</include>
                                     <include>com.prophetizo:jwave</include>
                                     <include>org.slf4j:*</include>
                                 </includes>

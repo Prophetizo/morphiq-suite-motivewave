@@ -7,6 +7,7 @@ import com.motivewave.platform.sdk.study.RuntimeDescriptor;
 import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
 import com.prophetizo.LoggerConfig;
+import com.prophetizo.motivewave.common.StudyUIHelper;
 import com.prophetizo.wavelets.WaveletAnalyzer;
 import com.prophetizo.wavelets.WaveletAnalyzerFactory;
 import com.prophetizo.wavelets.WaveletType;

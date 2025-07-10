@@ -1,4 +1,4 @@
-package com.prophetizo.motivewave.studies;
+package com.prophetizo.motivewave.common;
 
 import com.motivewave.platform.sdk.common.NVP;
 import com.prophetizo.wavelets.WaveletType;
