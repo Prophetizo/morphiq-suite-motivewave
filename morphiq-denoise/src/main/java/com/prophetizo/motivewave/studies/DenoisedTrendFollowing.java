@@ -228,8 +228,8 @@ public class DenoisedTrendFollowing extends Study {
             denoiser.setAdaptiveThresholding(useAdaptiveCalculation);
         }
 
-        logger.debug("Updated wavelet components with {} noise levels, method: {}",
-                noiseLevels.length, thresholdTypeStr);
+        logger.debug("Updated wavelet components with {} noise levels, method: {}, wavelet type: {}",
+                noiseLevels.length, thresholdTypeStr, waveletTypeStr);
     }
 
     private int[] parseNoiseLevels(String noiseLevelsStr) {
