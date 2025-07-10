@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Named constants for all test values in NewWaveletsTest (addresses code review feedback)
 - morphiq-common module for shared MotiveWave utilities (addresses code review feedback)
 - createWaveletTypeDescriptor helper method in StudyUIHelper (addresses code review feedback)
+- CWT (Continuous Wavelet Transform) support with JWave 2.0.0:
+  - ContinuousWaveletType enum with 5 wavelets (Morlet, Mexican Hat, DOG, Meyer, Paul)
+  - ContinuousWaveletAnalyzer for time-frequency analysis
+  - Factory methods in WaveletAnalyzerFactory for CWT use cases
+  - Comprehensive unit tests for CWT functionality
 
 ### Changed
 - Upgraded JWave from 1.2.0-SNAPSHOT to 2.0.0

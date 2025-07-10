@@ -123,4 +123,72 @@ public class WaveletAnalyzerFactory {
             return description;
         }
     }
+    
+    /**
+     * Creates a ContinuousWaveletAnalyzer with the specified wavelet type.
+     * @param waveletType the continuous wavelet type
+     * @return new ContinuousWaveletAnalyzer instance
+     */
+    public static ContinuousWaveletAnalyzer createContinuous(ContinuousWaveletType waveletType) {
+        logger.debug("Creating ContinuousWaveletAnalyzer with type: {}", waveletType);
+        return new ContinuousWaveletAnalyzer(waveletType);
+    }
+    
+    /**
+     * Creates a ContinuousWaveletAnalyzer for a specific analysis use case.
+     * @param useCase the analysis use case
+     * @return new ContinuousWaveletAnalyzer instance
+     */
+    public static ContinuousWaveletAnalyzer createContinuousForUseCase(ContinuousUseCase useCase) {
+        ContinuousWaveletType recommendedType = getRecommendedContinuousWavelet(useCase);
+        logger.info("Creating ContinuousWaveletAnalyzer for {} with recommended type: {}", 
+                   useCase, recommendedType);
+        return createContinuous(recommendedType);
+    }
+    
+    /**
+     * Gets the recommended continuous wavelet for a specific use case.
+     * @param useCase the continuous analysis use case
+     * @return recommended ContinuousWaveletType
+     */
+    private static ContinuousWaveletType getRecommendedContinuousWavelet(ContinuousUseCase useCase) {
+        switch (useCase) {
+            case TIME_FREQUENCY_ANALYSIS:
+                return ContinuousWaveletType.MORLET;
+            case BREAKOUT_DETECTION:
+                return ContinuousWaveletType.MEXICAN_HAT;
+            case CYCLE_ANALYSIS:
+                return ContinuousWaveletType.MORLET;
+            case VOLATILITY_CLUSTERING:
+                return ContinuousWaveletType.DOG;
+            case PHASE_ANALYSIS:
+                return ContinuousWaveletType.PAUL;
+            case TREND_EXTRACTION:
+                return ContinuousWaveletType.MEYER;
+            default:
+                return ContinuousWaveletType.MORLET;
+        }
+    }
+    
+    /**
+     * Continuous wavelet analysis use cases.
+     */
+    public enum ContinuousUseCase {
+        TIME_FREQUENCY_ANALYSIS("Analyzing time-varying frequencies"),
+        BREAKOUT_DETECTION("Detecting sudden price movements"),
+        CYCLE_ANALYSIS("Identifying market cycles and rhythms"),
+        VOLATILITY_CLUSTERING("Analyzing volatility patterns"),
+        PHASE_ANALYSIS("Lead-lag relationships between assets"),
+        TREND_EXTRACTION("Smooth trend extraction at multiple scales");
+        
+        private final String description;
+        
+        ContinuousUseCase(String description) {
+            this.description = description;
+        }
+        
+        public String getDescription() {
+            return description;
+        }
+    }
 }
