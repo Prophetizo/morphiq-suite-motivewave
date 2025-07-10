@@ -89,8 +89,8 @@ public class ContinuousWaveletTest {
         double largeScaleEnergy = computeScaleEnergy(coefficients[3]);
         
         // Log the actual values for debugging
-        System.out.println("Mexican Hat - Small scale energy: " + smallScaleEnergy + 
-                         ", Large scale energy: " + largeScaleEnergy);
+        logger.info("Mexican Hat - Small scale energy: " + smallScaleEnergy + 
+                    ", Large scale energy: " + largeScaleEnergy);
         
         // More realistic expectation: small scale should have more energy than large scale
         assertTrue(smallScaleEnergy > largeScaleEnergy, 
