@@ -8,6 +8,15 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests specifically for the new wavelets added with JWave 2.0.0
  */
 public class NewWaveletsTest {
+    
+    // Test constants
+    private static final double RECONSTRUCTION_TOLERANCE = 1e-10;
+    private static final double ENERGY_TOLERANCE_FACTOR = 0.001; // 0.1% tolerance
+    private static final double TEST_DRIFT = 0.0001;
+    private static final double TEST_VOLATILITY = 0.02;
+    private static final double INITIAL_PRICE = 100.0;
+    private static final int TEST_SIGNAL_PERIOD = 32;
+    private static final int TEST_SIGNAL_PERIOD_SHORT = 8;
 
     @Test
     @DisplayName("Test Symlet4 wavelet transform and reconstruction")
@@ -29,7 +38,7 @@ public class NewWaveletsTest {
         
         // Check reconstruction accuracy
         for (int i = 0; i < testData.length; i++) {
-            assertEquals(testData[i], reconstructed[i], 1e-10, 
+            assertEquals(testData[i], reconstructed[i], RECONSTRUCTION_TOLERANCE, 
                 "Symlet4 reconstruction error at index " + i);
         }
     }
@@ -53,7 +62,7 @@ public class NewWaveletsTest {
         
         // Check reconstruction accuracy
         for (int i = 0; i < testData.length; i++) {
-            assertEquals(testData[i], reconstructed[i], 1e-10, 
+            assertEquals(testData[i], reconstructed[i], RECONSTRUCTION_TOLERANCE, 
                 "Symlet8 reconstruction error at index " + i);
         }
     }
@@ -77,7 +86,7 @@ public class NewWaveletsTest {
         
         // Check reconstruction accuracy
         for (int i = 0; i < testData.length; i++) {
-            assertEquals(testData[i], reconstructed[i], 1e-10, 
+            assertEquals(testData[i], reconstructed[i], RECONSTRUCTION_TOLERANCE, 
                 "Coiflet3 reconstruction error at index " + i);
         }
     }
@@ -121,7 +130,7 @@ public class NewWaveletsTest {
             coeffEnergy += calculateEnergy(level);
         }
         
-        assertEquals(signalEnergy, coeffEnergy, signalEnergy * 0.001, 
+        assertEquals(signalEnergy, coeffEnergy, signalEnergy * ENERGY_TOLERANCE_FACTOR, 
             "Energy not preserved in Coiflet3 MODWT");
     }
 
@@ -178,22 +187,22 @@ public class NewWaveletsTest {
         double[] signal = new double[length];
         for (int i = 0; i < length; i++) {
             // Combination of trend and oscillation
-            signal[i] = i * 0.01 + Math.sin(2 * Math.PI * i / 32.0) 
-                      + 0.5 * Math.sin(2 * Math.PI * i / 8.0);
+            double trend = i * 0.01;
+            double longCycle = Math.sin(2 * Math.PI * i / TEST_SIGNAL_PERIOD);
+            double shortCycle = 0.5 * Math.sin(2 * Math.PI * i / TEST_SIGNAL_PERIOD_SHORT);
+            signal[i] = trend + longCycle + shortCycle;
         }
         return signal;
     }
     
     private double[] createFinancialTestSignal(int length) {
         double[] signal = new double[length];
-        double price = 100.0;
-        double volatility = 0.02;
+        double price = INITIAL_PRICE;
         
         for (int i = 0; i < length; i++) {
             // Random walk with drift
-            double drift = 0.0001;
-            double randomShock = (Math.random() - 0.5) * volatility;
-            price = price * (1 + drift + randomShock);
+            double randomShock = (Math.random() - 0.5) * TEST_VOLATILITY;
+            price = price * (1 + TEST_DRIFT + randomShock);
             signal[i] = price;
         }
         return signal;

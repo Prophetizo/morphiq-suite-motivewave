@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WaveletOptionsProvider for consistent wavelet selection logic
 - StudyUIHelper to eliminate code duplication in UI components
 - Comprehensive unit tests for all wavelets
+- Named constants for all test values in NewWaveletsTest (addresses code review feedback)
 
 ### Changed
 - Upgraded JWave from 1.2.0-SNAPSHOT to 2.0.0
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored to eliminate WaveletType enum duplication
 - All studies now use shared WaveletType from morphiq-core
 - Extracted common UI code to StudyUIHelper (addresses code review feedback)
+- Replaced magic numbers with named constants in test code (addresses code review feedback)
 
 ### Removed
 - Historical Claude prompt files (moved to archive)
@@ -66,17 +68,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **develop (250105)**: Adds CWT and 6 continuous wavelets (not yet integrated)
 
 ### Known Limitations
-- Currently using only 2 of 74+ available wavelets (2.7% utilization)
+- Currently using only 7 of 74+ available wavelets (9.5% utilization)
 - No CWT (Continuous Wavelet Transform) support yet
 - Single wavelet type per study instance
 - No adaptive wavelet selection
 
 ## Future Roadmap
 
-### Phase 1 (Immediate)
-- Add Haar wavelet for breakout detection
-- Implement Symlet family for balanced analysis
-- Create wavelet selection framework
+### Phase 1 (Completed)
+- ✅ Add Haar wavelet for breakout detection
+- ✅ Implement Symlet family for balanced analysis (Symlet4, Symlet8)
+- ✅ Create wavelet selection framework (WaveletAnalyzerFactory)
+- ✅ Upgrade to JWave 2.0.0
+- ✅ Add Coiflet3 for position trading
 
 ### Phase 2 (1-2 months)
 - Integrate JWave develop branch for CWT support
