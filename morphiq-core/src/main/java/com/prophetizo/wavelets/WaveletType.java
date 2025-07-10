@@ -24,7 +24,7 @@ public enum WaveletType {
     // New wavelets for expanded capabilities
     HAAR("Haar", "Simplest wavelet, excellent for breakout detection"),
     DAUBECHIES2("Daubechies2", "Fast response, good for HFT"),
-    SYMLET4("Symlet4", "Nearly symmetric, balanced analysis"),
+    SYMLET4("Symlet4", "Optimized for day trading with minimal phase distortion and fast response, suitable for trend analysis"),
     SYMLET8("Symlet8", "Better trend preservation than Sym4"),
     COIFLET3("Coiflet3", "Superior trend smoothing, 3 vanishing moments");
 
