@@ -3,6 +3,7 @@ package com.prophetizo.wavelets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import static org.junit.jupiter.api.Assertions.*;
+import java.util.Random;
 
 /**
  * Tests specifically for the new wavelets added with JWave 2.0.0
@@ -17,6 +18,7 @@ public class NewWaveletsTest {
     private static final double INITIAL_PRICE = 100.0;
     private static final int TEST_SIGNAL_PERIOD = 32;
     private static final int TEST_SIGNAL_PERIOD_SHORT = 8;
+    private static final long RANDOM_SEED = 42L; // Fixed seed for reproducibility
 
     @Test
     @DisplayName("Test Symlet4 wavelet transform and reconstruction")
@@ -198,10 +200,11 @@ public class NewWaveletsTest {
     private double[] createFinancialTestSignal(int length) {
         double[] signal = new double[length];
         double price = INITIAL_PRICE;
+        Random random = new Random(RANDOM_SEED);
         
         for (int i = 0; i < length; i++) {
             // Random walk with drift
-            double randomShock = (Math.random() - 0.5) * TEST_VOLATILITY;
+            double randomShock = (random.nextDouble() - 0.5) * TEST_VOLATILITY;
             price = price * (1 + TEST_DRIFT + randomShock);
             signal[i] = price;
         }
