@@ -10,15 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Comprehensive wavelet capabilities documentation (JWAVE_CAPABILITIES.md)
 - Archive directory for historical documentation
+- 5 new wavelets with JWave 2.0.0:
+  - Haar - Fast breakout detection
+  - Daubechies2 - High-frequency trading
+  - Symlet4 - Day trading momentum detection
+  - Symlet8 - Swing trading trend following
+  - Coiflet3 - Position trading smooth trends
+- WaveletAnalyzerFactory for centralized wavelet creation
+- Comprehensive unit tests for all wavelets
 
 ### Changed
+- Upgraded JWave from 1.2.0-SNAPSHOT to 2.0.0
 - Reorganized documentation structure
 - Updated KNOWN_ISSUES.md to reflect current state
 - Merged JWave analysis documents into unified capability guide
+- Refactored to eliminate WaveletType enum duplication
+- All studies now use shared WaveletType from morphiq-core
 
 ### Removed
 - Historical Claude prompt files (moved to archive)
 - Redundant JWave analysis documents
+- Duplicated WaveletType enums from individual studies
 
 ## [1.0.0] - 2025-07-02
 

@@ -8,13 +8,14 @@ import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
 import com.prophetizo.LoggerConfig;
 import com.prophetizo.wavelets.WaveletAnalyzer;
-import jwave.transforms.wavelets.Wavelet;
-import jwave.transforms.wavelets.daubechies.Daubechies4;
-import jwave.transforms.wavelets.daubechies.Daubechies6;
+import com.prophetizo.wavelets.WaveletAnalyzerFactory;
+import com.prophetizo.wavelets.WaveletType;
 import org.slf4j.Logger;
 
 import java.awt.*;
 import java.util.Arrays;
+import java.util.List;
+import java.util.ArrayList;
 
 @StudyHeader(
         namespace = "com.prophetizo.motivewave.studies",
@@ -65,11 +66,15 @@ public class AutoWavelets extends Study {
         SettingTab generalTab = settings.addTab("General");
 
         SettingGroup waveletGroup = generalTab.addGroup("Wavelet Configuration");
+        
+        // Create NVP list for all available wavelets
+        List<NVP> waveletOptions = new ArrayList<>();
+        for (WaveletType type : WaveletType.values()) {
+            waveletOptions.add(new NVP(type.getDisplayName(), type.getDisplayName()));
+        }
+        
         waveletGroup.addRow(new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type",
-                WaveletType.DAUBECHIES4.toString(),
-                Arrays.asList(
-                        new NVP("Daubechies4", "Daubechies4"),
-                        new NVP("Daubechies6", "Daubechies6"))));
+                WaveletType.DAUBECHIES4.getDisplayName(), waveletOptions));
 
         SettingTab displayTab = settings.addTab("Display");
         var paths = displayTab.addGroup("Paths");
@@ -105,13 +110,12 @@ public class AutoWavelets extends Study {
 
     private void initializeWaveletAnalyzer() {
         // Initialize with default settings - will be updated when settings change
-        WaveletType defaultType = WaveletType.DAUBECHIES4;
-        this.waveletAnalyzer = new WaveletAnalyzer(defaultType.createWavelet());
+        this.waveletAnalyzer = WaveletAnalyzerFactory.create(WaveletType.DAUBECHIES4);
     }
 
     private void checkAndUpdateSettings() {
         // Get current settings
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES4.toString());
+        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES4.getDisplayName());
 
         // Check if settings have changed
         boolean settingsChanged = !waveletTypeStr.equals(lastWaveletType);
@@ -128,29 +132,15 @@ public class AutoWavelets extends Study {
 
     private void updateWaveletAnalyzer() {
         // Get wavelet type from settings
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES4.toString());
-        WaveletType waveletType = parseWaveletType(waveletTypeStr);
+        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES4.getDisplayName());
+        
+        // Update analyzer using factory
+        this.waveletAnalyzer = WaveletAnalyzerFactory.create(waveletTypeStr);
 
-        // Update analyzer if needed
-        this.waveletAnalyzer = new WaveletAnalyzer(waveletType.createWavelet());
-
-        logger.debug("Updated wavelet analyzer with wavelet type: {}", waveletType);
+        logger.debug("Updated wavelet analyzer with wavelet type: {}", waveletTypeStr);
     }
 
-    private WaveletType parseWaveletType(String waveletTypeStr) {
-        try {
-            for (WaveletType type : WaveletType.values()) {
-                if (type.toString().equals(waveletTypeStr)) {
-                    return type;
-                }
-            }
-            logger.warn("Unknown wavelet type '{}'. Valid options: Daubechies4, Daubechies6. Using Daubechies4 as default.", waveletTypeStr);
-            return WaveletType.DAUBECHIES4;
-        } catch (Exception e) {
-            logger.warn("Failed to parse wavelet type '{}'. Valid options: Daubechies4, Daubechies6. Using Daubechies4 as default.", waveletTypeStr);
-            return WaveletType.DAUBECHIES4;
-        }
-    }
+    // parseWaveletType method removed - now using WaveletType.parse() from shared enum
 
     /**
      * Called when the study is activated on a chart or instrument.
@@ -314,32 +304,7 @@ public class AutoWavelets extends Study {
         }
     }
 
-    public enum WaveletType {
-        DAUBECHIES4("Daubechies4"),
-        DAUBECHIES6("Daubechies6");
-
-        private final String displayName;
-
-        WaveletType(String displayName) {
-            this.displayName = displayName;
-        }
-
-        @Override
-        public String toString() {
-            return displayName;
-        }
-
-        public Wavelet createWavelet() {
-            switch (this) {
-                case DAUBECHIES4:
-                    return new Daubechies4();
-                case DAUBECHIES6:
-                    return new Daubechies6();
-                default:
-                    return new Daubechies4();
-            }
-        }
-    }
+    // WaveletType enum has been moved to com.prophetizo.wavelets.WaveletType
 
     // Enums for calculated values and settings keys
     enum Paths {D1, D2, D3, D4, D5, D6, D7}

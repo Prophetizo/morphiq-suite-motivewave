@@ -9,14 +9,15 @@ import com.motivewave.platform.sdk.study.StudyHeader;
 import com.motivewave.platform.sdk.study.Plot;
 import com.prophetizo.LoggerConfig;
 import com.prophetizo.wavelets.WaveletAnalyzer;
+import com.prophetizo.wavelets.WaveletAnalyzerFactory;
 import com.prophetizo.wavelets.WaveletDenoiser;
-import jwave.transforms.wavelets.daubechies.Daubechies4;
-import jwave.transforms.wavelets.daubechies.Daubechies6;
-import jwave.transforms.wavelets.Wavelet;
+import com.prophetizo.wavelets.WaveletType;
 import org.slf4j.Logger;
 
 import java.awt.*;
 import java.util.Arrays;
+import java.util.List;
+import java.util.ArrayList;
 
 @StudyHeader(
         namespace = "com.prophetizo.motivewave.studies",
@@ -57,29 +58,7 @@ public class DenoisedTrendFollowing extends Study {
     private double lastThresholdMultiplier = -1;
     private String lastWaveletType = null;
 
-    public enum WaveletType {
-        DAUBECHIES4("Daubechies4"),
-        DAUBECHIES6("Daubechies6");
-
-        private final String displayName;
-
-        WaveletType(String displayName) {
-            this.displayName = displayName;
-        }
-
-        @Override
-        public String toString() {
-            return displayName;
-        }
-
-        public Wavelet createWavelet() {
-            switch (this) {
-                case DAUBECHIES4: return new Daubechies4();
-                case DAUBECHIES6: return new Daubechies6();
-                default: return new Daubechies4();
-            }
-        }
-    }
+    // WaveletType enum has been moved to com.prophetizo.wavelets.WaveletType
 
 
     @Override
@@ -93,11 +72,15 @@ public class DenoisedTrendFollowing extends Study {
         SettingTab generalTab = settings.addTab("General");
 
         SettingGroup waveletGroup = generalTab.addGroup("Wavelet Configuration");
+        
+        // Create NVP list for all available wavelets
+        List<NVP> waveletOptions = new ArrayList<>();
+        for (WaveletType type : WaveletType.values()) {
+            waveletOptions.add(new NVP(type.getDisplayName(), type.getDisplayName()));
+        }
+        
         waveletGroup.addRow(new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type",
-                WaveletType.DAUBECHIES6.toString(),
-                Arrays.asList(
-                        new NVP("Daubechies4", "Daubechies4"),
-                        new NVP("Daubechies6", "Daubechies6"))));
+                WaveletType.DAUBECHIES6.getDisplayName(), waveletOptions));
         waveletGroup.addRow(new IntegerDescriptor(DECOMPOSITION_LEVELS, "Decomposition Levels", 5, 1, 8, 1));
         waveletGroup.addRow(new IntegerDescriptor(LOOKBACK_PERIOD, "Lookback Period", 512, 64, 1024, 32));
 
@@ -157,8 +140,7 @@ public class DenoisedTrendFollowing extends Study {
 
     private void initializeWaveletComponents() {
         // Initialize with default settings - will be updated in onSettingsUpdated
-        WaveletType defaultType = WaveletType.DAUBECHIES6;
-        this.waveletAnalyzer = new WaveletAnalyzer(defaultType.createWavelet());
+        this.waveletAnalyzer = WaveletAnalyzerFactory.create(WaveletType.DAUBECHIES6);
         this.denoiser = new WaveletDenoiser(waveletAnalyzer);
     }
 
@@ -210,9 +192,8 @@ public class DenoisedTrendFollowing extends Study {
 
     private void updateWaveletComponents() {
         // Get wavelet type from settings
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES6.toString());
-        WaveletType waveletType = parseWaveletType(waveletTypeStr);
-        this.waveletAnalyzer = new WaveletAnalyzer(waveletType.createWavelet());
+        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES6.getDisplayName());
+        this.waveletAnalyzer = WaveletAnalyzerFactory.create(waveletTypeStr);
 
         // Update denoiser configuration from settings
         this.denoiser = new WaveletDenoiser(waveletAnalyzer);
@@ -247,8 +228,8 @@ public class DenoisedTrendFollowing extends Study {
             denoiser.setAdaptiveThresholding(useAdaptiveCalculation);
         }
 
-        logger.debug("Updated wavelet components: {} with {} noise levels, method: {}",
-                waveletType, noiseLevels.length, thresholdTypeStr);
+        logger.debug("Updated wavelet components with {} noise levels, method: {}",
+                noiseLevels.length, thresholdTypeStr);
     }
 
     private int[] parseNoiseLevels(String noiseLevelsStr) {
@@ -356,20 +337,7 @@ public class DenoisedTrendFollowing extends Study {
         }
     }
 
-    private WaveletType parseWaveletType(String waveletTypeStr) {
-        try {
-            for (WaveletType type : WaveletType.values()) {
-                if (type.toString().equals(waveletTypeStr)) {
-                    return type;
-                }
-            }
-            logger.warn("Unknown wavelet type '{}'. Valid options: Daubechies4, Daubechies6. Using Daubechies6 as default.", waveletTypeStr);
-            return WaveletType.DAUBECHIES6;
-        } catch (Exception e) {
-            logger.warn("Failed to parse wavelet type '{}'. Valid options: Daubechies4, Daubechies6. Using Daubechies6 as default.", waveletTypeStr);
-            return WaveletType.DAUBECHIES6;
-        }
-    }
+    // parseWaveletType method removed - now using WaveletType.parse() from shared enum
 
     // Enums for values and settings keys
     enum Values { DENOISED, ORIGINAL, NOISE_PANE, APPROXIMATION }
