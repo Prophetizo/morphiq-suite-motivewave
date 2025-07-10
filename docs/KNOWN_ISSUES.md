@@ -3,10 +3,11 @@
 ## Current Issues
 
 ### 1. Limited Wavelet Utilization
-- **Status**: Active
-- **Description**: Morphiq Suite uses only 2 of 74+ available wavelets (2.7% utilization)
-- **Impact**: Missing out on specialized wavelets for different market conditions and trading styles
-- **Resolution**: Implement wavelet selection framework as outlined in JWAVE_CAPABILITIES.md
+- **Status**: Partially Resolved
+- **Description**: Morphiq Suite now uses 7 of 74+ available wavelets (9.5% utilization)
+- **Progress**: Added Haar, Daubechies2, Symlet4, Symlet8, and Coiflet3 with JWave 2.0.0
+- **Remaining**: Still 67 wavelets unused, including specialized families like Biorthogonal and Legendre
+- **Resolution**: Continue adding wavelets based on user needs and trading scenarios
 
 ### 2. CWT Not Implemented
 - **Status**: Active

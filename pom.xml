@@ -14,6 +14,7 @@
 
     <modules>
         <module>morphiq-core</module>
+        <module>morphiq-common</module>
         <module>morphiq-autowave</module>
         <module>morphiq-denoise</module>
         <module>morphiq-bundle-premium</module>
@@ -25,7 +26,7 @@
         <junit.jupiter.version>5.13.2</junit.jupiter.version>
         <mockito.version>5.14.2</mockito.version>
         <mwave.sdk.version>20230627</mwave.sdk.version>
-        <jwave.version>1.2.0-SNAPSHOT</jwave.version>
+        <jwave.version>2.0.0</jwave.version>
         <slf4j.version>2.0.17</slf4j.version>
         <maven.compiler.plugin.version>3.14.0</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.5.3</maven.surefire.plugin.version>
