@@ -67,7 +67,7 @@ public class WaveletAnalyzerFactory {
             throw new IllegalArgumentException("Use case cannot be null");
         }
         WaveletType type = getRecommendedType(useCase);
-        logger.info("Creating WaveletAnalyzer for {} with recommended type: {}", useCase, type);
+        logger.debug("Creating WaveletAnalyzer for {} with recommended type: {}", useCase, type);
         return create(type);
     }
     
