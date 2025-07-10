@@ -26,7 +26,7 @@ public enum WaveletType {
     DAUBECHIES2("Daubechies2", "Fast response, good for HFT"),
     SYMLET4("Symlet4", "Optimized for day trading with minimal phase distortion and fast response, suitable for trend analysis"),
     SYMLET8("Symlet8", "Better trend preservation than Sym4"),
-    COIFLET3("Coiflet3", "Superior trend smoothing, 3 vanishing moments");
+    COIFLET3("Coiflet3", "Excellent for position trading with smooth trend extraction and minimal false signals");
 
     private static final Logger logger = LoggerFactory.getLogger(WaveletType.class);
     
