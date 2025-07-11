@@ -18,7 +18,7 @@
         <!-- JWave -->
         <dependency>
             <groupId>com.prophetizo</groupId>
-            <artifactId>jwave</artifactId>
+            <artifactId>jwave-pro</artifactId>
         </dependency>
         <!-- Logging -->
         <dependency>

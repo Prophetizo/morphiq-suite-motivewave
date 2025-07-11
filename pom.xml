@@ -26,7 +26,7 @@
         <junit.jupiter.version>5.13.2</junit.jupiter.version>
         <mockito.version>5.14.2</mockito.version>
         <mwave.sdk.version>20230627</mwave.sdk.version>
-        <jwave.version>2.0.0</jwave.version>
+        <jwave.version>2.0.0-SNAPSHOT</jwave.version>
         <slf4j.version>2.0.17</slf4j.version>
         <maven.compiler.plugin.version>3.14.0</maven.compiler.plugin.version>
         <maven.surefire.plugin.version>3.5.3</maven.surefire.plugin.version>
@@ -46,7 +46,7 @@
             <!-- JWave -->
             <dependency>
                 <groupId>com.prophetizo</groupId>
-                <artifactId>jwave</artifactId>
+                <artifactId>jwave-pro</artifactId>
                 <version>${jwave.version}</version>
             </dependency>
             <!-- Minimal Logging -->
@@ -143,9 +143,9 @@
             <url>https://gitlab.com/api/v4/projects/63189175/packages/maven</url>
         </repository>
         <repository>
-            <id>github-prophetizo-jwave</id>
+            <id>github-prophetizo-jwave-pro</id>
             <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/prophetizo/JWave</url>
+            <url>https://maven.pkg.github.com/prophetizo/JWave-Pro</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
