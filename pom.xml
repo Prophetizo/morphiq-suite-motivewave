@@ -49,6 +49,12 @@
                 <artifactId>jwave-pro</artifactId>
                 <version>${jwave.version}</version>
             </dependency>
+            <!-- VectorWave -->
+            <dependency>
+                <groupId>ai.prophetizo</groupId>
+                <artifactId>vector-wave</artifactId>
+                <version>1.0-SNAPSHOT</version>
+            </dependency>
             <!-- Minimal Logging -->
             <dependency>
                 <groupId>org.slf4j</groupId>
@@ -146,6 +152,17 @@
             <id>github-prophetizo-jwave-pro</id>
             <name>GitHub Packages</name>
             <url>https://maven.pkg.github.com/prophetizo/JWave-Pro</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+                <repository>
+            <id>github-prophetizo-vectorwave</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/prophetizo/vectorwave</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
