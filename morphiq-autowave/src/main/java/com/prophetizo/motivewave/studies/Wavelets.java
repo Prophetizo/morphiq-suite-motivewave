@@ -128,6 +128,7 @@ public class Wavelets extends Study {
 
     private List<NVP> createWaveletOptions() {
         List<NVP> options = new ArrayList<>();
+        java.util.Set<String> addedWavelets = new java.util.HashSet<>();
         
         try {
             // Get orthogonal wavelets suitable for MODWT
@@ -144,28 +145,23 @@ public class Wavelets extends Study {
             }
             
             // Preferred order for financial analysis
-            String[] preferredOrder = {"haar", "db2", "db4", "db6", "sym4", "sym8", "coif2", "coif3"};
+            String[] preferredOrder = {"haar", "db2", "db4", "db6", "sym4", "sym8", "coif1", "coif2", "coif3"};
             
             // Add preferred wavelets first
             for (String waveletName : preferredOrder) {
-                if (orthogonalWavelets.contains(waveletName)) {
+                if (orthogonalWavelets.contains(waveletName) && !addedWavelets.contains(waveletName)) {
                     String displayName = getWaveletDisplayName(waveletName);
                     options.add(new NVP(displayName, waveletName));
+                    addedWavelets.add(waveletName);
                 }
             }
             
             // Add remaining orthogonal wavelets
             for (String waveletName : orthogonalWavelets) {
-                boolean alreadyAdded = false;
-                for (String preferred : preferredOrder) {
-                    if (waveletName.equals(preferred)) {
-                        alreadyAdded = true;
-                        break;
-                    }
-                }
-                if (!alreadyAdded) {
+                if (!addedWavelets.contains(waveletName)) {
                     String displayName = getWaveletDisplayName(waveletName);
                     options.add(new NVP(displayName, waveletName));
+                    addedWavelets.add(waveletName);
                 }
             }
             
@@ -189,9 +185,11 @@ public class Wavelets extends Study {
             case "db4" -> "Daubechies 4";
             case "db6" -> "Daubechies 6";
             case "db8" -> "Daubechies 8";
+            case "sym2" -> "Symlet 2";
             case "sym4" -> "Symlet 4";
             case "sym6" -> "Symlet 6";
             case "sym8" -> "Symlet 8";
+            case "coif1" -> "Coiflet 1";
             case "coif2" -> "Coiflet 2";
             case "coif3" -> "Coiflet 3";
             case "coif4" -> "Coiflet 4";
