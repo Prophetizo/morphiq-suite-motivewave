@@ -6,14 +6,23 @@ import com.motivewave.platform.sdk.order_mgmt.OrderContext;
 import com.motivewave.platform.sdk.study.RuntimeDescriptor;
 import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
-import com.prophetizo.LoggerConfig;
-import com.prophetizo.motivewave.common.StudyUIHelper;
-import com.prophetizo.wavelets.trading.*;
+
+import ai.prophetizo.wavelet.api.BoundaryMode;
+import ai.prophetizo.wavelet.api.DiscreteWavelet;
+import ai.prophetizo.wavelet.api.Wavelet;
+import ai.prophetizo.wavelet.api.WaveletRegistry;
+import ai.prophetizo.wavelet.modwt.MODWTTransformFactory;
+import ai.prophetizo.wavelet.modwt.MultiLevelMODWTResult;
+import ai.prophetizo.wavelet.modwt.MultiLevelMODWTTransform;
+
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @StudyHeader(
         namespace = "com.prophetizo.motivewave.studies",
@@ -25,15 +34,18 @@ import java.util.List;
         requiresBarUpdates = false
 )
 public class Wavelets extends Study {
+    private static final Logger logger = LoggerFactory.getLogger(Wavelets.class);
+    
     // Settings keys
     final static String WAVELET_TYPE = "WAVELET_TYPE";
     final static String DECOMPOSITION_LEVELS = "DECOMPOSITION_LEVELS";
     final static String LOOKBACK_PERIOD = "LOOKBACK_PERIOD";
     private static final int MAX_DECOMPOSITION_LEVELS = 7;
-    private static final Logger logger = LoggerConfig.getLogger(Wavelets.class);
+    
     // Path keys array for dynamic access
     private static final String[] PATH_KEYS = new String[MAX_DECOMPOSITION_LEVELS];
-    // Color scheme for decomposition levels - from light blue to red
+    
+    // Color scheme for decomposition levels
     private static final Color[] LEVEL_COLORS = new Color[]{
             new Color(135, 206, 250), // Light Sky Blue
             new Color(70, 130, 180),  // Steel Blue
@@ -45,36 +57,41 @@ public class Wavelets extends Study {
     };
 
     static {
-        // Initialize path keys
         for (int i = 0; i < MAX_DECOMPOSITION_LEVELS; i++) {
             PATH_KEYS[i] = "D" + (i + 1) + "_PATH";
         }
     }
 
-    // Modern VectorWave-based services
-    private TradingWaveletAnalyzer analyzer;
-    private WaveletConfigHelper.TradingConfig config;
+    // VectorWave components
+    private MultiLevelMODWTTransform modwtTransform;
+    private DiscreteWavelet currentWavelet;
+    private String currentWaveletName;
     
     // Track settings to detect changes
     private String lastWaveletType = null;
+    
+    // Performance-optimized wavelet cache
+    private final Map<String, DiscreteWavelet> waveletCache = new ConcurrentHashMap<>();
 
     @Override
     public void initialize(Defaults defaults) {
-        logger.debug("Initializing Wavelets Study");
+        logger.debug("Initializing Wavelets Study with VectorWave");
 
         SettingsDescriptor settings = new SettingsDescriptor();
         setSettingsDescriptor(settings);
 
         // General settings tab
         SettingTab generalTab = settings.addTab("General");
-
         SettingGroup waveletGroup = generalTab.addGroup("Wavelet Configuration");
         
-        // Use helper to create wavelet options - show all for manual analysis
-        List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
+        // Create wavelet options from registry
+        List<NVP> waveletOptions = createWaveletOptions();
         
-        waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE,
-                com.prophetizo.wavelets.WaveletType.DAUBECHIES4.getDisplayName(), waveletOptions));
+        // Create discrete descriptor with wavelet options
+        DiscreteDescriptor waveletDescriptor = new DiscreteDescriptor(
+            WAVELET_TYPE, "Wavelet Type", "db4", waveletOptions);
+        
+        waveletGroup.addRow(waveletDescriptor);
         waveletGroup.addRow(new IntegerDescriptor(DECOMPOSITION_LEVELS, "Decomposition Levels", 5, 1, MAX_DECOMPOSITION_LEVELS, 1));
         waveletGroup.addRow(new IntegerDescriptor(LOOKBACK_PERIOD, "Lookback Period", 512, 64, 2048, 32));
 
@@ -85,7 +102,6 @@ public class Wavelets extends Study {
         for (int i = 0; i < MAX_DECOMPOSITION_LEVELS; i++) {
             String pathName = "D" + (i + 1);
             float lineWidth = (i == MAX_DECOMPOSITION_LEVELS - 1) ? 1.5f : 1.0f;
-
             PathDescriptor pathDescriptor = new PathDescriptor(PATH_KEYS[i], pathName, LEVEL_COLORS[i], lineWidth, null, true, true, true);
             paths.addRow(pathDescriptor);
         }
@@ -106,139 +122,225 @@ public class Wavelets extends Study {
         // Add white dashed line at zero
         runtimeDescriptor.addHorizontalLine(new LineInfo(0.0, null, 1.0f, new float[]{3, 3}));
 
-        // Initialize modern trading services with default configuration
-        initializeTradingServices();
+        // Initialize with default wavelet
+        initializeDefaultWavelet();
     }
 
-    private void initializeTradingServices() {
+    private List<NVP> createWaveletOptions() {
+        List<NVP> options = new ArrayList<>();
+        
         try {
-            // Initialize with default configuration - will be updated when settings change
-            TradingWaveletFactory factory = TradingWaveletFactory.getInstance();
+            // Get orthogonal wavelets suitable for MODWT
+            List<String> orthogonalWavelets = WaveletRegistry.getOrthogonalWavelets();
             
-            // Validate VectorWave integration
-            if (!factory.validateVectorWaveIntegration()) {
-                logger.error("VectorWave integration validation failed");
-                return;
+            logger.info("Found {} orthogonal wavelets in registry", orthogonalWavelets.size());
+            
+            if (orthogonalWavelets.isEmpty()) {
+                logger.warn("No orthogonal wavelets found in registry, using defaults");
+                // Provide minimal defaults
+                options.add(new NVP("Daubechies 4", "db4"));
+                options.add(new NVP("Haar", "haar"));
+                return options;
             }
             
-            // Create default config
-            this.config = WaveletConfigHelper.forTradingStyle(
-                TradingStyle.DAY_TRADING, null // Will be set properly in onLoad
-            );
+            // Preferred order for financial analysis
+            String[] preferredOrder = {"haar", "db2", "db4", "db6", "sym4", "sym8", "coif2", "coif3"};
             
-            // Create analyzer with default wavelet
-            this.analyzer = factory.createAnalyzer("db4");
+            // Add preferred wavelets first
+            for (String waveletName : preferredOrder) {
+                if (orthogonalWavelets.contains(waveletName)) {
+                    String displayName = getWaveletDisplayName(waveletName);
+                    options.add(new NVP(displayName, waveletName));
+                }
+            }
             
-            logger.info("Initialized modern trading services with VectorWave");
+            // Add remaining orthogonal wavelets
+            for (String waveletName : orthogonalWavelets) {
+                boolean alreadyAdded = false;
+                for (String preferred : preferredOrder) {
+                    if (waveletName.equals(preferred)) {
+                        alreadyAdded = true;
+                        break;
+                    }
+                }
+                if (!alreadyAdded) {
+                    String displayName = getWaveletDisplayName(waveletName);
+                    options.add(new NVP(displayName, waveletName));
+                }
+            }
+            
+            logger.info("Created {} wavelet options from registry", options.size());
+            
         } catch (Exception e) {
-            logger.error("Failed to initialize trading services", e);
+            logger.error("Error creating wavelet options", e);
+            // Provide minimal defaults on error
+            options.add(new NVP("Daubechies 4", "db4"));
+            options.add(new NVP("Haar", "haar"));
+        }
+        
+        return options;
+    }
+
+    private String getWaveletDisplayName(String waveletName) {
+        // Use simple formatting for display names
+        return switch (waveletName.toLowerCase()) {
+            case "haar" -> "Haar";
+            case "db2" -> "Daubechies 2";
+            case "db4" -> "Daubechies 4";
+            case "db6" -> "Daubechies 6";
+            case "db8" -> "Daubechies 8";
+            case "sym4" -> "Symlet 4";
+            case "sym6" -> "Symlet 6";
+            case "sym8" -> "Symlet 8";
+            case "coif2" -> "Coiflet 2";
+            case "coif3" -> "Coiflet 3";
+            case "coif4" -> "Coiflet 4";
+            default -> waveletName.toUpperCase();
+        };
+    }
+
+    private void initializeDefaultWavelet() {
+        // Use fallback strategy for initialization
+        String[] candidates = {"db4", "haar", "db2", "sym4"};
+        
+        for (String candidate : candidates) {
+            DiscreteWavelet wavelet = getOrCreateDiscreteWavelet(candidate);
+            if (wavelet != null) {
+                currentWavelet = wavelet;
+                currentWaveletName = candidate;
+                modwtTransform = MODWTTransformFactory.createMultiLevel(currentWavelet, BoundaryMode.PERIODIC);
+                logger.info("Initialized with wavelet: {}", candidate);
+                return;
+            }
+        }
+        
+        logger.error("Failed to initialize any wavelet - check VectorWave installation");
+    }
+    
+    private DiscreteWavelet getOrCreateDiscreteWavelet(String waveletName) {
+        if (waveletName == null || waveletName.trim().isEmpty()) {
+            return null;
+        }
+        
+        // Check cache first for performance
+        DiscreteWavelet cached = waveletCache.get(waveletName);
+        if (cached != null) {
+            logger.debug("Using cached wavelet: {}", waveletName);
+            return cached;
+        }
+        
+        // Check registry availability
+        if (!WaveletRegistry.isWaveletAvailable(waveletName)) {
+            logger.warn("Wavelet {} not available in registry", waveletName);
+            return null;
+        }
+        
+        try {
+            Wavelet wavelet = WaveletRegistry.getWavelet(waveletName);
+            
+            if (!(wavelet instanceof DiscreteWavelet)) {
+                logger.warn("Wavelet {} is not a discrete wavelet", waveletName);
+                return null;
+            }
+            
+            DiscreteWavelet discrete = (DiscreteWavelet) wavelet;
+            
+            // Validate the wavelet has proper coefficients
+            if (discrete.lowPassDecomposition() == null || 
+                discrete.lowPassDecomposition().length == 0) {
+                logger.warn("Wavelet {} has invalid coefficients", waveletName);
+                return null;
+            }
+            
+            // Cache for future use
+            waveletCache.put(waveletName, discrete);
+            
+            // Log wavelet info
+            logger.info("Loaded wavelet: {} (filter length: {})", 
+                waveletName, discrete.lowPassDecomposition().length);
+            
+            return discrete;
+            
+        } catch (Exception e) {
+            logger.error("Failed to create wavelet {}: {}", waveletName, e.getMessage());
+            return null;
         }
     }
 
     private void checkAndUpdateSettings() {
-        // Get current settings
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, com.prophetizo.wavelets.WaveletType.DAUBECHIES4.getDisplayName());
-
+        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, "db4");
+        
         // Check if settings have changed
         boolean settingsChanged = !waveletTypeStr.equals(lastWaveletType);
 
-        if (settingsChanged || analyzer == null) {
-            updateTradingServices();
-
-            // Update tracked values
+        if (settingsChanged || currentWavelet == null) {
+            updateWaveletComponents(waveletTypeStr);
             lastWaveletType = waveletTypeStr;
-
-            logger.debug("Settings changed - updated trading services");
         }
     }
 
-    private void updateTradingServices() {
-        try {
-            // Get wavelet type from settings
-            String waveletTypeStr = getSettings().getString(WAVELET_TYPE, com.prophetizo.wavelets.WaveletType.DAUBECHIES4.getDisplayName());
+    private void updateWaveletComponents(String waveletName) {
+        // Validate wavelet is available
+        if (!WaveletRegistry.isWaveletAvailable(waveletName)) {
+            logger.warn("Requested wavelet {} not available, keeping current", waveletName);
+            return;
+        }
+        
+        DiscreteWavelet newWavelet = getOrCreateDiscreteWavelet(waveletName);
+        
+        if (newWavelet != null) {
+            currentWavelet = newWavelet;
+            currentWaveletName = waveletName;
             
-            // Map to VectorWave wavelet name
-            String vectorWaveType = WaveletConfigHelper.mapWaveletType(waveletTypeStr);
-            
-            // Create new analyzer with updated configuration
-            TradingWaveletFactory factory = TradingWaveletFactory.getInstance();
-            this.analyzer = factory.createAnalyzer(vectorWaveType);
-            
-            // Update configuration
-            this.config = new WaveletConfigHelper.TradingConfig(
-                vectorWaveType, 5, DenoiseStrategy.BALANCED, TradingStyle.DAY_TRADING
-            );
-
-            logger.debug("Updated trading services with wavelet type: {} -> {}", waveletTypeStr, vectorWaveType);
-        } catch (Exception e) {
-            logger.error("Failed to update trading services", e);
+            // Recreate transform with new wavelet
+            modwtTransform = MODWTTransformFactory.createMultiLevel(currentWavelet, BoundaryMode.PERIODIC);
+            logger.info("Updated to wavelet: {}", waveletName);
+        } else {
+            logger.error("Failed to update to wavelet: {}", waveletName);
         }
     }
 
-    // parseWaveletType method removed - now using WaveletType.parse() from shared enum
-
-    /**
-     * Called when the study is activated on a chart or instrument.
-     * This is a good place to perform any setup or logging needed when the study starts.
-     *
-     * @param ctx The order context associated with the activation event.
-     */
     @Override
     public void onActivate(OrderContext ctx) {
-        logger.debug("Activating Wavelets");
-        updateTradingServices();
+        logger.debug("Activating Wavelets study");
+        checkAndUpdateSettings();
     }
 
     @Override
     public void onLoad(Defaults defaults) {
-        logger.debug("Wavelets onLoad called - bar type or settings may have changed");
+        logger.debug("Wavelets onLoad called");
         
-        // Ensure trading services are initialized when study loads
-        if (analyzer == null) {
-            initializeTradingServices();
+        // Log registry status
+        int totalWavelets = WaveletRegistry.getAvailableWavelets().size();
+        logger.info("WaveletRegistry has {} wavelets available", totalWavelets);
+        
+        // Ensure components are initialized
+        if (modwtTransform == null) {
+            initializeDefaultWavelet();
         }
         
-        // Update configuration for the current bar size
-        if (defaults != null) {
-            // Use reflection to avoid direct dependency on MotiveWave SDK in core
-            this.config = WaveletConfigHelper.fromMotiveWaveSettings(getSettings(), defaults);
-            logger.debug("Updated configuration for bar size context");
-        }
-        
-        // Update tracked settings to ensure proper recalculation
-        lastWaveletType = null; // Force settings check on next calculate
+        // Force settings check on next calculate
+        lastWaveletType = null;
     }
 
-    /**
-     * This method is called when the study is first loaded or when its settings change.
-     * Returns the minimum number of bars required for calculation.
-     */
     @Override
     public int getMinBars(DataContext ctx, BarSize bs) {
         return getSettings().getInteger(LOOKBACK_PERIOD, 512);
     }
 
-    /**
-     * Performs the main calculation for the Wavelets study.
-     * <p>
-     * For each bar (at the given index), this method:
-     * 1. Gets the manually configured decomposition level and lookback period from settings.
-     * 2. Collects the required number of closing prices, handling missing values by carrying forward the last valid price.
-     * 3. Runs the MODWT (Maximal Overlap Discrete Wavelet Transform) using the configured wavelet.
-     * 4. Extracts and plots the latest coefficients for each decomposition level that is active.
-     * <p>
-     * Any exceptions during calculation are logged for debugging.
-     *
-     * @param index The current bar index for which to perform calculations.
-     * @param ctx   The data context providing access to chart data and settings.
-     */
     @Override
     protected void calculate(int index, DataContext ctx) {
+        // Skip if not ready
+        if (modwtTransform == null || currentWavelet == null) {
+            logger.trace("Not ready, skipping calculation at index {}", index);
+            return;
+        }
+        
         try {
-            // Check if settings have changed and update components if needed
+            // Check if settings have changed
             checkAndUpdateSettings();
 
-            // Get manually configured parameters
+            // Get parameters
             int decompositionLevels = getSettings().getInteger(DECOMPOSITION_LEVELS, 5);
             int lookbackPeriod = getSettings().getInteger(LOOKBACK_PERIOD, 512);
 
@@ -249,9 +351,9 @@ public class Wavelets extends Study {
                 return;
             }
 
+            // Collect price data
             double[] closingPrices = new double[lookbackPeriod];
             double lastValidPrice = dataSeries.getClose(index - lookbackPeriod + 1);
-            int nullCloseCount = 0;
 
             for (int i = 0; i < lookbackPeriod; i++) {
                 int barIndex = index - (lookbackPeriod - 1) + i;
@@ -262,51 +364,54 @@ public class Wavelets extends Study {
                     lastValidPrice = close;
                 } else {
                     closingPrices[i] = lastValidPrice;
-                    nullCloseCount++; // Increment counter for null values
                 }
             }
 
-            if (nullCloseCount > 0) {
-                logger.warn("Encountered {} null close prices during lookback period, using previous price of {}",
-                        nullCloseCount, lastValidPrice);
-            }
-
-            // Modern VectorWave-based analysis
-            if (analyzer == null) {
-                logger.warn("Trading analyzer not initialized, initializing now");
-                initializeTradingServices();
-                if (analyzer == null) {
-                    logger.error("Failed to initialize analyzer, skipping calculation");
-                    return;
-                }
+            // Perform MODWT decomposition
+            MultiLevelMODWTResult result = modwtTransform.decompose(closingPrices, decompositionLevels);
+            
+            // Check if result is valid
+            if (result == null || !result.isValid()) {
+                logger.error("MODWT decomposition failed or returned invalid result");
+                return;
             }
             
-            // Perform comprehensive trading analysis
-            TradingAnalysisResult analysis = analyzer.analyzePriceAction(closingPrices, decompositionLevels);
-            
-            // Extract detail signals for each level (manual study shows raw coefficients)
+            // Extract and plot detail coefficients for each level
+            // NOTE: VectorWave uses 1-based indexing for levels
             for (int level = 0; level < decompositionLevels && level < MAX_DECOMPOSITION_LEVELS; level++) {
-                Paths valueKey = Paths.values()[level];
-                double signalValue = analysis.getDetailSignalAtLevel(level);
-                dataSeries.setDouble(index, valueKey, signalValue);
+                double[] coeffs = result.getDetailCoeffsAtLevel(level + 1); // VectorWave uses 1-based indexing
+                
+                if (coeffs != null && coeffs.length > 0) {
+                    // Get the latest coefficient
+                    double signalValue = coeffs[coeffs.length - 1];
+                    
+                    Paths valueKey = Paths.values()[level];
+                    dataSeries.setDouble(index, valueKey, signalValue);
+                } else {
+                    Paths valueKey = Paths.values()[level];
+                    dataSeries.setDouble(index, valueKey, Double.NaN);
+                }
             }
 
-            // Clear any unused higher levels to avoid stale data
+            // Clear any unused higher levels
             for (int level = decompositionLevels; level < MAX_DECOMPOSITION_LEVELS; level++) {
                 Paths valueKey = Paths.values()[level];
                 dataSeries.setDouble(index, valueKey, Double.NaN);
             }
 
-            logger.trace("Calculated wavelets at index {} with {} levels and {} lookback",
-                    index, decompositionLevels, lookbackPeriod);
+            logger.trace("Calculated wavelets at index {} with {} levels using {}", 
+                        index, decompositionLevels, currentWaveletName);
 
         } catch (Exception e) {
             logger.error("Error during wavelet calculation at index {}", index, e);
+            
+            // Clear all levels on error
+            for (int level = 0; level < MAX_DECOMPOSITION_LEVELS; level++) {
+                Paths valueKey = Paths.values()[level];
+                ctx.getDataSeries().setDouble(index, valueKey, Double.NaN);
+            }
         }
     }
 
-    // WaveletType enum has been moved to com.prophetizo.wavelets.WaveletType
-
-    // Enums for calculated values and settings keys
     enum Paths {D1, D2, D3, D4, D5, D6, D7}
 }

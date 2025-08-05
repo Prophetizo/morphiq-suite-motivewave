@@ -283,7 +283,8 @@ public class TradingWaveletAnalyzer {
     private boolean detectSpikes(MultiLevelMODWTResult result) {
         try {
             // Check for unusual coefficient values in high-frequency components
-            double[] d1Coeffs = result.getDetailCoeffsAtLevel(0);
+            // VectorWave uses 1-based indexing for levels
+            double[] d1Coeffs = result.getDetailCoeffsAtLevel(1);
             if (d1Coeffs == null || d1Coeffs.length == 0) return false;
             
             double mean = 0.0;
@@ -356,7 +357,8 @@ public class TradingWaveletAnalyzer {
             double[][] coeffMatrix = new double[levels][signalLength];
             
             for (int level = 0; level < levels; level++) {
-                double[] coeffs = result.getDetailCoeffsAtLevel(level);
+                // VectorWave uses 1-based indexing for levels
+                double[] coeffs = result.getDetailCoeffsAtLevel(level + 1);
                 if (coeffs != null && coeffs.length == signalLength) {
                     System.arraycopy(coeffs, 0, coeffMatrix[level], 0, signalLength);
                 }

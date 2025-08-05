@@ -215,16 +215,12 @@ public class TradingWaveletFactory {
                 java.util.Set<String> available = WaveletRegistry.getAvailableWavelets();
                 logger.info("Available wavelets from VectorWave: {}", available);
                 
-                // Log some wavelet info for common types
+                // Log availability of common wavelet types
                 for (String waveletName : java.util.Arrays.asList("haar", "db4", "sym4")) {
                     if (available.contains(waveletName)) {
-                        try {
-                            var info = WaveletRegistry.getWaveletInfo(waveletName);
-                            logger.info("Wavelet '{}' - Family: {}, Order: {}", 
-                                waveletName, info.getFamily(), info.getOrder());
-                        } catch (Exception e) {
-                            logger.debug("Could not get info for wavelet '{}'", waveletName);
-                        }
+                        logger.info("Wavelet '{}' is available", waveletName);
+                    } else {
+                        logger.debug("Wavelet '{}' is not available", waveletName);
                     }
                 }
             } catch (Exception e) {

@@ -81,7 +81,8 @@ public class TradingAnalysisResult {
                 return 0.0;
             }
             
-            double[] coeffs = modwtResult.getDetailCoeffsAtLevel(level);
+            // VectorWave uses 1-based indexing for levels
+            double[] coeffs = modwtResult.getDetailCoeffsAtLevel(level + 1);
             if (coeffs == null || coeffs.length == 0) {
                 logger.warn("No coefficients available at level {}, returning 0", level);
                 return 0.0;
