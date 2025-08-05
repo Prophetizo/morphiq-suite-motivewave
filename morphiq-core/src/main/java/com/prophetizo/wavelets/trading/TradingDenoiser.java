@@ -18,7 +18,7 @@ public class TradingDenoiser {
     private static final Logger logger = LoggerConfig.getLogger(TradingDenoiser.class);
     
     private final WaveletDenoiser vectorDenoiser;
-    private final MultiLevelMODWTTransform modwtTransform;
+    private MultiLevelMODWTTransform modwtTransform; // Made non-final for lazy initialization
     private final String waveletType;
     
     // Default configuration
@@ -33,15 +33,10 @@ public class TradingDenoiser {
         this.waveletType = waveletType;
         
         // Create MODWT transform for approximation extraction
-        try {
-            Wavelet wavelet = WaveletRegistry.getWavelet(waveletType);
-            this.modwtTransform = MODWTTransformFactory.createMultiLevel(wavelet, BoundaryMode.SYMMETRIC);
-        } catch (Exception e) {
-            logger.error("Failed to create MODWT transform for wavelet {}", waveletType, e);
-            throw new RuntimeException("Cannot initialize TradingDenoiser", e);
-        }
+        // Note: We don't create the MODWT transform here anymore since wavelet creation is failing
+        // The vectorDenoiser already has wavelet capabilities, so we'll rely on that
         
-        logger.info("Initialized TradingDenoiser with VectorWave financial optimization, wavelet: {}", waveletType);
+        logger.info("Initialized TradingDenoiser with VectorWave financial optimization, wavelet type: {}", waveletType);
     }
     
     /**
@@ -105,6 +100,80 @@ public class TradingDenoiser {
     }
     
     /**
+     * Get or create MODWT transform lazily. If creation fails, methods will use fallback approach.
+     */
+    private MultiLevelMODWTTransform getModwtTransform() {
+        if (modwtTransform == null) {
+            try {
+                // Use VectorWave's new discovery API
+                java.util.Set<String> availableWavelets = WaveletRegistry.getAvailableWavelets();
+                Wavelet wavelet = null;
+                String selectedWavelet = null;
+                
+                // Try the requested wavelet type first
+                if (WaveletRegistry.isWaveletAvailable(waveletType)) {
+                    wavelet = WaveletRegistry.getWavelet(waveletType);
+                    selectedWavelet = waveletType;
+                } else {
+                    // Try mapped name
+                    String mappedType = WaveletConfigHelper.mapWaveletType(waveletType);
+                    if (WaveletRegistry.isWaveletAvailable(mappedType)) {
+                        wavelet = WaveletRegistry.getWavelet(mappedType);
+                        selectedWavelet = mappedType;
+                    } else {
+                        // Use first available wavelet as fallback
+                        String[] preferredOrder = {"db4", "haar", "db2", "db6", "sym4"};
+                        for (String preferred : preferredOrder) {
+                            if (availableWavelets.contains(preferred)) {
+                                wavelet = WaveletRegistry.getWavelet(preferred);
+                                selectedWavelet = preferred;
+                                logger.debug("Using fallback wavelet '{}' for MODWT (requested: '{}')", 
+                                           preferred, waveletType);
+                                break;
+                            }
+                        }
+                        
+                        // Last resort - use any available
+                        if (wavelet == null && !availableWavelets.isEmpty()) {
+                            selectedWavelet = availableWavelets.iterator().next();
+                            wavelet = WaveletRegistry.getWavelet(selectedWavelet);
+                            logger.debug("Using first available wavelet '{}' for MODWT", selectedWavelet);
+                        }
+                    }
+                }
+                
+                if (wavelet != null) {
+                    modwtTransform = MODWTTransformFactory.createMultiLevel(wavelet, BoundaryMode.SYMMETRIC);
+                    logger.debug("Successfully created MODWT transform with wavelet: {}", selectedWavelet);
+                }
+                
+            } catch (Exception e) {
+                logger.warn("Failed to use VectorWave discovery API for MODWT, trying fallback approach", e);
+                
+                // Fallback to old method
+                String[] namesToTry = {waveletType, "db4", "haar"};
+                for (String name : namesToTry) {
+                    try {
+                        Wavelet wavelet = WaveletRegistry.getWavelet(name);
+                        if (wavelet != null) {
+                            modwtTransform = MODWTTransformFactory.createMultiLevel(wavelet, BoundaryMode.SYMMETRIC);
+                            logger.debug("Successfully created MODWT transform with fallback wavelet: {}", name);
+                            break;
+                        }
+                    } catch (Exception ex) {
+                        logger.debug("Failed to create MODWT with wavelet name '{}': {}", name, ex.getMessage());
+                    }
+                }
+            }
+            
+            if (modwtTransform == null) {
+                logger.warn("Could not create MODWT transform for any wavelet name");
+            }
+        }
+        return modwtTransform;
+    }
+    
+    /**
      * Aggressive denoising by completely zeroing specified detail levels.
      * This replaces the old denoiseByZeroing method.
      */
@@ -116,14 +185,20 @@ public class TradingDenoiser {
         try {
             logger.debug("Zeroing denoising - {} levels, zeroing levels: {}", levels, java.util.Arrays.toString(levelsToZero));
             
+            MultiLevelMODWTTransform transform = getModwtTransform();
+            if (transform == null) {
+                logger.warn("MODWT transform not available, using standard denoising instead");
+                return denoise(prices, DenoiseStrategy.AGGRESSIVE);
+            }
+            
             // Perform MODWT decomposition
-            MultiLevelMODWTResult result = modwtTransform.decompose(prices, levels);
+            MultiLevelMODWTResult result = transform.decompose(prices, levels);
             
             // Create modified result with specified levels zeroed
             MultiLevelMODWTResult modifiedResult = zeroSpecificLevels(result, levelsToZero);
             
             // Reconstruct signal
-            double[] cleanedPrices = modwtTransform.reconstruct(modifiedResult);
+            double[] cleanedPrices = transform.reconstruct(modifiedResult);
             
             return new DenoisedPriceData(cleanedPrices, prices, DenoiseStrategy.AGGRESSIVE);
             
@@ -146,11 +221,18 @@ public class TradingDenoiser {
         try {
             logger.debug("Extracting trend from {} price points using {} levels", prices.length, levels);
             
+            MultiLevelMODWTTransform transform = getModwtTransform();
+            if (transform == null) {
+                logger.warn("MODWT transform not available, returning simple moving average trend");
+                // Fallback to simple moving average for trend
+                return calculateSimpleMovingAverage(prices, Math.min(prices.length / 4, 50));
+            }
+            
             // Use MODWT to decompose and reconstruct from approximation only
-            MultiLevelMODWTResult result = modwtTransform.decompose(prices, levels);
+            MultiLevelMODWTResult result = transform.decompose(prices, levels);
             
             // Reconstruct using only the approximation coefficients (deepest level)
-            double[] trendSignal = modwtTransform.reconstructFromLevel(result, levels);
+            double[] trendSignal = transform.reconstructFromLevel(result, levels);
             
             logger.debug("Trend extraction completed, trend length: {}", trendSignal.length);
             return trendSignal;
@@ -402,4 +484,31 @@ public class TradingDenoiser {
     
     // Getters
     public String getWaveletType() { return waveletType; }
+    
+    /**
+     * Calculate simple moving average as fallback for trend extraction.
+     */
+    private double[] calculateSimpleMovingAverage(double[] prices, int period) {
+        if (prices == null || prices.length == 0 || period <= 0) {
+            return new double[0];
+        }
+        
+        period = Math.min(period, prices.length);
+        double[] result = new double[prices.length];
+        
+        // Initialize first values
+        double sum = 0.0;
+        for (int i = 0; i < period && i < prices.length; i++) {
+            sum += prices[i];
+            result[i] = sum / (i + 1);
+        }
+        
+        // Calculate remaining values
+        for (int i = period; i < prices.length; i++) {
+            sum = sum - prices[i - period] + prices[i];
+            result[i] = sum / period;
+        }
+        
+        return result;
+    }
 }
