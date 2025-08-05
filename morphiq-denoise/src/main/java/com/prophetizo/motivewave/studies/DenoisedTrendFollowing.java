@@ -9,10 +9,7 @@ import com.motivewave.platform.sdk.study.StudyHeader;
 import com.motivewave.platform.sdk.study.Plot;
 import com.prophetizo.LoggerConfig;
 import com.prophetizo.motivewave.common.StudyUIHelper;
-import com.prophetizo.wavelets.WaveletAnalyzer;
-import com.prophetizo.wavelets.WaveletAnalyzerFactory;
-import com.prophetizo.wavelets.WaveletDenoiser;
-import com.prophetizo.wavelets.WaveletType;
+import com.prophetizo.wavelets.trading.*;
 import org.slf4j.Logger;
 
 import java.awt.*;
@@ -49,14 +46,13 @@ public class DenoisedTrendFollowing extends Study {
 
     private static final Logger logger = LoggerConfig.getLogger(DenoisedTrendFollowing.class);
 
-    private WaveletAnalyzer waveletAnalyzer;
-    private WaveletDenoiser denoiser;
+    // Modern VectorWave-based services
+    private TradingDenoiser denoiser;
+    private WaveletConfigHelper.TradingConfig config;
 
     // Track settings to detect changes
-    private String lastNoiseLevels = null;
-    private String lastThresholdType = null;
-    private double lastThresholdMultiplier = -1;
     private String lastWaveletType = null;
+    private String lastDenoiseStrategy = null;
 
     // WaveletType enum has been moved to com.prophetizo.wavelets.WaveletType
 
@@ -73,25 +69,21 @@ public class DenoisedTrendFollowing extends Study {
 
         SettingGroup waveletGroup = generalTab.addGroup("Wavelet Configuration");
         
-        // Use helper to create wavelet options for noise reduction
-        List<NVP> waveletOptions = StudyUIHelper.createWaveletOptionsForUseCase(
-                WaveletAnalyzerFactory.UseCase.NOISE_REDUCTION);
+        // Use helper to create wavelet options - show all for denoising analysis
+        List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
         
         waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE,
-                WaveletType.DAUBECHIES6.getDisplayName(), waveletOptions));
+                com.prophetizo.wavelets.WaveletType.DAUBECHIES6.getDisplayName(), waveletOptions));
         waveletGroup.addRow(new IntegerDescriptor(DECOMPOSITION_LEVELS, "Decomposition Levels", 5, 1, 8, 1));
         waveletGroup.addRow(new IntegerDescriptor(LOOKBACK_PERIOD, "Lookback Period", 512, 64, 1024, 32));
 
         SettingGroup denoisingGroup = generalTab.addGroup("Denoising Parameters");
         denoisingGroup.addRow(new StringDescriptor(NOISE_LEVELS, "Noise Levels to Remove", "0,1"));
-        denoisingGroup.addRow(new DiscreteDescriptor(THRESHOLD_TYPE, "Denoising Method", "HARD",
+        denoisingGroup.addRow(new DiscreteDescriptor("DENOISE_STRATEGY", "Denoising Strategy", "BALANCED",
                 Arrays.asList(
-                        new NVP("ZERO", "Zero Out Coefficients"),
-                        new NVP("HARD", "Hard Threshold"),
-                        new NVP("SOFT", "Soft Threshold"),
-                        new NVP("ADAPTIVE_HARD", "Adaptive Hard Threshold"),
-                        new NVP("ADAPTIVE_SOFT", "Adaptive Soft Threshold"))));
-        denoisingGroup.addRow(new DoubleDescriptor(THRESHOLD_MULTIPLIER, "Threshold Multiplier", 0.1, 0.01, 2.0, 0.01));
+                        new NVP("CONSERVATIVE", "Conservative - Preserve most signal"),
+                        new NVP("BALANCED", "Balanced - Good compromise"),
+                        new NVP("AGGRESSIVE", "Aggressive - Maximum noise reduction"))));
 
         SettingTab displayTab = settings.addTab("Display");
 
@@ -132,102 +124,108 @@ public class DenoisedTrendFollowing extends Study {
         noisePlot.setRangeKeys(Values.NOISE_PANE);
         noisePlot.addHorizontalLine(new LineInfo(0.0, null, 1.0f, new float[]{3, 3}));
 
-        // Initialize components
-        initializeWaveletComponents();
+        // Initialize modern trading services
+        initializeTradingServices();
     }
 
-    private void initializeWaveletComponents() {
-        // Initialize with default settings - will be updated in onSettingsUpdated
-        this.waveletAnalyzer = WaveletAnalyzerFactory.create(WaveletType.DAUBECHIES6);
-        this.denoiser = new WaveletDenoiser(waveletAnalyzer);
+    private void initializeTradingServices() {
+        try {
+            // Initialize with default configuration - will be updated when settings change
+            TradingWaveletFactory factory = TradingWaveletFactory.getInstance();
+            
+            // Validate VectorWave integration
+            if (!factory.validateVectorWaveIntegration()) {
+                logger.error("VectorWave integration validation failed");
+                return;
+            }
+            
+            // Create default config for denoising
+            this.config = WaveletConfigHelper.forTradingStyle(
+                TradingStyle.DAY_TRADING, null // Will be set properly in onLoad
+            );
+            
+            // Create denoiser with default wavelet
+            this.denoiser = factory.createDenoiser("db6");
+            
+            logger.info("Initialized modern trading services for denoising with VectorWave");
+        } catch (Exception e) {
+            logger.error("Failed to initialize trading services for denoising", e);
+        }
     }
 
     @Override
     public void onActivate(OrderContext ctx) {
         logger.debug("Activating Denoised Trend Following");
-        updateWaveletComponents();
+        updateTradingServices();
     }
 
     @Override
     public void onLoad(Defaults defaults) {
         logger.debug("DenoisedTrendFollowing onLoad called - bar type or settings may have changed");
-        // Ensure components are initialized when study loads
-        if (waveletAnalyzer == null || denoiser == null) {
-            initializeWaveletComponents();
+        
+        // Ensure trading services are initialized when study loads
+        if (denoiser == null) {
+            initializeTradingServices();
         }
+        
+        // Update configuration for the current bar size
+        if (defaults != null) {
+            // Use reflection to avoid direct dependency on MotiveWave SDK in core
+            this.config = WaveletConfigHelper.fromMotiveWaveSettings(getSettings(), defaults);
+            logger.debug("Updated configuration for bar size context");
+        }
+        
         // Clear tracked settings to force update on next calculate
-        lastNoiseLevels = null;
-        lastThresholdType = null;
-        lastThresholdMultiplier = -1;
         lastWaveletType = null;
+        lastDenoiseStrategy = null;
     }
 
     private void checkAndUpdateSettings() {
         // Get current settings
-        String noiseLevelsStr = getSettings().getString(NOISE_LEVELS, "0,1");
-        String thresholdTypeStr = getSettings().getString(THRESHOLD_TYPE, "HARD");
-        double thresholdMultiplier = getSettings().getDouble(THRESHOLD_MULTIPLIER, 0.1);
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES6.toString());
+        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, com.prophetizo.wavelets.WaveletType.DAUBECHIES6.getDisplayName());
+        String denoiseStrategyStr = getSettings().getString("DENOISE_STRATEGY", "BALANCED");
 
-        // Check if any settings have changed
-        boolean settingsChanged = !noiseLevelsStr.equals(lastNoiseLevels) ||
-                !thresholdTypeStr.equals(lastThresholdType) ||
-                thresholdMultiplier != lastThresholdMultiplier ||
-                !waveletTypeStr.equals(lastWaveletType);
+        // Check if settings have changed
+        boolean settingsChanged = !waveletTypeStr.equals(lastWaveletType) ||
+                !denoiseStrategyStr.equals(lastDenoiseStrategy);
 
         if (settingsChanged || denoiser == null) {
-            updateWaveletComponents();
+            updateTradingServices();
 
             // Update tracked values
-            lastNoiseLevels = noiseLevelsStr;
-            lastThresholdType = thresholdTypeStr;
-            lastThresholdMultiplier = thresholdMultiplier;
             lastWaveletType = waveletTypeStr;
+            lastDenoiseStrategy = denoiseStrategyStr;
 
-            logger.debug("Settings changed - updated wavelet components");
+            logger.debug("Settings changed - updated trading services");
         }
     }
 
-    private void updateWaveletComponents() {
-        // Get wavelet type from settings
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES6.getDisplayName());
-        this.waveletAnalyzer = WaveletAnalyzerFactory.create(waveletTypeStr);
-
-        // Update denoiser configuration from settings
-        this.denoiser = new WaveletDenoiser(waveletAnalyzer);
-
-        // Get settings values
-        String noiseLevelsStr = getSettings().getString(NOISE_LEVELS, "0,1");
-        String thresholdTypeStr = getSettings().getString(THRESHOLD_TYPE, "HARD");
-        double thresholdMultiplier = getSettings().getDouble(THRESHOLD_MULTIPLIER, 0.1);
-
-        // Parse noise levels first as they're always needed
-        int[] noiseLevels = parseNoiseLevels(noiseLevelsStr);
-        denoiser.setNoiseLevels(noiseLevels);
-        
-        // Only configure thresholding parameters if not using ZERO method
-        if (!"ZERO".equals(thresholdTypeStr)) {
-            // Parse threshold type and determine if adaptive
-            boolean useAdaptiveCalculation = thresholdTypeStr.startsWith("ADAPTIVE_");
-            WaveletDenoiser.ThresholdType thresholdType;
-
-            if (thresholdTypeStr.equals("HARD") || thresholdTypeStr.equals("ADAPTIVE_HARD")) {
-                thresholdType = WaveletDenoiser.ThresholdType.HARD;
-            } else if (thresholdTypeStr.equals("SOFT") || thresholdTypeStr.equals("ADAPTIVE_SOFT")) {
-                thresholdType = WaveletDenoiser.ThresholdType.SOFT;
-            } else {
-                // Default to soft thresholding
-                thresholdType = WaveletDenoiser.ThresholdType.SOFT;
-                logger.warn("Unknown threshold type '{}', defaulting to SOFT", thresholdTypeStr);
-            }
+    private void updateTradingServices() {
+        try {
+            // Get wavelet type and strategy from settings
+            String waveletTypeStr = getSettings().getString(WAVELET_TYPE, com.prophetizo.wavelets.WaveletType.DAUBECHIES6.getDisplayName());
+            String strategyStr = getSettings().getString("DENOISE_STRATEGY", "BALANCED");
             
-            denoiser.setThresholdType(thresholdType);
-            denoiser.setThresholdMultiplier(thresholdMultiplier);
-            denoiser.setAdaptiveThresholding(useAdaptiveCalculation);
-        }
+            // Map to VectorWave wavelet name
+            String vectorWaveType = WaveletConfigHelper.mapWaveletType(waveletTypeStr);
+            
+            // Parse denoise strategy
+            DenoiseStrategy strategy = WaveletConfigHelper.parseDenoiseStrategy(strategyStr);
+            
+            // Create new denoiser with updated configuration
+            TradingWaveletFactory factory = TradingWaveletFactory.getInstance();
+            this.denoiser = factory.createDenoiser(vectorWaveType);
+            
+            // Update configuration
+            this.config = new WaveletConfigHelper.TradingConfig(
+                vectorWaveType, 5, strategy, TradingStyle.DAY_TRADING
+            );
 
-        logger.debug("Updated wavelet components with {} noise levels, method: {}, wavelet type: {}",
-                noiseLevels.length, thresholdTypeStr, waveletTypeStr);
+            logger.debug("Updated trading services with wavelet: {} -> {}, strategy: {}", 
+                        waveletTypeStr, vectorWaveType, strategy);
+        } catch (Exception e) {
+            logger.error("Failed to update trading services", e);
+        }
     }
 
     private int[] parseNoiseLevels(String noiseLevelsStr) {
@@ -285,29 +283,31 @@ public class DenoisedTrendFollowing extends Study {
                 }
             }
 
-            // TODO: Replace with VectorWave implementation
-            // Get approximation (smooth trend)
-            // double[] approximationPrices = denoiser.getApproximation(prices, decompositionLevels);
-            // double latestApproximation = approximationPrices[approximationPrices.length - 1];
-            double[] approximationPrices = new double[prices.length];
-            System.arraycopy(prices, 0, approximationPrices, 0, prices.length);
+            // Modern VectorWave-based denoising
+            if (denoiser == null) {
+                logger.warn("Trading denoiser not initialized, initializing now");
+                initializeTradingServices();
+                if (denoiser == null) {
+                    logger.error("Failed to initialize denoiser, skipping calculation");
+                    return;
+                }
+            }
+            
+            // Get denoise strategy from configuration
+            DenoiseStrategy strategy = config != null ? config.getStrategy() : DenoiseStrategy.BALANCED;
+            
+            // Perform comprehensive denoising with VectorWave
+            DenoisedPriceData denoisedResult = denoiser.denoise(prices, strategy);
+            
+            // Extract trend (approximation) using VectorWave
+            double[] approximationPrices = denoiser.extractTrend(prices, decompositionLevels);
+            
+            double[] denoisedPrices = denoisedResult.getCleanedPrices();
             double latestApproximation = approximationPrices[approximationPrices.length - 1];
             
-            // Perform denoising
-            String thresholdTypeStr = getSettings().getString(THRESHOLD_TYPE, "HARD");
-            double[] denoisedPrices;
-            
-            // TODO: Replace with VectorWave implementation
-            if ("ZERO".equals(thresholdTypeStr)) {
-                // Use the zero-out method for complete removal of specified levels
-                // denoisedPrices = denoiser.denoiseByZeroing(prices, decompositionLevels);
-                denoisedPrices = new double[prices.length];
-                System.arraycopy(prices, 0, denoisedPrices, 0, prices.length);
-            } else {
-                // Use traditional thresholding methods
-                // denoisedPrices = denoiser.denoise(prices, decompositionLevels);
-                denoisedPrices = new double[prices.length];
-                System.arraycopy(prices, 0, denoisedPrices, 0, prices.length);
+            // Log quality information
+            if (denoisedResult.isHighQuality()) {
+                logger.debug("High-quality denoising achieved: {}", denoisedResult.getQualityAssessment());
             }
 
             // Get the latest denoised value

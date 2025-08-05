@@ -8,9 +8,7 @@ import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
 import com.prophetizo.LoggerConfig;
 import com.prophetizo.motivewave.common.StudyUIHelper;
-import com.prophetizo.wavelets.WaveletAnalyzer;
-import com.prophetizo.wavelets.WaveletAnalyzerFactory;
-import com.prophetizo.wavelets.WaveletType;
+import com.prophetizo.wavelets.trading.*;
 import org.slf4j.Logger;
 
 import java.awt.*;
@@ -53,7 +51,10 @@ public class Wavelets extends Study {
         }
     }
 
-    private WaveletAnalyzer waveletAnalyzer;
+    // Modern VectorWave-based services
+    private TradingWaveletAnalyzer analyzer;
+    private WaveletConfigHelper.TradingConfig config;
+    
     // Track settings to detect changes
     private String lastWaveletType = null;
 
@@ -73,7 +74,7 @@ public class Wavelets extends Study {
         List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
         
         waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE,
-                WaveletType.DAUBECHIES4.getDisplayName(), waveletOptions));
+                com.prophetizo.wavelets.WaveletType.DAUBECHIES4.getDisplayName(), waveletOptions));
         waveletGroup.addRow(new IntegerDescriptor(DECOMPOSITION_LEVELS, "Decomposition Levels", 5, 1, MAX_DECOMPOSITION_LEVELS, 1));
         waveletGroup.addRow(new IntegerDescriptor(LOOKBACK_PERIOD, "Lookback Period", 512, 64, 2048, 32));
 
@@ -105,40 +106,73 @@ public class Wavelets extends Study {
         // Add white dashed line at zero
         runtimeDescriptor.addHorizontalLine(new LineInfo(0.0, null, 1.0f, new float[]{3, 3}));
 
-        // Initialize wavelet analyzer with default settings
-        initializeWaveletAnalyzer();
+        // Initialize modern trading services with default configuration
+        initializeTradingServices();
     }
 
-    private void initializeWaveletAnalyzer() {
-        // Initialize with default settings - will be updated when settings change
-        this.waveletAnalyzer = WaveletAnalyzerFactory.create(WaveletType.DAUBECHIES4);
+    private void initializeTradingServices() {
+        try {
+            // Initialize with default configuration - will be updated when settings change
+            TradingWaveletFactory factory = TradingWaveletFactory.getInstance();
+            
+            // Validate VectorWave integration
+            if (!factory.validateVectorWaveIntegration()) {
+                logger.error("VectorWave integration validation failed");
+                return;
+            }
+            
+            // Create default config
+            this.config = WaveletConfigHelper.forTradingStyle(
+                TradingStyle.DAY_TRADING, null // Will be set properly in onLoad
+            );
+            
+            // Create analyzer with default wavelet
+            this.analyzer = factory.createAnalyzer("db4");
+            
+            logger.info("Initialized modern trading services with VectorWave");
+        } catch (Exception e) {
+            logger.error("Failed to initialize trading services", e);
+        }
     }
 
     private void checkAndUpdateSettings() {
         // Get current settings
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES4.getDisplayName());
+        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, com.prophetizo.wavelets.WaveletType.DAUBECHIES4.getDisplayName());
 
         // Check if settings have changed
         boolean settingsChanged = !waveletTypeStr.equals(lastWaveletType);
 
-        if (settingsChanged || waveletAnalyzer == null) {
-            updateWaveletAnalyzer();
+        if (settingsChanged || analyzer == null) {
+            updateTradingServices();
 
             // Update tracked values
             lastWaveletType = waveletTypeStr;
 
-            logger.debug("Settings changed - updated wavelet analyzer");
+            logger.debug("Settings changed - updated trading services");
         }
     }
 
-    private void updateWaveletAnalyzer() {
-        // Get wavelet type from settings
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, WaveletType.DAUBECHIES4.getDisplayName());
-        
-        // Update analyzer using factory
-        this.waveletAnalyzer = WaveletAnalyzerFactory.create(waveletTypeStr);
+    private void updateTradingServices() {
+        try {
+            // Get wavelet type from settings
+            String waveletTypeStr = getSettings().getString(WAVELET_TYPE, com.prophetizo.wavelets.WaveletType.DAUBECHIES4.getDisplayName());
+            
+            // Map to VectorWave wavelet name
+            String vectorWaveType = WaveletConfigHelper.mapWaveletType(waveletTypeStr);
+            
+            // Create new analyzer with updated configuration
+            TradingWaveletFactory factory = TradingWaveletFactory.getInstance();
+            this.analyzer = factory.createAnalyzer(vectorWaveType);
+            
+            // Update configuration
+            this.config = new WaveletConfigHelper.TradingConfig(
+                vectorWaveType, 5, DenoiseStrategy.BALANCED, TradingStyle.DAY_TRADING
+            );
 
-        logger.debug("Updated wavelet analyzer with wavelet type: {}", waveletTypeStr);
+            logger.debug("Updated trading services with wavelet type: {} -> {}", waveletTypeStr, vectorWaveType);
+        } catch (Exception e) {
+            logger.error("Failed to update trading services", e);
+        }
     }
 
     // parseWaveletType method removed - now using WaveletType.parse() from shared enum
@@ -152,16 +186,25 @@ public class Wavelets extends Study {
     @Override
     public void onActivate(OrderContext ctx) {
         logger.debug("Activating Wavelets");
-        updateWaveletAnalyzer();
+        updateTradingServices();
     }
 
     @Override
     public void onLoad(Defaults defaults) {
         logger.debug("Wavelets onLoad called - bar type or settings may have changed");
-        // Ensure wavelet analyzer is initialized when study loads
-        if (waveletAnalyzer == null) {
-            initializeWaveletAnalyzer();
+        
+        // Ensure trading services are initialized when study loads
+        if (analyzer == null) {
+            initializeTradingServices();
         }
+        
+        // Update configuration for the current bar size
+        if (defaults != null) {
+            // Use reflection to avoid direct dependency on MotiveWave SDK in core
+            this.config = WaveletConfigHelper.fromMotiveWaveSettings(getSettings(), defaults);
+            logger.debug("Updated configuration for bar size context");
+        }
+        
         // Update tracked settings to ensure proper recalculation
         lastWaveletType = null; // Force settings check on next calculate
     }
@@ -227,15 +270,25 @@ public class Wavelets extends Study {
                 logger.warn("Encountered {} null close prices during lookback period, using previous price of {}",
                         nullCloseCount, lastValidPrice);
             }
-            // TODO: Replace with VectorWave implementation
-            // double[][] modwtCoefficients = waveletAnalyzer.performForwardMODWT(closingPrices, decompositionLevels);
-            double[][] modwtCoefficients = new double[decompositionLevels][closingPrices.length];
-            int lastCoeffIndex = closingPrices.length - 1;
 
-            // Plot only the levels that are active based on the configured decomposition level
+            // Modern VectorWave-based analysis
+            if (analyzer == null) {
+                logger.warn("Trading analyzer not initialized, initializing now");
+                initializeTradingServices();
+                if (analyzer == null) {
+                    logger.error("Failed to initialize analyzer, skipping calculation");
+                    return;
+                }
+            }
+            
+            // Perform comprehensive trading analysis
+            TradingAnalysisResult analysis = analyzer.analyzePriceAction(closingPrices, decompositionLevels);
+            
+            // Extract detail signals for each level (manual study shows raw coefficients)
             for (int level = 0; level < decompositionLevels && level < MAX_DECOMPOSITION_LEVELS; level++) {
                 Paths valueKey = Paths.values()[level];
-                dataSeries.setDouble(index, valueKey, modwtCoefficients[level][lastCoeffIndex]);
+                double signalValue = analysis.getDetailSignalAtLevel(level);
+                dataSeries.setDouble(index, valueKey, signalValue);
             }
 
             // Clear any unused higher levels to avoid stale data

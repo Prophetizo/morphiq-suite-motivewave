@@ -18,6 +18,11 @@ Morphiq Suite is a collection of advanced wavelet-based trading indicators for t
 
 ### 📖 Reference
 - [Changelog](reference/CHANGELOG.md) - Project version history
+- [Known Issues](reference/KNOWN_ISSUES.md) - Current limitations and workarounds
+- [Wavelet Financial Applications Matrix](reference/WAVELET_FINANCIAL_APPLICATIONS_MATRIX.md) - Wavelet selection guide
+
+### 🗄️ Archive
+- [Archived Documentation](archive/README.md) - Historical documents from VectorWave migration
 
 ## Quick Links
 
@@ -25,11 +30,11 @@ Morphiq Suite is a collection of advanced wavelet-based trading indicators for t
 - **API Reference**: Check the [VectorWave Module Spec](architecture/VECTORWAVE_MODULE_SPEC.md)
 - **Migration Help**: Follow the [Migration Guide](guides/MIGRATION_GUIDE.md)
 
-## VectorWave Documentation
+## Advanced Features
 
-For VectorWave-specific documentation, see the [vectorwave-review](../vectorwave-review/) directory, which contains:
-- Mathematical wavelet properties
-- Performance benchmarks
-- SIMD optimization details
-- Streaming capabilities
-- Denoising algorithms
+The suite includes advanced features powered by VectorWave:
+- **Market Regime Detection**: Automatic detection of trending vs ranging markets
+- **Trading Style Adaptation**: Optimized for scalping, day trading, swing trading, and position trading
+- **Quality Metrics**: Real-time assessment of signal quality and noise reduction
+- **Financial Analysis**: Volatility analysis, anomaly detection, and trend confidence scoring
+- **Custom Wavelets**: Support for ES/NQ microstructure-optimized wavelets (planned)

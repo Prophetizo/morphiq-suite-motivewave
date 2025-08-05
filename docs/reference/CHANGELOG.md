@@ -7,17 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **MAJOR**: Migrated from JWave to VectorWave for high-performance wavelet analysis
+- Complete architecture modernization with service-oriented design
+- Enhanced trading analysis with market regime detection and financial insights
+
 ### Added
-- Comprehensive wavelet capabilities documentation (JWAVE_CAPABILITIES.md)
-- Archive directory for historical documentation
-- 5 new wavelets with JWave 2.0.0:
-  - Haar - Fast breakout detection
-  - Daubechies2 - High-frequency trading
-  - Symlet4 - Day trading momentum detection
-  - Symlet8 - Swing trading trend following
-  - Coiflet3 - Position trading smooth trends
-- WaveletAnalyzerFactory for centralized wavelet creation
-- WaveletOptionsProvider for consistent wavelet selection logic
+- VectorWave-based TradingWaveletFactory with singleton pattern
+- TradingWaveletAnalyzer with comprehensive financial analysis capabilities
+- TradingDenoiser with quality metrics and strategy-based approaches
+- Market regime detection (TRENDING_BULL, TRENDING_BEAR, RANGING, etc.)
+- Trading style adaptation (SCALPING, DAY_TRADING, SWING_TRADING, POSITION_TRADING)
+- Rich domain objects: TradingAnalysisResult, DenoisedPriceData
+- WaveletConfigHelper for MotiveWave settings integration
+- Archive directory for VectorWave migration documentation
+
+### Removed
+- JWave-pro dependency completely removed
+- Obsolete JWave analysis documentation
+- Legacy procedural wavelet processing code
 - StudyUIHelper to eliminate code duplication in UI components
 - Comprehensive unit tests for all wavelets
 - Named constants for all test values in NewWaveletsTest (addresses code review feedback)

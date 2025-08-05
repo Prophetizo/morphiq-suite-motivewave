@@ -80,8 +80,25 @@
                                         <exclude>META-INF/versions/9/module-info.class</exclude>
                                     </excludes>
                                 </filter>
+                                <!-- Ensure only one copy of morphiq-core classes -->
+                                <filter>
+                                    <artifact>ai.prophetizo:morphiq-core</artifact>
+                                    <includes>
+                                        <include>**</include>
+                                    </includes>
+                                </filter>
+                                <!-- Include only needed classes from common -->
+                                <filter>
+                                    <artifact>ai.prophetizo:morphiq-common</artifact>
+                                    <includes>
+                                        <include>**</include>
+                                    </includes>
+                                </filter>
                             </filters>
                             <transformers>
+                                <!-- Handle META-INF/services files -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <!-- Handle manifest -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Implementation-Title>Morphiq Denoise for MotiveWave</Implementation-Title>

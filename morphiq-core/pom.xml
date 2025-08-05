@@ -15,6 +15,11 @@
     <description>Core signal processing, math utilities, and licensing infrastructure</description>
 
     <dependencies>
+        <!-- VectorWave -->
+        <dependency>
+            <groupId>ai.prophetizo</groupId>
+            <artifactId>vector-wave</artifactId>
+        </dependency>
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
