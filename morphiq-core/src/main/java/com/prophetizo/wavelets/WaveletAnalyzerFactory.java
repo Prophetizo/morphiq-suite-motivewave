@@ -32,7 +32,8 @@ public class WaveletAnalyzerFactory {
         }
         
         logger.debug("Creating WaveletAnalyzer with type: {}", type);
-        return new WaveletAnalyzer(type.createWavelet());
+        //return new WaveletAnalyzer(type.createWavelet());
+        return null; // TODO: Implement without jwave
     }
     
     /**

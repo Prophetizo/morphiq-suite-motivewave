@@ -227,7 +227,9 @@ public class Wavelets extends Study {
                 logger.warn("Encountered {} null close prices during lookback period, using previous price of {}",
                         nullCloseCount, lastValidPrice);
             }
-            double[][] modwtCoefficients = waveletAnalyzer.performForwardMODWT(closingPrices, decompositionLevels);
+            // TODO: Replace with VectorWave implementation
+            // double[][] modwtCoefficients = waveletAnalyzer.performForwardMODWT(closingPrices, decompositionLevels);
+            double[][] modwtCoefficients = new double[decompositionLevels][closingPrices.length];
             int lastCoeffIndex = closingPrices.length - 1;
 
             // Plot only the levels that are active based on the configured decomposition level

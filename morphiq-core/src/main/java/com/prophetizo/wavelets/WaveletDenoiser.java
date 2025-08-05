@@ -1,7 +1,7 @@
 package com.prophetizo.wavelets;
 
 import com.prophetizo.LoggerConfig;
-import jwave.transforms.wavelets.Wavelet;
+//import jwave.transforms.wavelets.Wavelet;
 import org.slf4j.Logger;
 import java.util.Arrays;
 
@@ -43,7 +43,7 @@ public class WaveletDenoiser {
      * @param decompositionLevels Number of decomposition levels
      * @return Denoised price series
      */
-    public double[] denoise(double[] prices, int decompositionLevels) {
+    /*public double[] denoise(double[] prices, int decompositionLevels) {
         try {
             logger.debug("Starting denoising process for {} data points, {} levels", 
                 prices.length, decompositionLevels);
@@ -77,7 +77,7 @@ public class WaveletDenoiser {
             logger.error("Error during denoising process", e);
             return prices.clone(); // Return copy of original on error
         }
-    }
+    }*/
     
     /**
      * Simple denoising by completely zeroing out specified noise levels.
@@ -88,7 +88,7 @@ public class WaveletDenoiser {
      * @param decompositionLevels Number of decomposition levels
      * @return Denoised price series
      */
-    public double[] denoiseByZeroing(double[] prices, int decompositionLevels) {
+    /*public double[] denoiseByZeroing(double[] prices, int decompositionLevels) {
         try {
             logger.debug("Starting zero-out denoising for {} data points, {} levels", 
                 prices.length, decompositionLevels);
@@ -122,7 +122,7 @@ public class WaveletDenoiser {
             logger.error("Error during zero-out denoising process", e);
             return prices.clone(); // Return copy of original on error
         }
-    }
+    }*/
     
     /**
      * Apply denoising filters to wavelet coefficients.
@@ -309,9 +309,9 @@ public class WaveletDenoiser {
     /**
      * Perform inverse MODWT to reconstruct the denoised signal.
      */
-    private double[] performInverseMODWT(double[][] coefficients) {
+    /*private double[] performInverseMODWT(double[][] coefficients) {
         return analyzer.performInverseMODWT(coefficients);
-    }
+    }*/
     
     /**
      * Get the approximation (smooth trend) by keeping only the approximation coefficients.
@@ -321,7 +321,7 @@ public class WaveletDenoiser {
      * @param decompositionLevels Number of decomposition levels
      * @return Approximation signal (smoothest trend)
      */
-    public double[] getApproximation(double[] prices, int decompositionLevels) {
+    /*public double[] getApproximation(double[] prices, int decompositionLevels) {
         try {
             logger.debug("Extracting approximation for {} data points, {} levels", 
                 prices.length, decompositionLevels);
@@ -366,7 +366,7 @@ public class WaveletDenoiser {
             logger.error("Error during approximation extraction", e);
             return prices.clone(); // Return copy of original on error
         }
-    }
+    }*/
     
     // Utility methods for statistical calculations
     

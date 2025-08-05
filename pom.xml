@@ -43,12 +43,6 @@
                 <version>${mwave.sdk.version}</version>
                 <scope>provided</scope>
             </dependency>
-            <!-- JWave -->
-            <dependency>
-                <groupId>com.prophetizo</groupId>
-                <artifactId>jwave-pro</artifactId>
-                <version>${jwave.version}</version>
-            </dependency>
             <!-- VectorWave -->
             <dependency>
                 <groupId>ai.prophetizo</groupId>
@@ -147,17 +141,6 @@
         <repository>
             <id>gitlab-maven</id>
             <url>https://gitlab.com/api/v4/projects/63189175/packages/maven</url>
-        </repository>
-        <repository>
-            <id>github-prophetizo-jwave-pro</id>
-            <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/prophetizo/JWave-Pro</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
         </repository>
                 <repository>
             <id>github-prophetizo-vectorwave</id>

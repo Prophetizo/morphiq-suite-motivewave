@@ -281,7 +281,9 @@ public class AutoWavelets extends Study {
                 }
             }
 
-            double[][] modwtCoefficients = waveletAnalyzer.performForwardMODWT(closingPrices, autoDecompositionLevel);
+            // TODO: Replace with VectorWave implementation
+            // double[][] modwtCoefficients = waveletAnalyzer.performForwardMODWT(closingPrices, autoDecompositionLevel);
+            double[][] modwtCoefficients = new double[autoDecompositionLevel][closingPrices.length];
             int lastCoeffIndex = closingPrices.length - 1;
 
             // Dynamically plot only the levels that are active based on the calculated decomposition level

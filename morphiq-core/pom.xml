@@ -15,11 +15,6 @@
     <description>Core signal processing, math utilities, and licensing infrastructure</description>
 
     <dependencies>
-        <!-- JWave -->
-        <dependency>
-            <groupId>com.prophetizo</groupId>
-            <artifactId>jwave-pro</artifactId>
-        </dependency>
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>

@@ -1,11 +1,11 @@
 package com.prophetizo.wavelets;
 
 import com.prophetizo.LoggerConfig;
-import jwave.exceptions.JWaveException;
-import jwave.transforms.MODWTTransform;
-import jwave.transforms.FastWaveletTransform;
-import jwave.transforms.ParallelTransform;
-import jwave.transforms.wavelets.Wavelet;
+//import jwave.exceptions.JWaveException;
+//import jwave.transforms.MODWTTransform;
+//import jwave.transforms.FastWaveletTransform;
+//import jwave.transforms.ParallelTransform;
+//import jwave.transforms.wavelets.Wavelet;
 import org.slf4j.Logger;
 
 public class WaveletAnalyzer {
@@ -16,11 +16,11 @@ public class WaveletAnalyzer {
     private static final int PARALLEL_THREADS = Runtime.getRuntime().availableProcessors();
     
     // It's better to hold a reference to our specific transform type
-    private final MODWTTransform modwtTransform;
+    /*private final MODWTTransform modwtTransform;
     private final FastWaveletTransform fwtTransform;
     private final ParallelTransform parallelTransform;
     private final ParallelTransform parallelFwtTransform;
-    private final Wavelet wavelet;
+    private final Wavelet wavelet;*/
 
     /**
      * Constructor for the WaveletAnalyzer.
@@ -28,7 +28,7 @@ public class WaveletAnalyzer {
      *
      * @param wavelet The mother wavelet to use for the transform (e.g., Daubechies4, Haar, etc.).
      */
-    public WaveletAnalyzer(Wavelet wavelet) {
+    /*public WaveletAnalyzer(Wavelet wavelet) {
         this.wavelet = wavelet;
         this.modwtTransform = new MODWTTransform(wavelet);
         this.fwtTransform = new FastWaveletTransform(wavelet);
@@ -39,7 +39,7 @@ public class WaveletAnalyzer {
         
         logger.info("Initialized WaveletAnalyzer with {} and parallel processing support ({} threads)", 
             wavelet.getName(), PARALLEL_THREADS);
-    }
+    }*/
 
     /**
      * Performs a full forward Maximal Overlap Discrete Wavelet Transform.
@@ -49,7 +49,7 @@ public class WaveletAnalyzer {
      * @param maxLevel The number of decomposition levels.
      * @return A 2D array containing the full set of wavelet coefficients.
      */
-    public double[][] performForwardMODWT(double[] prices, int maxLevel) {
+    /*public double[][] performForwardMODWT(double[] prices, int maxLevel) {
         // JWave 1.0.7-SNAPSHOT optimization: Use parallel processing for large datasets
         if (prices.length >= PARALLEL_THRESHOLD) {
             logger.debug("Using parallel MODWT for {} data points (>= {} threshold)", 
@@ -68,7 +68,7 @@ public class WaveletAnalyzer {
                 prices.length, PARALLEL_THRESHOLD);
             return modwtTransform.forwardMODWT(prices, maxLevel);
         }
-    }
+    }*/
     
     /**
      * Performs an inverse MODWT to reconstruct the signal from coefficients.
@@ -78,7 +78,7 @@ public class WaveletAnalyzer {
      * @param coefficients The wavelet coefficients [level][time]
      * @return Reconstructed signal
      */
-    public double[] performInverseMODWT(double[][] coefficients) {
+    /*public double[] performInverseMODWT(double[][] coefficients) {
         // Use JWave 1.0.7-SNAPSHOT's native inverse MODWT implementation
         logger.debug("Using JWave's inverse MODWT implementation");
         try {
@@ -87,21 +87,21 @@ public class WaveletAnalyzer {
             logger.error("Inverse MODWT failed", e);
             throw new RuntimeException("Failed to perform inverse MODWT", e);
         }
-    }
+    }*/
     
     /**
      * Get the wavelet being used by this analyzer.
      */
-    public Wavelet getWavelet() {
+    /*public Wavelet getWavelet() {
         return wavelet;
-    }
+    }*/
     
     /**
      * Get the name of the wavelet being used.
      */
-    public String getWaveletName() {
+    /*public String getWaveletName() {
         return wavelet.getName();
-    }
+    }*/
     
     /**
      * Perform a standard forward wavelet transform with parallel processing for large datasets.
@@ -110,7 +110,7 @@ public class WaveletAnalyzer {
      * @param data Input data
      * @return Transformed coefficients
      */
-    public double[] forwardTransform(double[] data) {
+    /*public double[] forwardTransform(double[] data) {
         try {
             if (data.length >= PARALLEL_THRESHOLD) {
                 logger.debug("Using parallel forward transform for {} data points", data.length);
@@ -126,7 +126,7 @@ public class WaveletAnalyzer {
             logger.error("Forward transform failed", e);
             throw new RuntimeException("Failed to perform forward transform", e);
         }
-    }
+    }*/
     
     /**
      * Perform a standard reverse wavelet transform with parallel processing for large datasets.
@@ -135,7 +135,7 @@ public class WaveletAnalyzer {
      * @param coefficients Wavelet coefficients
      * @return Reconstructed signal
      */
-    public double[] reverseTransform(double[] coefficients) {
+    /*public double[] reverseTransform(double[] coefficients) {
         try {
             if (coefficients.length >= PARALLEL_THRESHOLD) {
                 logger.debug("Using parallel reverse transform for {} coefficients", coefficients.length);
@@ -151,13 +151,13 @@ public class WaveletAnalyzer {
             logger.error("Reverse transform failed", e);
             throw new RuntimeException("Failed to perform reverse transform", e);
         }
-    }
+    }*/
     
     /**
      * Cleanup method to properly shutdown parallel processing threads.
      * Should be called when the analyzer is no longer needed.
      */
-    public void shutdown() {
+    /*public void shutdown() {
         if (parallelTransform != null) {
             parallelTransform.shutdown();
             logger.info("MODWT parallel transform threads shutdown");
@@ -166,5 +166,5 @@ public class WaveletAnalyzer {
             parallelFwtTransform.shutdown();
             logger.info("FWT parallel transform threads shutdown");
         }
-    }
+    }*/
 }

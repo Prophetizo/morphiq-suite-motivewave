@@ -17,7 +17,6 @@
                 <include>ai.prophetizo:morphiq-autowave</include>
                 <include>ai.prophetizo:morphiq-denoise</include>
                 <include>ai.prophetizo:morphiq-core</include>
-                <include>com.prophetizo:jwave-pro</include>
                 <include>org.slf4j:*</include>
             </includes>
             <unpackOptions>

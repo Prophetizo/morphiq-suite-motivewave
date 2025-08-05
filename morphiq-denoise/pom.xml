@@ -61,7 +61,6 @@
                                 <includes>
                                     <include>ai.prophetizo:morphiq-core</include>
                                     <include>ai.prophetizo:morphiq-common</include>
-                                    <include>com.prophetizo:jwave-pro</include>
                                     <include>org.slf4j:*</include>
                                 </includes>
                             </artifactSet>

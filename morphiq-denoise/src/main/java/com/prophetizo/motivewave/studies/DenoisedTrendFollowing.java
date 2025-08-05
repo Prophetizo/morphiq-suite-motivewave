@@ -285,20 +285,29 @@ public class DenoisedTrendFollowing extends Study {
                 }
             }
 
+            // TODO: Replace with VectorWave implementation
             // Get approximation (smooth trend)
-            double[] approximationPrices = denoiser.getApproximation(prices, decompositionLevels);
+            // double[] approximationPrices = denoiser.getApproximation(prices, decompositionLevels);
+            // double latestApproximation = approximationPrices[approximationPrices.length - 1];
+            double[] approximationPrices = new double[prices.length];
+            System.arraycopy(prices, 0, approximationPrices, 0, prices.length);
             double latestApproximation = approximationPrices[approximationPrices.length - 1];
             
             // Perform denoising
             String thresholdTypeStr = getSettings().getString(THRESHOLD_TYPE, "HARD");
             double[] denoisedPrices;
             
+            // TODO: Replace with VectorWave implementation
             if ("ZERO".equals(thresholdTypeStr)) {
                 // Use the zero-out method for complete removal of specified levels
-                denoisedPrices = denoiser.denoiseByZeroing(prices, decompositionLevels);
+                // denoisedPrices = denoiser.denoiseByZeroing(prices, decompositionLevels);
+                denoisedPrices = new double[prices.length];
+                System.arraycopy(prices, 0, denoisedPrices, 0, prices.length);
             } else {
                 // Use traditional thresholding methods
-                denoisedPrices = denoiser.denoise(prices, decompositionLevels);
+                // denoisedPrices = denoiser.denoise(prices, decompositionLevels);
+                denoisedPrices = new double[prices.length];
+                System.arraycopy(prices, 0, denoisedPrices, 0, prices.length);
             }
 
             // Get the latest denoised value
