@@ -67,7 +67,7 @@ public class WaveletAtr {
         // Apply smoothing
         double smoothedWatr = addToSmoothing(rmsEnergy);
         
-        log("TRACE", "WATR calculation: raw RMS={:.4f}, smoothed={:.4f}, levels={}", 
+        log("TRACE", "WATR calculation: raw RMS=%.4f, smoothed=%.4f, levels=%d", 
                     rmsEnergy, smoothedWatr, levelsToUse);
         
         return smoothedWatr;
