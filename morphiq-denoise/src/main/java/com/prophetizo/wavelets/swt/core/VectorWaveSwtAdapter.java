@@ -9,7 +9,35 @@ import java.util.Arrays;
 public class VectorWaveSwtAdapter {
     // Simple console logging for standalone compilation
     private static void log(String level, String message, Object... args) {
-        System.out.printf("[%s] [VectorWaveSwtAdapter] " + message + "%n", level, args);
+        // Extract exception if present as last argument
+        Throwable exception = null;
+        Object[] formatArgs = args;
+        
+        if (args.length > 0 && args[args.length - 1] instanceof Throwable) {
+            exception = (Throwable) args[args.length - 1];
+            // Remove exception from format arguments
+            formatArgs = Arrays.copyOf(args, args.length - 1);
+        }
+        
+        // Format and print the message
+        String formattedMessage = String.format("[%s] [VectorWaveSwtAdapter] " + message, 
+                                               (Object[]) ArrayUtils.prepend(level, formatArgs));
+        System.out.println(formattedMessage);
+        
+        // Print stack trace if exception present
+        if (exception != null) {
+            exception.printStackTrace(System.out);
+        }
+    }
+    
+    // Helper to prepend an element to an array
+    private static class ArrayUtils {
+        static Object[] prepend(Object first, Object[] rest) {
+            Object[] result = new Object[rest.length + 1];
+            result[0] = first;
+            System.arraycopy(rest, 0, result, 1, rest.length);
+            return result;
+        }
     }
     
     private final String waveletType;
@@ -87,7 +115,7 @@ public class VectorWaveSwtAdapter {
             return new SwtResult(approximation, details, waveletType);
             
         } catch (Exception e) {
-            log("ERROR", "VectorWave SWT failed, falling back to simple implementation", e);
+            log("ERROR", "VectorWave SWT failed, falling back to simple implementation: {}", e.getMessage(), e);
             return performFallbackSwt(data, levels);
         }
     }

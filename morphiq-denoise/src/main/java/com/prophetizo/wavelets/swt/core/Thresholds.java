@@ -87,6 +87,11 @@ public class Thresholds {
      * where σ is the noise standard deviation estimated from the finest detail level
      */
     public static double calculateUniversalThreshold(double[] detailCoeffs) {
+        // Handle edge cases
+        if (detailCoeffs == null || detailCoeffs.length == 0) {
+            return 0.0;
+        }
+        
         double sigma = estimateNoiseSigma(detailCoeffs);
         int n = detailCoeffs.length;
         double threshold = sigma * Math.sqrt(2.0 * Math.log(n));
