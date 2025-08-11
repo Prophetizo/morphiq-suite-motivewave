@@ -27,6 +27,11 @@
             <artifactId>morphiq-common</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- VectorWave -->
+        <dependency>
+            <groupId>ai.prophetizo</groupId>
+            <artifactId>vector-wave</artifactId>
+        </dependency>
         <!-- MotiveWave SDK -->
         <dependency>
             <groupId>com.motivewave.platform.sdk</groupId>

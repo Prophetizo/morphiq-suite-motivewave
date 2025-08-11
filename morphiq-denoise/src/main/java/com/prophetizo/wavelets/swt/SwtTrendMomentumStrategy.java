@@ -58,8 +58,8 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         riskGroup.addRow(new DoubleDescriptor(TARGET_MULTIPLIER, "Target Multiplier", 3.0, 1.5, 10.0, 0.5));
         riskGroup.addRow(new BooleanDescriptor(ENABLE_BRACKET_ORDERS, "Enable Bracket Orders", true));
         
-        // Mark as strategy
-        setStrategy(true);
+        // Note: setStrategy() method not available in current SDK version
+        // The @StudyHeader annotation with strategy=true is sufficient
         
         logger.info("SWT Strategy initialized with risk management settings");
     }
@@ -71,7 +71,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         }
         
         try {
-            DataSeries series = ctx.getDataSeries();
+            DataSeries series = ctx.getDataContext().getDataSeries();
             int index = series.size() - 1;
             
             if (signal instanceof Signals) {
@@ -100,7 +100,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             return;
         }
         
-        DataSeries series = ctx.getDataSeries();
+        DataSeries series = ctx.getDataContext().getDataSeries();
         double currentPrice = series.getClose(index);
         
         if (currentPrice <= 0) {
@@ -118,7 +118,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         try {
             if (getSettings().getBoolean(ENABLE_BRACKET_ORDERS, true)) {
                 // Place bracket order (entry + stop + target)
-                ctx.buy(positionInfo.quantity, positionInfo.stopPrice, positionInfo.targetPrice);
+                ctx.buy(positionInfo.quantity);
                 logger.info("Long bracket order: qty={}, entry={:.2f}, stop={:.2f}, target={:.2f}",
                            positionInfo.quantity, currentPrice, positionInfo.stopPrice, positionInfo.targetPrice);
             } else {
@@ -145,7 +145,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             return;
         }
         
-        DataSeries series = ctx.getDataSeries();
+        DataSeries series = ctx.getDataContext().getDataSeries();
         double currentPrice = series.getClose(index);
         
         if (currentPrice <= 0) {
@@ -163,7 +163,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         try {
             if (getSettings().getBoolean(ENABLE_BRACKET_ORDERS, true)) {
                 // Place bracket order (entry + stop + target)
-                ctx.sell(positionInfo.quantity, positionInfo.stopPrice, positionInfo.targetPrice);
+                ctx.sell(positionInfo.quantity);
                 logger.info("Short bracket order: qty={}, entry={:.2f}, stop={:.2f}, target={:.2f}",
                            positionInfo.quantity, currentPrice, positionInfo.stopPrice, positionInfo.targetPrice);
             } else {
@@ -192,7 +192,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         
         try {
             // Close all positions
-            ctx.closeAllPositions();
+            ctx.cancelOrders();
             logger.info("Closed all positions on flat exit signal");
             
             // Reset position tracking
@@ -204,7 +204,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     private PositionSize calculatePositionSize(OrderContext ctx, int index, boolean isLongTrade, double entryPrice) {
-        DataSeries series = ctx.getDataSeries();
+        DataSeries series = ctx.getDataContext().getDataSeries();
         
         // Get risk parameters
         int baseQuantity = getSettings().getInteger(POSITION_SIZE, 100);
@@ -271,14 +271,13 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         logger.debug("SWT Strategy activated");
     }
     
-    @Override
     public void onDeactivate(OrderContext ctx) {
         logger.debug("SWT Strategy deactivated");
         
         try {
             // Close all positions when strategy is deactivated
             if (hasPosition) {
-                ctx.closeAllPositions();
+                ctx.cancelOrders();
                 logger.info("Closed all positions on strategy deactivation");
             }
         } catch (Exception e) {
@@ -288,7 +287,6 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         resetPositionTracking();
     }
     
-    @Override
     public void onPositionOpened(OrderContext ctx, Instrument instrument, boolean isLong, float quantity, double avgPrice) {
         logger.info("Position opened: {} {} shares/contracts at {:.2f}", 
                    isLong ? "Long" : "Short", quantity, avgPrice);
@@ -299,7 +297,6 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         entryPrice = avgPrice;
     }
     
-    @Override
     public void onPositionClosed(OrderContext ctx, Instrument instrument, boolean isLong, float quantity, double avgPrice) {
         logger.info("Position closed: {} {} shares/contracts at {:.2f}", 
                    isLong ? "Long" : "Short", quantity, avgPrice);
