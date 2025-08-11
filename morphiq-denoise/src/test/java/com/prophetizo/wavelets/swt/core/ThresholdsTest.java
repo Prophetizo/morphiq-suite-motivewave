@@ -11,6 +11,14 @@ import java.util.Random;
  */
 public class ThresholdsTest {
     
+    /**
+     * Shared Random instance for test data generation.
+     * Using a fixed seed (42) ensures reproducible test results.
+     * Reusing the same instance avoids repeated instantiation overhead
+     * when running multiple tests or generating data in loops.
+     */
+    private static final Random RANDOM = new Random(42);
+    
     @Test
     void testUniversalThreshold() {
         // Test with known noise characteristics
@@ -161,11 +169,10 @@ public class ThresholdsTest {
     // Helper methods
     
     private double[] generateGaussianNoise(int length, double mean, double stdDev) {
-        Random random = new Random(42); // Fixed seed for reproducibility
         double[] noise = new double[length];
         
         for (int i = 0; i < length; i++) {
-            noise[i] = mean + stdDev * random.nextGaussian();
+            noise[i] = mean + stdDev * RANDOM.nextGaussian();
         }
         
         return noise;
@@ -173,14 +180,13 @@ public class ThresholdsTest {
     
     private double[] generateMixedSignal(int length) {
         double[] signal = new double[length];
-        Random random = new Random(42);
         
         for (int i = 0; i < length; i++) {
             // Signal component (smooth)
             double s = Math.sin(2 * Math.PI * i / 32) + 0.5 * Math.sin(2 * Math.PI * i / 8);
             
             // Noise component
-            double n = 0.2 * random.nextGaussian();
+            double n = 0.2 * RANDOM.nextGaussian();
             
             signal[i] = s + n;
         }

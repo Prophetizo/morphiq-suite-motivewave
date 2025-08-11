@@ -15,6 +15,25 @@ public class WaveletAtr {
         System.out.printf("[%s] [WaveletAtr] " + message + "%n", level, args);
     }
     
+    /**
+     * Level weight decay factor for multi-scale energy calculation.
+     * 
+     * This factor controls how quickly the weight decreases for coarser wavelet scales.
+     * A value of 0.5 means each successive level (coarser scale) contributes 
+     * proportionally less to the total volatility estimate.
+     * 
+     * Rationale: Finer scales (lower levels) capture high-frequency price movements
+     * and short-term volatility, which are more relevant for ATR-like measurements.
+     * Coarser scales represent longer-term trends and should have less influence
+     * on the immediate volatility estimate.
+     * 
+     * Weight formula: weight = 1.0 / (1.0 + level * LEVEL_WEIGHT_DECAY)
+     * - Level 0: weight = 1.00 (100% contribution)
+     * - Level 1: weight = 0.67 (67% contribution)  
+     * - Level 2: weight = 0.50 (50% contribution)
+     * - Level 3: weight = 0.40 (40% contribution)
+     */
+    private static final double LEVEL_WEIGHT_DECAY = 0.5;
     
     private final int smoothingPeriod;
     private final double alpha; // Smoothing factor
@@ -93,7 +112,7 @@ public class WaveletAtr {
                 }
                 
                 // Weight by level (finer details contribute more to volatility)
-                double weight = 1.0 / (1.0 + level * 0.5);
+                double weight = 1.0 / (1.0 + level * LEVEL_WEIGHT_DECAY);
                 totalEnergy += levelEnergy * weight;
                 totalSamples += detail.length;
                 

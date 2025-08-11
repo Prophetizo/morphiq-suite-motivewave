@@ -73,10 +73,6 @@ public class SwtTrendMomentumStudy extends Study {
     private boolean lastLongFilter = false;
     private boolean lastShortFilter = false;
     
-    // Cache for rolling window
-    private double[] priceBuffer;
-    private int bufferFilled = 0;
-    
     @Override
     public void initialize(Defaults defaults) {
         logger.debug("Initializing SWT Trend + Momentum Study");
