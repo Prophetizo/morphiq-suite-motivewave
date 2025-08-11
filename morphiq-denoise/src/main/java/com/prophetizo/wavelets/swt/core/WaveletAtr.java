@@ -116,7 +116,7 @@ public class WaveletAtr {
                 totalEnergy += levelEnergy * weight;
                 totalSamples += detail.length;
                 
-                log("TRACE", "Level {} energy: {:.4f}, weight: {:.2f}", level + 1, levelEnergy, weight);
+                log("TRACE", "Level %d energy: %.4f, weight: %.2f", level + 1, levelEnergy, weight);
             }
         }
         
