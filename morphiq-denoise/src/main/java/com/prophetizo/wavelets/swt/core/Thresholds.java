@@ -158,7 +158,28 @@ public class Thresholds {
     }
     
     /**
-     * Calculate SURE risk for a given threshold
+     * Calculate SURE (Stein's Unbiased Risk Estimate) risk for a given threshold.
+     * 
+     * SURE provides an unbiased estimate of the mean squared error (MSE) between
+     * the thresholded coefficients and the true underlying signal coefficients.
+     * 
+     * The SURE risk formula for soft thresholding is:
+     * SURE(λ) = n - 2 * #{|X_i| > λ} + Σ min(|X_i|², λ²)
+     * 
+     * Where:
+     * - n: total number of coefficients
+     * - λ: threshold value being evaluated
+     * - #{|X_i| > λ}: count of coefficients with absolute value greater than threshold
+     * - Σ min(|X_i|², λ²): sum of squared values (coefficient squared if below threshold,
+     *                       threshold squared if above)
+     * 
+     * The risk is normalized by σ² (noise variance) to make it scale-invariant.
+     * Lower risk values indicate better threshold choices that minimize reconstruction error.
+     * 
+     * @param sortedAbsCoeffs Array of wavelet coefficients sorted by absolute value
+     * @param threshold The threshold value to evaluate
+     * @param sigma Estimated noise standard deviation
+     * @return SURE risk estimate (lower is better)
      */
     private static double calculateSureRisk(double[] sortedAbsCoeffs, double threshold, double sigma) {
         int n = sortedAbsCoeffs.length;
@@ -174,7 +195,8 @@ public class Thresholds {
             }
         }
         
-        // SURE risk estimate
+        // SURE risk estimate: (n - 2*numKept + sumSquares) / σ²
+        // This estimates the mean squared error between thresholded and true coefficients
         double risk = (n - 2 * numKept + sumSquares) / (sigma * sigma);
         return risk;
     }
