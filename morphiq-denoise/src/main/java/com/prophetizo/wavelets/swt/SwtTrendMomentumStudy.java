@@ -47,6 +47,10 @@ public class SwtTrendMomentumStudy extends Study {
     // Plot keys
     public static final String MOMENTUM_PLOT = "MOMENTUM_PLOT";
     
+    // Path keys for momentum plot
+    public static final String MOMENTUM_SUM_PATH = "MOMENTUM_SUM_PATH";
+    public static final String SLOPE_PATH = "SLOPE_PATH";
+    
     // Values
     public enum Values { 
         AJ,                    // Approximation (trend)
@@ -122,6 +126,13 @@ public class SwtTrendMomentumStudy extends Study {
         watrGroup.addRow(new PathDescriptor(WATR_LOWER_PATH, "WATR Lower Band",
                 new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
         
+        // Momentum plot paths
+        SettingGroup momentumGroup = displayTab.addGroup("Momentum Display");
+        momentumGroup.addRow(new PathDescriptor(MOMENTUM_SUM_PATH, "Cross-Scale Momentum",
+                new Color(0, 200, 150), 2.0f, null, true, true, true));
+        momentumGroup.addRow(new PathDescriptor(SLOPE_PATH, "Trend Slope",
+                new Color(200, 150, 0), 1.5f, null, true, false, true));
+        
         // Runtime descriptor
         RuntimeDescriptor desc = new RuntimeDescriptor();
         setRuntimeDescriptor(desc);
@@ -137,6 +148,10 @@ public class SwtTrendMomentumStudy extends Study {
         Plot momentumPlot = new Plot();
         desc.addPlot(MOMENTUM_PLOT, momentumPlot);
         momentumPlot.setLabelSettings("Cross-Scale Momentum");
+        momentumPlot.setLabelPrefix("Momentum");
+        momentumPlot.setTabName("Momentum");
+        momentumPlot.declarePath(Values.MOMENTUM_SUM, MOMENTUM_SUM_PATH);
+        momentumPlot.declarePath(Values.SLOPE, SLOPE_PATH);
         momentumPlot.declareIndicator(Values.MOMENTUM_SUM, "Momentum");
         momentumPlot.declareIndicator(Values.SLOPE, "Slope");
         momentumPlot.setRangeKeys(Values.MOMENTUM_SUM, Values.SLOPE);
