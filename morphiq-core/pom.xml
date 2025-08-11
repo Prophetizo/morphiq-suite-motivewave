@@ -15,10 +15,10 @@
     <description>Core signal processing, math utilities, and licensing infrastructure</description>
 
     <dependencies>
-        <!-- JWave -->
+        <!-- VectorWave -->
         <dependency>
-            <groupId>com.prophetizo</groupId>
-            <artifactId>jwave-pro</artifactId>
+            <groupId>ai.prophetizo</groupId>
+            <artifactId>vector-wave</artifactId>
         </dependency>
         <!-- Logging -->
         <dependency>

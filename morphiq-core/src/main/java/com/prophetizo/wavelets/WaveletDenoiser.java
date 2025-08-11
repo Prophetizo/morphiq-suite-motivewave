@@ -1,7 +1,6 @@
 package com.prophetizo.wavelets;
 
 import com.prophetizo.LoggerConfig;
-import jwave.transforms.wavelets.Wavelet;
 import org.slf4j.Logger;
 import java.util.Arrays;
 
@@ -19,7 +18,7 @@ import java.util.Arrays;
 public class WaveletDenoiser {
     private static final Logger logger = LoggerConfig.getLogger(WaveletDenoiser.class);
     
-    private final WaveletAnalyzer analyzer;
+    // Note: This class is now deprecated. Use VectorWave TradingDenoiser instead.
     
     // Denoising parameters
     private int[] noiseLevels = {0, 1}; // D1, D2 by default (zero-indexed)
@@ -32,97 +31,12 @@ public class WaveletDenoiser {
         SOFT     // Shrink coefficients towards zero
     }
     
-    public WaveletDenoiser(WaveletAnalyzer analyzer) {
-        this.analyzer = analyzer;
+    @Deprecated
+    public WaveletDenoiser() {
+        // Legacy constructor - use VectorWave TradingDenoiser instead
     }
     
-    /**
-     * Denoise a price series by removing specified high-frequency components.
-     * 
-     * @param prices Original price data
-     * @param decompositionLevels Number of decomposition levels
-     * @return Denoised price series
-     */
-    public double[] denoise(double[] prices, int decompositionLevels) {
-        try {
-            logger.debug("Starting denoising process for {} data points, {} levels", 
-                prices.length, decompositionLevels);
-            
-            // Handle empty input
-            if (prices.length == 0) {
-                return new double[0];
-            }
-            
-            // Handle very small inputs
-            if (prices.length < 4) {
-                logger.warn("Signal too short for meaningful denoising ({}), returning original", prices.length);
-                return prices.clone();
-            }
-            
-            // 1. Forward MODWT decomposition
-            double[][] coefficients = analyzer.performForwardMODWT(prices, decompositionLevels);
-            
-            // 2. Apply denoising to coefficients
-            double[][] denoisedCoefficients = applyDenoising(coefficients, prices);
-            
-            // 3. Inverse MODWT reconstruction
-            double[] denoisedPrices = performInverseMODWT(denoisedCoefficients);
-            
-            logger.debug("Denoising completed. Original length: {}, Denoised length: {}", 
-                prices.length, denoisedPrices.length);
-            
-            return denoisedPrices;
-            
-        } catch (Exception e) {
-            logger.error("Error during denoising process", e);
-            return prices.clone(); // Return copy of original on error
-        }
-    }
     
-    /**
-     * Simple denoising by completely zeroing out specified noise levels.
-     * This is more aggressive than thresholding and completely removes
-     * the contribution of specified detail levels.
-     * 
-     * @param prices Original price data
-     * @param decompositionLevels Number of decomposition levels
-     * @return Denoised price series
-     */
-    public double[] denoiseByZeroing(double[] prices, int decompositionLevels) {
-        try {
-            logger.debug("Starting zero-out denoising for {} data points, {} levels", 
-                prices.length, decompositionLevels);
-            
-            // Handle empty input
-            if (prices.length == 0) {
-                return new double[0];
-            }
-            
-            // Handle very small inputs
-            if (prices.length < 4) {
-                logger.warn("Signal too short for meaningful denoising ({}), returning original", prices.length);
-                return prices.clone();
-            }
-            
-            // 1. Forward MODWT decomposition
-            double[][] coefficients = analyzer.performForwardMODWT(prices, decompositionLevels);
-            
-            // 2. Zero out specified noise levels
-            double[][] denoisedCoefficients = zeroOutNoiseLevels(coefficients);
-            
-            // 3. Inverse MODWT reconstruction
-            double[] denoisedPrices = performInverseMODWT(denoisedCoefficients);
-            
-            logger.debug("Zero-out denoising completed. Zeroed levels: {}", 
-                Arrays.toString(noiseLevels));
-            
-            return denoisedPrices;
-            
-        } catch (Exception e) {
-            logger.error("Error during zero-out denoising process", e);
-            return prices.clone(); // Return copy of original on error
-        }
-    }
     
     /**
      * Apply denoising filters to wavelet coefficients.
@@ -306,67 +220,7 @@ public class WaveletDenoiser {
         }
     }
     
-    /**
-     * Perform inverse MODWT to reconstruct the denoised signal.
-     */
-    private double[] performInverseMODWT(double[][] coefficients) {
-        return analyzer.performInverseMODWT(coefficients);
-    }
     
-    /**
-     * Get the approximation (smooth trend) by keeping only the approximation coefficients.
-     * In MODWT, the approximation coefficients are at index decompositionLevels.
-     * 
-     * @param prices Original price data
-     * @param decompositionLevels Number of decomposition levels
-     * @return Approximation signal (smoothest trend)
-     */
-    public double[] getApproximation(double[] prices, int decompositionLevels) {
-        try {
-            logger.debug("Extracting approximation for {} data points, {} levels", 
-                prices.length, decompositionLevels);
-            
-            // Handle empty input
-            if (prices.length == 0) {
-                return new double[0];
-            }
-            
-            // Handle very small inputs
-            if (prices.length < 4) {
-                logger.warn("Signal too short for meaningful approximation ({}), returning original", prices.length);
-                return prices.clone();
-            }
-            
-            // 1. Forward MODWT decomposition
-            double[][] coefficients = analyzer.performForwardMODWT(prices, decompositionLevels);
-            
-            // 2. Create coefficient array with only approximation kept
-            double[][] approxOnly = new double[coefficients.length][];
-            
-            // Zero out all detail levels (0 through decompositionLevels-1)
-            for (int level = 0; level < decompositionLevels; level++) {
-                approxOnly[level] = new double[coefficients[level].length];
-                Arrays.fill(approxOnly[level], 0.0);
-            }
-            
-            // Keep only the approximation coefficients (at index decompositionLevels)
-            if (decompositionLevels < coefficients.length) {
-                approxOnly[decompositionLevels] = coefficients[decompositionLevels].clone();
-                logger.debug("Keeping approximation coefficients at level {}", decompositionLevels);
-            }
-            
-            // 3. Inverse MODWT reconstruction
-            double[] approximation = performInverseMODWT(approxOnly);
-            
-            logger.debug("Approximation extraction completed - kept only approximation level");
-            
-            return approximation;
-            
-        } catch (Exception e) {
-            logger.error("Error during approximation extraction", e);
-            return prices.clone(); // Return copy of original on error
-        }
-    }
     
     // Utility methods for statistical calculations
     

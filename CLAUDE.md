@@ -53,7 +53,7 @@ mvn clean install
 
 ### Dependencies
 - MotiveWave SDK (v20230627) - provided scope
-- JWave (v1.2.0-SNAPSHOT) - wavelet transforms
+- VectorWave (v1.0.0) - high-performance wavelet transforms with financial analysis
 - SLF4J Simple (v2.0.17) - logging
 - JUnit 5 & Mockito - testing
 

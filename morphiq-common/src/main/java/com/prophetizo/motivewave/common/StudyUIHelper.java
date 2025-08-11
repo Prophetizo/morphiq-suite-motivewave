@@ -4,7 +4,6 @@ import com.motivewave.platform.sdk.common.NVP;
 import com.motivewave.platform.sdk.common.desc.DiscreteDescriptor;
 import com.prophetizo.wavelets.WaveletType;
 import com.prophetizo.wavelets.WaveletOptionsProvider;
-import com.prophetizo.wavelets.WaveletAnalyzerFactory;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -41,7 +40,7 @@ public class StudyUIHelper {
      * @param useCase the trading use case
      * @return List of NVP objects for wavelet selection dropdown
      */
-    public static List<NVP> createWaveletOptionsForUseCase(WaveletAnalyzerFactory.UseCase useCase) {
+    public static List<NVP> createWaveletOptionsForUseCase(WaveletOptionsProvider.UseCase useCase) {
         List<NVP> options = new ArrayList<>();
         for (WaveletType type : WaveletOptionsProvider.getWaveletsForUseCase(useCase)) {
             options.add(new NVP(type.getDisplayName(), type.getDisplayName()));

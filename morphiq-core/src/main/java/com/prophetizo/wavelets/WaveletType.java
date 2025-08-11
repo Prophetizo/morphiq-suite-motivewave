@@ -1,13 +1,13 @@
 package com.prophetizo.wavelets;
 
-import jwave.transforms.wavelets.Wavelet;
-import jwave.transforms.wavelets.daubechies.Daubechies4;
-import jwave.transforms.wavelets.daubechies.Daubechies6;
-import jwave.transforms.wavelets.haar.Haar1;
-import jwave.transforms.wavelets.daubechies.Daubechies2;
-import jwave.transforms.wavelets.symlets.Symlet4;
-import jwave.transforms.wavelets.symlets.Symlet8;
-import jwave.transforms.wavelets.coiflet.Coiflet3;
+//import jwave.transforms.wavelets.Wavelet;
+//import jwave.transforms.wavelets.daubechies.Daubechies4;
+//import jwave.transforms.wavelets.daubechies.Daubechies6;
+//import jwave.transforms.wavelets.haar.Haar1;
+//import jwave.transforms.wavelets.daubechies.Daubechies2;
+//import jwave.transforms.wavelets.symlets.Symlet4;
+//import jwave.transforms.wavelets.symlets.Symlet8;
+//import jwave.transforms.wavelets.coiflet.Coiflet3;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,31 +63,6 @@ public enum WaveletType {
         return displayName;
     }
 
-    /**
-     * Creates a JWave Wavelet instance for this type.
-     * @return a new Wavelet instance
-     */
-    public Wavelet createWavelet() {
-        switch (this) {
-            case HAAR:
-                return new Haar1();
-            case DAUBECHIES2:
-                return new Daubechies2();
-            case DAUBECHIES4:
-                return new Daubechies4();
-            case DAUBECHIES6:
-                return new Daubechies6();
-            case SYMLET4:
-                return new Symlet4();
-            case SYMLET8:
-                return new Symlet8();
-            case COIFLET3:
-                return new Coiflet3();
-            default:
-                logger.warn("Unknown wavelet type: {}, defaulting to Daubechies4", this);
-                return new Daubechies4();
-        }
-    }
 
     /**
      * Parses a wavelet type from a string representation.

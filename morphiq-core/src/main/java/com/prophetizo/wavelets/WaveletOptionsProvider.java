@@ -10,6 +10,31 @@ import java.util.ArrayList;
 public class WaveletOptionsProvider {
     
     /**
+     * Enumeration of common use cases for wavelet analysis.
+     */
+    public enum UseCase {
+        BREAKOUT_DETECTION("Detecting price breakouts and regime changes"),
+        HIGH_FREQUENCY_TRADING("Ultra-fast signal processing for HFT"),
+        SCALPING("Quick in-and-out trades on small movements"),
+        DAY_TRADING("Intraday trading with balanced analysis"),
+        SWING_TRADING("Multi-day position trading"),
+        POSITION_TRADING("Long-term trend following"),
+        TREND_FOLLOWING("Smooth trend extraction"),
+        NOISE_REDUCTION("Removing market noise from signals"),
+        GENERAL_PURPOSE("General market analysis");
+        
+        private final String description;
+        
+        UseCase(String description) {
+            this.description = description;
+        }
+        
+        public String getDescription() {
+            return description;
+        }
+    }
+    
+    /**
      * Private constructor to prevent instantiation of utility class.
      */
     private WaveletOptionsProvider() {
@@ -31,7 +56,7 @@ public class WaveletOptionsProvider {
      * @param useCase the use case to filter wavelets for
      * @return List of WaveletType values suitable for the given use case
      */
-    public static List<WaveletType> getWaveletsForUseCase(WaveletAnalyzerFactory.UseCase useCase) {
+    public static List<WaveletType> getWaveletsForUseCase(UseCase useCase) {
         List<WaveletType> wavelets = new ArrayList<>();
         
         switch (useCase) {
@@ -93,7 +118,7 @@ public class WaveletOptionsProvider {
      * @param useCase the trading use case
      * @return the recommended default WaveletType
      */
-    public static WaveletType getDefaultWaveletForUseCase(WaveletAnalyzerFactory.UseCase useCase) {
+    public static WaveletType getDefaultWaveletForUseCase(UseCase useCase) {
         switch (useCase) {
             case BREAKOUT_DETECTION:
             case HIGH_FREQUENCY_TRADING:

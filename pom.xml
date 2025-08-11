@@ -22,7 +22,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>23</maven.compiler.release>
         <junit.jupiter.version>5.13.2</junit.jupiter.version>
         <mockito.version>5.14.2</mockito.version>
         <mwave.sdk.version>20230627</mwave.sdk.version>
@@ -43,11 +43,11 @@
                 <version>${mwave.sdk.version}</version>
                 <scope>provided</scope>
             </dependency>
-            <!-- JWave -->
+            <!-- VectorWave -->
             <dependency>
-                <groupId>com.prophetizo</groupId>
-                <artifactId>jwave-pro</artifactId>
-                <version>${jwave.version}</version>
+                <groupId>ai.prophetizo</groupId>
+                <artifactId>vector-wave</artifactId>
+                <version>1.0-SNAPSHOT</version>
             </dependency>
             <!-- Minimal Logging -->
             <dependency>
@@ -88,7 +88,7 @@
                             <configuration>
                                 <rules>
                                     <requireJavaVersion>
-                                        <version>[21,)</version>
+                                        <version>[23,)</version>
                                     </requireJavaVersion>
                                 </rules>
                             </configuration>
@@ -118,6 +118,21 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>
                     <version>${maven.shade.plugin.version}</version>
+                    <configuration>
+                        <!-- Global shade configuration -->
+                        <createDependencyReducedPom>false</createDependencyReducedPom>
+                        <!-- Suppress warnings about duplicate classes (expected for fat JARs) -->
+                        <filters>
+                            <filter>
+                                <artifact>*:*</artifact>
+                                <excludes>
+                                    <exclude>META-INF/*.SF</exclude>
+                                    <exclude>META-INF/*.DSA</exclude>
+                                    <exclude>META-INF/*.RSA</exclude>
+                                </excludes>
+                            </filter>
+                        </filters>
+                    </configuration>
                 </plugin>
                 <!-- Assembly plugin for bundles -->
                 <plugin>
@@ -142,10 +157,10 @@
             <id>gitlab-maven</id>
             <url>https://gitlab.com/api/v4/projects/63189175/packages/maven</url>
         </repository>
-        <repository>
-            <id>github-prophetizo-jwave-pro</id>
+                <repository>
+            <id>github-prophetizo-vectorwave</id>
             <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/prophetizo/JWave-Pro</url>
+            <url>https://maven.pkg.github.com/prophetizo/vectorwave</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
