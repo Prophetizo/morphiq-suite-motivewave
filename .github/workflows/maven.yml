@@ -33,7 +33,7 @@ jobs:
                 </configuration>
               </server>
               <server>
-                <id>github-prophetizo-jwave</id>
+                <id>github-prophetizo-vectorwave</id>
                 <username>${{ github.actor }}</username>
                 <password>${{ secrets.GITHUB_TOKEN }}</password>
               </server>
@@ -96,7 +96,7 @@ jobs:
                 </configuration>
               </server>
               <server>
-                <id>github-prophetizo-jwave</id>
+                <id>github-prophetizo-vectorwave</id>
                 <username>${{ github.actor }}</username>
                 <password>${{ secrets.GITHUB_TOKEN }}</password>
               </server>
