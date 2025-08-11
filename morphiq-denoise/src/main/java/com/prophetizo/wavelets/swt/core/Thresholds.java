@@ -169,14 +169,18 @@ public class Thresholds {
      * the thresholded coefficients and the true underlying signal coefficients.
      * 
      * The SURE risk formula for soft thresholding is:
-     * SURE(λ) = n - 2 * #{|X_i| > λ} + Σ min(|X_i|², λ²)
+     * SURE(λ) = n - 2 * #{|X_i| > λ} + Σ h(|X_i|, λ)
      * 
      * Where:
      * - n: total number of coefficients
      * - λ: threshold value being evaluated
      * - #{|X_i| > λ}: count of coefficients with absolute value greater than threshold
-     * - Σ min(|X_i|², λ²): sum of squared values (coefficient squared if below threshold,
-     *                       threshold squared if above)
+     * - h(|X_i|, λ) = |X_i|² if |X_i| ≤ λ (coefficient will be zeroed)
+     *                 λ² if |X_i| > λ (coefficient will be shrunk)
+     * 
+     * This formulation accounts for the fact that:
+     * - Coefficients below threshold contribute their squared value to the risk (they're set to 0)
+     * - Coefficients above threshold contribute λ² to the risk (they're shrunk by λ)
      * 
      * The risk is normalized by σ² (noise variance) to make it scale-invariant.
      * Lower risk values indicate better threshold choices that minimize reconstruction error.

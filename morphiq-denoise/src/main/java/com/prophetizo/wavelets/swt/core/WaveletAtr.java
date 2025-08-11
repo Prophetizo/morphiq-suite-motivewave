@@ -28,10 +28,13 @@ public class WaveletAtr {
      * on the immediate volatility estimate.
      * 
      * Weight formula: weight = 1.0 / (1.0 + level * LEVEL_WEIGHT_DECAY)
-     * - Level 0: weight = 1.00 (100% contribution)
-     * - Level 1: weight = 0.67 (67% contribution)  
-     * - Level 2: weight = 0.50 (50% contribution)
-     * - Level 3: weight = 0.40 (40% contribution)
+     * where level is 0-based in the calculation loop
+     * 
+     * Examples with LEVEL_WEIGHT_DECAY = 0.5:
+     * - Level 1 (index 0): weight = 1.0 / (1.0 + 0 * 0.5) = 1.00 (100% contribution)
+     * - Level 2 (index 1): weight = 1.0 / (1.0 + 1 * 0.5) = 0.67 (67% contribution)  
+     * - Level 3 (index 2): weight = 1.0 / (1.0 + 2 * 0.5) = 0.50 (50% contribution)
+     * - Level 4 (index 3): weight = 1.0 / (1.0 + 3 * 0.5) = 0.40 (40% contribution)
      */
     private static final double LEVEL_WEIGHT_DECAY = 0.5;
     
