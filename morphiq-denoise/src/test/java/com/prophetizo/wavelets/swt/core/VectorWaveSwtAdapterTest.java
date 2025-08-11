@@ -89,7 +89,7 @@ public class VectorWaveSwtAdapterTest {
         assertEquals(0.15, thresholded[1], 1e-10); // |0.15| > 0.1
         assertEquals(0.0, thresholded[2], 1e-10); // |-0.08| <= 0.1
         assertEquals(0.25, thresholded[3], 1e-10); // |0.25| > 0.1
-        assertEquals(0.0, thresholded[4], 1e-10); // |-0.12| > 0.1 but close
+        assertEquals(-0.12, thresholded[4], 1e-10); // |-0.12| > 0.1, so preserved
     }
     
     @Test
