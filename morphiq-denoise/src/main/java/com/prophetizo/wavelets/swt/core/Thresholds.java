@@ -165,9 +165,10 @@ public class Thresholds {
     /**
      * Calculate SURE (Stein's Unbiased Risk Estimate) risk for a given threshold.
      * 
-     * SURE provides an unbiased estimate of the mean squared error (MSE) between
-     * the thresholded coefficients and the true underlying signal coefficients.
+     * Returns an unbiased MSE estimate to find optimal threshold balancing noise removal and signal preservation.
+     * Lower risk values indicate better thresholds.
      * 
+     * Mathematical Details:
      * The SURE risk formula for soft thresholding is:
      * SURE(λ) = n - 2 * #{|X_i| > λ} + Σ h(|X_i|, λ)
      * 
@@ -183,7 +184,6 @@ public class Thresholds {
      * - Coefficients above threshold contribute λ² to the risk (they're shrunk by λ)
      * 
      * The risk is normalized by σ² (noise variance) to make it scale-invariant.
-     * Lower risk values indicate better threshold choices that minimize reconstruction error.
      * 
      * @param sortedAbsCoeffs Array of wavelet coefficients sorted by absolute value
      * @param threshold The threshold value to evaluate

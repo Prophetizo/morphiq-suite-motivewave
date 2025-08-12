@@ -7,36 +7,39 @@ import java.util.Arrays;
  * Provides graceful fallbacks when VectorWave is not available.
  */
 public class VectorWaveSwtAdapter {
-    // Simple console logging for standalone compilation
+    // Simple console logging for standalone compilation - optimized for performance
     private static void log(String level, String message, Object... args) {
         // Extract exception if present as last argument
         Throwable exception = null;
-        Object[] formatArgs = args;
+        int formatArgCount = args.length;
         
         if (args.length > 0 && args[args.length - 1] instanceof Throwable) {
             exception = (Throwable) args[args.length - 1];
-            // Remove exception from format arguments
-            formatArgs = Arrays.copyOf(args, args.length - 1);
+            formatArgCount--; // Don't include exception in format args
         }
         
-        // Format and print the message
-        String formattedMessage = String.format("[%s] [VectorWaveSwtAdapter] " + message, 
-                                               (Object[]) ArrayUtils.prepend(level, formatArgs));
-        System.out.println(formattedMessage);
+        // Build message more efficiently without array creation for simple cases
+        StringBuilder sb = new StringBuilder();
+        sb.append("[").append(level).append("] [VectorWaveSwtAdapter] ");
+        
+        // Format message with arguments if present
+        if (formatArgCount > 0) {
+            // Only create array copy if we have format arguments and an exception
+            if (exception != null && formatArgCount < args.length) {
+                Object[] formatArgs = Arrays.copyOf(args, formatArgCount);
+                sb.append(String.format(message, formatArgs));
+            } else {
+                sb.append(String.format(message, args));
+            }
+        } else {
+            sb.append(message);
+        }
+        
+        System.out.println(sb.toString());
         
         // Print stack trace if exception present
         if (exception != null) {
             exception.printStackTrace(System.out);
-        }
-    }
-    
-    // Helper to prepend an element to an array
-    private static class ArrayUtils {
-        static Object[] prepend(Object first, Object[] rest) {
-            Object[] result = new Object[rest.length + 1];
-            result[0] = first;
-            System.arraycopy(rest, 0, result, 1, rest.length);
-            return result;
         }
     }
     
