@@ -17,7 +17,8 @@ public class ThresholdsTest {
      * Reusing the same instance avoids repeated instantiation overhead
      * Using a fixed seed (42) ensures reproducible test results, which is essential for
      * consistent and reliable unit testing. Reusing the same instance also avoids
-     * Shared Random instance with fixed seed for reproducible test data generation.
+     * Shared Random instance with fixed seed (42) to ensure reproducible test results
+     * and avoid repeated instantiation overhead during test data generation.
      */
     private static final Random RANDOM = new Random(42);
     
