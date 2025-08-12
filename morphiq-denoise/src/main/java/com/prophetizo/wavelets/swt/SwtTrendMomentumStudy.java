@@ -498,10 +498,9 @@ public class SwtTrendMomentumStudy extends Study {
             // Generate signals
             generateSignals(ctx, series, index, longFilter, shortFilter);
             
-            // Calculate and display WATR if enabled
-            if (getSettings().getBoolean(SHOW_WATR, false)) {
-                calculateWatr(series, index, swtResult, currentTrend);
-            }
+            // Calculate WATR (always calculate for strategy use, only display if enabled)
+            // The Strategy subclass needs WATR for stop calculations even when not displayed
+            calculateWatr(series, index, swtResult, currentTrend);
             
             // Mark this bar as complete (following MotiveWave best practice)
             series.setComplete(index);
@@ -788,13 +787,16 @@ public class SwtTrendMomentumStudy extends Study {
         double watrMultiplier = getSettings().getDouble(WATR_MULTIPLIER, 2.0);
         
         double watr = waveletAtr.calculate(swtResult, watrK);
+        // Always store WATR value (needed by Strategy for stops)
         series.setDouble(index, Values.WATR, watr);
         
-        // Calculate bands
-        double upperBand = centerPrice + watr * watrMultiplier;
-        double lowerBand = centerPrice - watr * watrMultiplier;
-        
-        series.setDouble(index, Values.WATR_UPPER, upperBand);
-        series.setDouble(index, Values.WATR_LOWER, lowerBand);
+        // Only calculate and store bands if display is enabled
+        if (getSettings().getBoolean(SHOW_WATR, false)) {
+            double upperBand = centerPrice + watr * watrMultiplier;
+            double lowerBand = centerPrice - watr * watrMultiplier;
+            
+            series.setDouble(index, Values.WATR_UPPER, upperBand);
+            series.setDouble(index, Values.WATR_LOWER, lowerBand);
+        }
     }
 }
