@@ -36,12 +36,18 @@ mvn clean install
   - `WaveletDenoiser`: Signal denoising using wavelet thresholding
   - Mathematical utilities: `MovingAverage`, `Statistics`
   
-- **morphiq-autowave**: Automatic wavelet decomposition indicator
-  - `AutoWavelets`: Main study implementation
-  - Multi-level decomposition with dynamic timeframe adaptation
+- **morphiq-common**: Shared MotiveWave utilities
+  - `StudyUIHelper`: UI component builders for consistent settings
   
-- **morphiq-denoise**: Denoised trend following indicator
-  - `DenoisedTrendFollowing`: Applies wavelet denoising to price data
+- **morphiq-autowave**: Automatic wavelet decomposition indicator
+  - `AutoWavelets`: Multi-level decomposition visualization
+  
+- **morphiq-denoise**: SWT/MODWT trend following system
+  - `SwtTrendMomentumStudy`: Complete indicator with trend and momentum
+  - `SwtTrendMomentumStrategy`: Automated trading strategy
+  - `VectorWaveSwtAdapter`: Bridge to VectorWave SWT implementation
+  - `Thresholds`: Universal, BayesShrink, SURE thresholding
+  - `WaveletAtr`: RMS energy-based volatility estimation
   
 - **morphiq-bundle-premium**: Bundle packaging all indicators into single JAR
 
@@ -50,6 +56,8 @@ mvn clean install
 2. **MotiveWave Integration**: All indicators extend `com.motivewave.platform.sdk.study.Study`
 3. **Maven Shade Plugin**: Creates fat JARs with all dependencies included
 4. **Modular Architecture**: Each indicator is independently deployable
+5. **Sliding Window Buffers**: Efficient streaming updates for real-time processing
+6. **Logging Guards**: SLF4J `isDebugEnabled()`/`isTraceEnabled()` checks to avoid computation
 
 ### Dependencies
 - MotiveWave SDK (v20230627) - provided scope
