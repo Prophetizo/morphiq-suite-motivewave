@@ -21,6 +21,11 @@
             <artifactId>morphiq-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- VectorWave for SWT functionality -->
+        <dependency>
+            <groupId>ai.prophetizo</groupId>
+            <artifactId>vector-wave</artifactId>
+        </dependency>
         <!-- MotiveWave Common Utilities -->
         <dependency>
             <groupId>ai.prophetizo</groupId>
@@ -61,9 +66,7 @@
                             <minimizeJar>false</minimizeJar>
                             <artifactSet>
                                 <includes>
-                                    <include>ai.prophetizo:morphiq-core</include>
-                                    <include>ai.prophetizo:morphiq-common</include>
-                                    <include>ai.prophetizo:vector-wave</include>
+                                    <include>ai.prophetizo:*</include>
                                     <include>org.slf4j:*</include>
                                 </includes>
                             </artifactSet>

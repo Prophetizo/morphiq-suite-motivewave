@@ -91,16 +91,30 @@ public class SwtTrendMomentumStudy extends Study {
     
     @Override
     public void onSettingsUpdated(DataContext ctx) {
-        logger.info("Settings updated - triggering recalculation");
+        logger.info("Settings updated - triggering full recalculation for all plots");
         
-        // CRITICAL: Call super first to trigger framework setup
-        super.onSettingsUpdated(ctx);
+        // Log which settings might have changed (for debugging)
+        logger.debug("Current settings: wavelet={}, levels={}, window={}, threshold={}, shrinkage={}, k={}, watr={}", 
+                    getSettings().getString(WAVELET_TYPE, "db4"),
+                    getSettings().getInteger(LEVELS, 5),
+                    getSettings().getInteger(WINDOW_LENGTH, 4096),
+                    getSettings().getString(THRESHOLD_METHOD, "Universal"),
+                    getSettings().getString(SHRINKAGE_TYPE, "Soft"),
+                    getSettings().getInteger(DETAIL_CONFIRM_K, 2),
+                    getSettings().getBoolean(SHOW_WATR, false));
         
-        // Update minimum bars requirement after framework processing
+        // Clear state to force re-initialization of all components
+        // This ensures ALL plots (overlay and panes) are updated
+        clearState();
+        
+        // Update minimum bars requirement
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
         
         // Update momentum plot range for new k value
         updateMomentumPlotRange();
+        
+        // CRITICAL: Call super to trigger framework recalculation of all plots
+        super.onSettingsUpdated(ctx);
     }
     
     @Override

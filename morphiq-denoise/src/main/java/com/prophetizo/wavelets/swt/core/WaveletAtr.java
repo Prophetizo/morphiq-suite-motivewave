@@ -12,7 +12,11 @@ import java.util.Arrays;
 public class WaveletAtr {
     // Simple console logging for standalone compilation
     private static void log(String level, String message, Object... args) {
-        System.out.printf("[%s] [WaveletAtr] " + message + "%n", level, args);
+        // Combine level with other format arguments
+        Object[] allArgs = new Object[args.length + 1];
+        allArgs[0] = level;
+        System.arraycopy(args, 0, allArgs, 1, args.length);
+        System.out.printf("[%s] [WaveletAtr] " + message + "%n", allArgs);
     }
     
     /**
@@ -53,7 +57,7 @@ public class WaveletAtr {
         this.buffer = new double[this.smoothingPeriod];
         Arrays.fill(buffer, 0.0);
         
-        log("DEBUG", "Initialized WaveletAtr with smoothing period: {}", this.smoothingPeriod);
+        log("DEBUG", "Initialized WaveletAtr with smoothing period: %d", this.smoothingPeriod);
     }
     
     /**

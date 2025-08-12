@@ -16,7 +16,7 @@ public class VectorWaveSwtAdapterTest {
     
     @BeforeEach
     void setUp() {
-        adapter = new VectorWaveSwtAdapter("db4_fallback");
+        adapter = new VectorWaveSwtAdapter("db4");
     }
     
     @Test
@@ -59,56 +59,97 @@ public class VectorWaveSwtAdapterTest {
         
         VectorWaveSwtAdapter.SwtResult result = adapter.transform(original, 3);
         
+        // Store original detail coefficients
+        double[] originalDetail = result.getDetail(1).clone();
+        
         // Apply soft thresholding to first detail level
         double threshold = 0.1;
         result.applyShrinkage(1, threshold, true);
         
         double[] detail1 = result.getDetail(1);
         
-        // Check that small coefficients are zeroed
-        for (double coeff : detail1) {
-            if (Math.abs(coeff) <= threshold) {
-                assertEquals(0.0, coeff, 1e-10);
+        // Check that soft thresholding was applied correctly
+        for (int i = 0; i < detail1.length; i++) {
+            double origCoeff = originalDetail[i];
+            double thresholdedCoeff = detail1[i];
+            
+            if (Math.abs(origCoeff) <= threshold) {
+                // Small coefficients should be zeroed
+                assertEquals(0.0, thresholdedCoeff, 1e-10, 
+                    "Coefficient below threshold should be zero");
+            } else {
+                // Large coefficients should be shrunk by threshold amount
+                double expected = Math.signum(origCoeff) * (Math.abs(origCoeff) - threshold);
+                assertEquals(expected, thresholdedCoeff, 1e-10,
+                    "Coefficient above threshold should be shrunk");
             }
         }
     }
     
     @Test
     void testHardThresholding() {
-        double[] coeffs = {0.05, 0.15, -0.08, 0.25, -0.12};
+        // Create a simple test signal
+        double[] testSignal = new double[32];
+        for (int i = 0; i < testSignal.length; i++) {
+            testSignal[i] = Math.sin(2 * Math.PI * i / 32) + 0.1 * Math.random();
+        }
+        
+        // Perform SWT transform
+        VectorWaveSwtAdapter.SwtResult result = adapter.transform(testSignal, 2);
+        
+        // Get original detail coefficients
+        double[] originalDetail = result.getDetail(1).clone();
+        
+        // Apply hard thresholding
         double threshold = 0.1;
-        
-        VectorWaveSwtAdapter.SwtResult result = new VectorWaveSwtAdapter.SwtResult(
-                new double[5], new double[][]{coeffs}, "test");
-        
-        result.applyShrinkage(1, threshold, false); // Hard thresholding
+        result.applyShrinkage(1, threshold, false);
         
         double[] thresholded = result.getDetail(1);
         
-        assertEquals(0.0, thresholded[0], 1e-10); // |0.05| <= 0.1
-        assertEquals(0.15, thresholded[1], 1e-10); // |0.15| > 0.1
-        assertEquals(0.0, thresholded[2], 1e-10); // |-0.08| <= 0.1
-        assertEquals(0.25, thresholded[3], 1e-10); // |0.25| > 0.1
-        assertEquals(-0.12, thresholded[4], 1e-10); // |-0.12| > 0.1, so preserved
+        // Verify hard thresholding behavior
+        for (int i = 0; i < originalDetail.length; i++) {
+            if (Math.abs(originalDetail[i]) <= threshold) {
+                assertEquals(0.0, thresholded[i], 1e-10, 
+                    "Coefficients below threshold should be zeroed");
+            } else {
+                assertEquals(originalDetail[i], thresholded[i], 1e-10,
+                    "Coefficients above threshold should be preserved");
+            }
+        }
     }
     
     @Test
     void testSoftThresholding() {
-        double[] coeffs = {0.05, 0.15, -0.08, 0.25, -0.12};
+        // Create a simple test signal
+        double[] testSignal = new double[32];
+        for (int i = 0; i < testSignal.length; i++) {
+            testSignal[i] = Math.sin(2 * Math.PI * i / 32) + 0.1 * Math.random();
+        }
+        
+        // Perform SWT transform
+        VectorWaveSwtAdapter.SwtResult result = adapter.transform(testSignal, 2);
+        
+        // Get original detail coefficients
+        double[] originalDetail = result.getDetail(1).clone();
+        
+        // Apply soft thresholding
         double threshold = 0.1;
-        
-        VectorWaveSwtAdapter.SwtResult result = new VectorWaveSwtAdapter.SwtResult(
-                new double[5], new double[][]{coeffs}, "test");
-        
-        result.applyShrinkage(1, threshold, true); // Soft thresholding
+        result.applyShrinkage(1, threshold, true);
         
         double[] thresholded = result.getDetail(1);
         
-        assertEquals(0.0, thresholded[0], 1e-10); // |0.05| <= 0.1
-        assertEquals(0.05, thresholded[1], 1e-10); // 0.15 - 0.1 = 0.05
-        assertEquals(0.0, thresholded[2], 1e-10); // |-0.08| <= 0.1
-        assertEquals(0.15, thresholded[3], 1e-10); // 0.25 - 0.1 = 0.15
-        assertEquals(-0.02, thresholded[4], 1e-10); // -0.12 + 0.1 = -0.02
+        // Verify soft thresholding behavior
+        for (int i = 0; i < originalDetail.length; i++) {
+            if (Math.abs(originalDetail[i]) <= threshold) {
+                assertEquals(0.0, thresholded[i], 1e-10,
+                    "Coefficients below threshold should be zeroed");
+            } else {
+                double expected = Math.signum(originalDetail[i]) * 
+                                 (Math.abs(originalDetail[i]) - threshold);
+                assertEquals(expected, thresholded[i], 1e-10,
+                    "Coefficients above threshold should be shrunk by threshold amount");
+            }
+        }
     }
     
     @Test
