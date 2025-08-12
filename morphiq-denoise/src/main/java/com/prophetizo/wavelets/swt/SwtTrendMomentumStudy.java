@@ -399,7 +399,6 @@ public class SwtTrendMomentumStudy extends Study {
     }
     
     // REMOVED onBarUpdate - not needed since requiresBarUpdates=false
-    // The framework will call calculate() for each bar appropriately
     
     @Override
     protected void calculate(int index, DataContext ctx) {
