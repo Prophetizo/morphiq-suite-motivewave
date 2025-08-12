@@ -42,6 +42,16 @@ public class WaveletAtr {
      */
     private static final double LEVEL_WEIGHT_DECAY = 0.5;
     
+    /**
+     * Calculate weight for a given wavelet level.
+     * 
+     * @param level 0-based level index
+     * @return weight value between 0 and 1
+     */
+    private static double calculateLevelWeight(int level) {
+        return 1.0 / (1.0 + level * LEVEL_WEIGHT_DECAY);
+    }
+    
     private final int smoothingPeriod;
     private final double alpha; // Smoothing factor
     
@@ -119,7 +129,7 @@ public class WaveletAtr {
                 }
                 
                 // Weight by level (finer details contribute more to volatility)
-                double weight = 1.0 / (1.0 + level * LEVEL_WEIGHT_DECAY);
+                double weight = calculateLevelWeight(level);
                 totalEnergy += levelEnergy * weight;
                 totalSamples += detail.length;
                 
@@ -198,7 +208,7 @@ public class WaveletAtr {
             if (detail != null && detail.length > 0) {
                 // Use only the most recent coefficient for instantaneous calculation
                 double lastCoeff = detail[detail.length - 1];
-                double weight = 1.0 / (1.0 + level * 0.5);
+                double weight = calculateLevelWeight(level);
                 totalEnergy += lastCoeff * lastCoeff * weight;
                 totalSamples++;
             }

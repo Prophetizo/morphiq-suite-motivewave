@@ -69,6 +69,7 @@ public class VectorWaveSwtAdapter {
     }
     
     private final String waveletType;
+    private final BoundaryMode boundaryMode;
     private final ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter swtAdapter;
     private final Wavelet wavelet;
     
@@ -80,8 +81,9 @@ public class VectorWaveSwtAdapter {
      */
     public VectorWaveSwtAdapter(String waveletType) {
         this.waveletType = waveletType;
+        this.boundaryMode = BoundaryMode.PERIODIC; // Default boundary mode
         this.wavelet = WaveletRegistry.getWavelet(waveletType);
-        this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, BoundaryMode.PERIODIC);
+        this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
         log("INFO", "VectorWave SWT adapter initialized with wavelet: %s", waveletType);
     }
     
@@ -94,8 +96,9 @@ public class VectorWaveSwtAdapter {
      */
     public VectorWaveSwtAdapter(String waveletType, BoundaryMode boundaryMode) {
         this.waveletType = waveletType;
+        this.boundaryMode = boundaryMode;
         this.wavelet = WaveletRegistry.getWavelet(waveletType);
-        this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, boundaryMode);
+        this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
         log("INFO", "VectorWave SWT adapter initialized with wavelet: %s, boundary: %s", waveletType, boundaryMode);
     }
     
@@ -120,7 +123,7 @@ public class VectorWaveSwtAdapter {
         }
         
         log("DEBUG", "VectorWave SWT completed for %d levels", levels);
-        return new SwtResult(approximation, details, waveletType, result);
+        return new SwtResult(approximation, details, waveletType, boundaryMode, result);
     }
     
     /**
@@ -180,10 +183,11 @@ public class VectorWaveSwtAdapter {
         private final double[] approximation;
         private final double[][] details;
         private final String waveletType;
+        private final BoundaryMode boundaryMode;
         
         private final MutableMultiLevelMODWTResult vectorWaveResult;
         
-        public SwtResult(double[] approximation, double[][] details, String waveletType, MutableMultiLevelMODWTResult vectorWaveResult) {
+        public SwtResult(double[] approximation, double[][] details, String waveletType, BoundaryMode boundaryMode, MutableMultiLevelMODWTResult vectorWaveResult) {
             if (vectorWaveResult == null) {
                 throw new IllegalArgumentException("VectorWave result cannot be null");
             }
@@ -193,6 +197,7 @@ public class VectorWaveSwtAdapter {
                 this.details[i] = Arrays.copyOf(details[i], details[i].length);
             }
             this.waveletType = waveletType;
+            this.boundaryMode = boundaryMode;
             this.vectorWaveResult = vectorWaveResult;
         }
         
@@ -288,7 +293,8 @@ public class VectorWaveSwtAdapter {
             tempResult.clearCaches();
             
             // Use VectorWave's inverse transform for proper reconstruction
-            VectorWaveSwtAdapter parent = new VectorWaveSwtAdapter(waveletType);
+            // Pass the same boundary mode to ensure consistency
+            VectorWaveSwtAdapter parent = new VectorWaveSwtAdapter(waveletType, boundaryMode);
             return parent.inverse(tempResult);
         }
         
