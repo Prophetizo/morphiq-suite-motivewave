@@ -170,7 +170,6 @@ public class SwtTrendMomentumStudy extends Study {
         // Note: Do NOT call clearFigures() here - let the framework manage figures
     }
     
-    // REMOVED calculateValues override - let the framework handle it
     // The SDK pattern is to NOT override calculateValues() when using
     // incremental markers. Only override calculate(int index, DataContext ctx)
     
