@@ -786,7 +786,23 @@ public class SwtTrendMomentumStudy extends Study {
         int watrK = getSettings().getInteger(WATR_K, 2);
         double watrMultiplier = getSettings().getDouble(WATR_MULTIPLIER, 2.0);
         
-        double watr = waveletAtr.calculate(swtResult, watrK);
+        double rawWatr = waveletAtr.calculate(swtResult, watrK);
+        
+        // Scale WATR based on price level
+        // The raw WATR from wavelets is normalized and needs scaling
+        // For ES around 6400, we expect WATR of 5-20 points typically
+        // Using a more conservative scaling factor
+        double priceScaleFactor = Math.sqrt(centerPrice) / 10.0; // Sqrt for more moderate scaling
+        double watr = rawWatr * priceScaleFactor;
+        
+        if (logger.isDebugEnabled() && index % 50 == 0) {
+            logger.debug("WATR Calculation: rawWatr={}, priceScale={}, scaledWatr={}, centerPrice={}", 
+                        String.format("%.6f", rawWatr),
+                        String.format("%.2f", priceScaleFactor),
+                        String.format("%.2f", watr),
+                        String.format("%.2f", centerPrice));
+        }
+        
         // Always store WATR value (needed by Strategy for stops)
         series.setDouble(index, Values.WATR, watr);
         
