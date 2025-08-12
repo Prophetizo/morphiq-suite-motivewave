@@ -163,7 +163,10 @@ public class DenoisedTrendFollowing extends Study {
     public void onLoad(Defaults defaults) {
         logger.debug("DenoisedTrendFollowing onLoad - initializing");
         
-        // Ensure trading services are initialized when study loads
+        // CRITICAL: Call super.onLoad first for proper framework initialization
+        super.onLoad(defaults);
+        
+        // Ensure trading services are initialized after framework setup
         if (denoiser == null) {
             initializeTradingServices();
         }
@@ -175,22 +178,19 @@ public class DenoisedTrendFollowing extends Study {
             logger.debug("Updated configuration for bar size context");
         }
         
-        // Update minimum bars requirement
+        // Update minimum bars requirement after framework initialization
         setMinBars(getSettings().getInteger(LOOKBACK_PERIOD, 512));
-        
-        // CRITICAL: Always call super.onLoad
-        super.onLoad(defaults);
     }
     
     @Override
     public void onSettingsUpdated(DataContext ctx) {
         logger.info("Settings updated - triggering recalculation");
         
-        // Update minimum bars requirement
-        setMinBars(getSettings().getInteger(LOOKBACK_PERIOD, 512));
-        
-        // CRITICAL: Always call super to trigger framework recalculation
+        // CRITICAL: Call super first to trigger framework recalculation
         super.onSettingsUpdated(ctx);
+        
+        // Update minimum bars requirement after framework processing
+        setMinBars(getSettings().getInteger(LOOKBACK_PERIOD, 512));
     }
     
     @Override

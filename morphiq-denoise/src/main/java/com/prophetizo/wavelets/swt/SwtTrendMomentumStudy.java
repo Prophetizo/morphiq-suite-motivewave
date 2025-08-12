@@ -82,25 +82,25 @@ public class SwtTrendMomentumStudy extends Study {
     public void onLoad(Defaults defaults) {
         logger.info("Study onLoad - initializing");
         
-        // Update minimum bars requirement based on window length
-        setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
-        
-        // CRITICAL: Always call super.onLoad to let framework handle setup
+        // CRITICAL: Call super.onLoad first to let framework handle setup
         super.onLoad(defaults);
+        
+        // Update minimum bars requirement based on window length after framework initialization
+        setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
     }
     
     @Override
     public void onSettingsUpdated(DataContext ctx) {
         logger.info("Settings updated - triggering recalculation");
         
-        // Update minimum bars requirement
+        // CRITICAL: Call super first to trigger framework setup
+        super.onSettingsUpdated(ctx);
+        
+        // Update minimum bars requirement after framework processing
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
         
         // Update momentum plot range for new k value
         updateMomentumPlotRange();
-        
-        // CRITICAL: Always call super to trigger framework recalculation
-        super.onSettingsUpdated(ctx);
     }
     
     @Override
@@ -288,9 +288,9 @@ public class SwtTrendMomentumStudy extends Study {
         Integer windowLength = getSettings().getInteger(WINDOW_LENGTH, 4096);
         
         // Check if settings have changed
-        boolean waveletChanged = currentWaveletType == null || !waveletType.equals(currentWaveletType);
-        boolean levelsChanged = currentLevels == null || !levels.equals(currentLevels);
-        boolean windowChanged = currentWindowLength == null || !windowLength.equals(currentWindowLength);
+        boolean waveletChanged = !waveletType.equals(currentWaveletType);
+        boolean levelsChanged = !levels.equals(currentLevels);
+        boolean windowChanged = !windowLength.equals(currentWindowLength);
         
         // Initialize or reinitialize if needed
         if (swtAdapter == null || waveletChanged || levelsChanged || windowChanged) {
@@ -380,9 +380,6 @@ public class SwtTrendMomentumStudy extends Study {
             
             // Extract price window
             double[] prices = extractPriceWindow(series, index, windowLength, ctx);
-            if (prices == null) {
-                return;
-            }
             
             // Perform SWT
             VectorWaveSwtAdapter.SwtResult swtResult = swtAdapter.transform(prices, levels);

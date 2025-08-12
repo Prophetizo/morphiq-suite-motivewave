@@ -271,6 +271,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         logger.debug("SWT Strategy activated");
     }
     
+    @Override
     public void onDeactivate(OrderContext ctx) {
         logger.debug("SWT Strategy deactivated");
         
@@ -285,6 +286,9 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         }
         
         resetPositionTracking();
+        
+        // Call super to ensure framework cleanup
+        super.onDeactivate(ctx);
     }
     
     public void onPositionOpened(OrderContext ctx, Instrument instrument, boolean isLong, float quantity, double avgPrice) {
