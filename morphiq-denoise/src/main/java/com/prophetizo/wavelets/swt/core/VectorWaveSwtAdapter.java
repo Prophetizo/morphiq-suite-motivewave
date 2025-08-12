@@ -29,11 +29,15 @@ import java.util.Arrays;
  */
 public class VectorWaveSwtAdapter {
     // Simple logging for debugging
+    private static final boolean TRACE_ENABLED = false; // Configuration flag for trace logging
+    
     private static void log(String level, String message, Object... args) {
-        // Skip TRACE level logs completely for performance
-        if ("TRACE".equals(level)) {
+        // Early return for TRACE level when disabled - avoids all computation
+        if ("TRACE".equals(level) && !TRACE_ENABLED) {
             return;
         }
+        
+        // For other log levels or when TRACE is enabled
         // Extract exception if present as last argument
         Throwable exception = null;
         int formatArgCount = args.length;

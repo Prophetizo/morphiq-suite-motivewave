@@ -487,7 +487,7 @@ public class SwtTrendMomentumStudy extends Study {
             boolean shortFilter = slope < -minSlope && momentumSum < -momentumThreshold;
             
             // Debug logging to understand why signals aren't generating
-            if (index % 50 == 0) { // Log every 50 bars to avoid spam
+            if (logger.isDebugEnabled() && index % 50 == 0) { // Log every 50 bars to avoid spam
                 logger.debug("Signal check at {}: slope={:.6f}, minSlope={:.6f}, momentum={:.4f}, threshold={:.4f}, long={}, short={}", 
                             index, slope, minSlope, momentumSum, momentumThreshold, longFilter, shortFilter);
             }
@@ -506,8 +506,10 @@ public class SwtTrendMomentumStudy extends Study {
             // Mark this bar as complete (following MotiveWave best practice)
             series.setComplete(index);
             
-            logger.trace("SWT calculation at {}: trend={:.2f}, slope={:.4f}, momentum={}", 
-                        index, currentTrend, slope, momentumSum);
+            if (logger.isTraceEnabled()) {
+                logger.trace("SWT calculation at {}: trend={:.2f}, slope={:.4f}, momentum={}", 
+                            index, currentTrend, slope, momentumSum);
+            }
                         
         } catch (Exception e) {
             logger.error("Error in SWT calculation at index {}", index, e);
@@ -546,7 +548,9 @@ public class SwtTrendMomentumStudy extends Study {
             startIndex > bufferStartIndex + windowLength) {
             
             // Full refresh needed
-            logger.trace("Full buffer refresh at index {}", index);
+            if (logger.isTraceEnabled()) {
+                logger.trace("Full buffer refresh at index {}", index);
+            }
             priceBuffer = extractPriceWindow(series, index, windowLength, ctx);
             bufferStartIndex = startIndex;
             bufferInitialized = true;
@@ -558,7 +562,9 @@ public class SwtTrendMomentumStudy extends Study {
         
         if (shift > 0 && shift < windowLength) {
             // Slide the window forward
-            logger.trace("Sliding window by {} positions at index {}", shift, index);
+            if (logger.isTraceEnabled()) {
+                logger.trace("Sliding window by {} positions at index {}", shift, index);
+            }
             
             // Shift existing data to the left
             System.arraycopy(priceBuffer, shift, priceBuffer, 0, windowLength - shift);
@@ -647,8 +653,10 @@ public class SwtTrendMomentumStudy extends Study {
                     rawMomentum += contribution;
                 }
                 
-                logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
-                            level, windowSize, weight, contribution);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
+                                level, windowSize, weight, contribution);
+                }
             }
         }
         

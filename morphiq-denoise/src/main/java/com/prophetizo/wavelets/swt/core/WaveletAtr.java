@@ -11,7 +11,16 @@ import java.util.Arrays;
  */
 public class WaveletAtr {
     // Simple console logging for standalone compilation
+    private static final boolean TRACE_ENABLED = false; // Configuration flag for trace logging
+    private static final boolean DEBUG_ENABLED = false; // Configuration flag for debug logging
+    
     private static void log(String level, String message, Object... args) {
+        // Early return for disabled log levels - avoids all computation
+        if (("TRACE".equals(level) && !TRACE_ENABLED) || 
+            ("DEBUG".equals(level) && !DEBUG_ENABLED)) {
+            return;
+        }
+        
         // Combine level with other format arguments
         Object[] allArgs = new Object[args.length + 1];
         allArgs[0] = level;
