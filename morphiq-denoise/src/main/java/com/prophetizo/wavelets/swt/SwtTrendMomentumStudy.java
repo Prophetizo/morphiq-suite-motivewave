@@ -33,6 +33,7 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String WINDOW_LENGTH = "WINDOW_LENGTH";
     public static final String THRESHOLD_METHOD = "THRESHOLD_METHOD";
     public static final String SHRINKAGE_TYPE = "SHRINKAGE_TYPE";
+    public static final String USE_DENOISED = "USE_DENOISED";
     public static final String DETAIL_CONFIRM_K = "DETAIL_CONFIRM_K";
     public static final String SHOW_WATR = "SHOW_WATR";
     public static final String WATR_K = "WATR_K";
@@ -113,7 +114,14 @@ public class SwtTrendMomentumStudy extends Study {
         // Update momentum plot range for new k value
         updateMomentumPlotRange();
         
-        // CRITICAL: Call super to trigger framework recalculation of all plots
+        // CRITICAL: Force complete recalculation of all bars
+        DataSeries series = ctx.getDataSeries();
+        int startIdx = Math.max(0, series.size() - 5000); // Limit to last 5000 bars for performance
+        for (int i = startIdx; i < series.size(); i++) {
+            calculate(i, ctx);
+        }
+        
+        // Call super to trigger any additional framework updates
         super.onSettingsUpdated(ctx);
     }
     
@@ -145,17 +153,6 @@ public class SwtTrendMomentumStudy extends Study {
         
         // Clear all existing figures
         clearFigures();
-        
-        // Get the data series
-        DataSeries series = ctx.getDataSeries();
-        
-        // Clear momentum plot values for all bars
-        for (int i = 0; i < series.size(); i++) {
-            series.setDouble(i, Values.MOMENTUM_SUM, null);
-            series.setDouble(i, Values.SLOPE, null);
-            series.setDouble(i, Values.LONG_FILTER, null);
-            series.setDouble(i, Values.SHORT_FILTER, null);
-        }
         
         // Reset signal tracking state
         lastLongFilter = false;
@@ -204,7 +201,7 @@ public class SwtTrendMomentumStudy extends Study {
         List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
         waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE, "db4", waveletOptions));
         waveletGroup.addRow(new IntegerDescriptor(LEVELS, "Decomposition Levels", 5, 2, 8, 1));
-        waveletGroup.addRow(new IntegerDescriptor(WINDOW_LENGTH, "Window Length (bars)", 4096, 512, 8192, 256));
+        waveletGroup.addRow(new IntegerDescriptor(WINDOW_LENGTH, "Window Length (bars)", 512, 256, 4096, 256));
         
         var thresholdGroup = generalTab.addGroup("Thresholding");
         thresholdGroup.addRow(new DiscreteDescriptor(THRESHOLD_METHOD, "Threshold Method", "Universal",
@@ -218,6 +215,7 @@ public class SwtTrendMomentumStudy extends Study {
                         new NVP("Soft", "Soft thresholding"),
                         new NVP("Hard", "Hard thresholding")
                 )));
+        thresholdGroup.addRow(new BooleanDescriptor(USE_DENOISED, "Use Denoised Signal", false));
         
         var signalGroup = generalTab.addGroup("Signal Configuration");
         signalGroup.addRow(new IntegerDescriptor(DETAIL_CONFIRM_K, "Detail Confirmation (k)", 2, 1, 3, 1));
@@ -364,7 +362,24 @@ public class SwtTrendMomentumStudy extends Study {
     }
     
     @Override
+    public void onBarUpdate(DataContext ctx) {
+        // Handle tick-by-tick updates for the current bar
+        DataSeries series = ctx.getDataSeries();
+        int index = series.size() - 1;
+        
+        if (index >= 0) {
+            // Recalculate only the current bar
+            calculateBarSWT(index, ctx);
+        }
+    }
+    
+    @Override
     protected void calculate(int index, DataContext ctx) {
+        // This is called for historical bars and new complete bars
+        calculateBarSWT(index, ctx);
+    }
+    
+    private void calculateBarSWT(int index, DataContext ctx) {
         try {
             // Ensure components are initialized
             ensureInitialized();
@@ -398,17 +413,33 @@ public class SwtTrendMomentumStudy extends Study {
             // Perform SWT
             VectorWaveSwtAdapter.SwtResult swtResult = swtAdapter.transform(prices, levels);
             
-            // Apply thresholding
+            // Apply thresholding to remove noise from detail coefficients
             applyThresholding(swtResult);
             
-            // Get trend (approximation)
-            double[] approximation = swtResult.reconstructApproximation();
-            double currentTrend = approximation[approximation.length - 1];
+            // Choose between denoised signal or just approximation
+            boolean useDenoised = getSettings().getBoolean(USE_DENOISED, false);
+            double currentTrend;
+            double previousTrend;
+            
+            if (useDenoised) {
+                // Use partial reconstruction with thresholded details for denoising
+                // Reconstruct with fewer levels for smoother result
+                int reconstructLevels = Math.max(2, levels - 1);
+                double[] denoisedSignal = swtResult.reconstruct(reconstructLevels);
+                currentTrend = denoisedSignal[denoisedSignal.length - 1];
+                previousTrend = denoisedSignal.length > 1 ? 
+                        denoisedSignal[denoisedSignal.length - 2] : currentTrend;
+            } else {
+                // Use approximation only (smooth trend without detail coefficients)
+                double[] approximation = swtResult.getApproximation();
+                currentTrend = approximation[approximation.length - 1];
+                previousTrend = approximation.length > 1 ? 
+                        approximation[approximation.length - 2] : currentTrend;
+            }
+            
             series.setDouble(index, Values.AJ, currentTrend);
             
             // Calculate trend slope
-            double previousTrend = approximation.length > 1 ? 
-                    approximation[approximation.length - 2] : currentTrend;
             double slope = currentTrend - previousTrend;
             series.setDouble(index, Values.SLOPE, slope);
             
