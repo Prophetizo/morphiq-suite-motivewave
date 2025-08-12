@@ -8,8 +8,24 @@ import ai.prophetizo.wavelet.modwt.MutableMultiLevelMODWTResultImpl;
 import java.util.Arrays;
 
 /**
- * Wrapper for VectorWave SWT adapter providing additional convenience methods.
- * Uses VectorWave's native SWT/MODWT implementation for all transforms.
+ * Wrapper for VectorWave's Stationary Wavelet Transform (SWT) adapter.
+ * 
+ * <p>This class provides a convenient interface to VectorWave's native SWT/MODWT 
+ * implementation, offering wavelet-based signal processing capabilities including:
+ * <ul>
+ *   <li>Forward and inverse SWT transforms</li>
+ *   <li>Signal denoising with various thresholding methods</li>
+ *   <li>Level-specific feature extraction</li>
+ *   <li>Coefficient thresholding (soft and hard)</li>
+ * </ul>
+ * 
+ * <p>The SWT (also known as the undecimated or redundant wavelet transform) 
+ * maintains the same data length at each decomposition level, making it 
+ * shift-invariant and suitable for financial time series analysis.
+ * 
+ * @author Prophetizo
+ * @since 1.0.0
+ * @see ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter
  */
 public class VectorWaveSwtAdapter {
     // Simple logging for debugging
@@ -56,6 +72,12 @@ public class VectorWaveSwtAdapter {
     private final ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter swtAdapter;
     private final Wavelet wavelet;
     
+    /**
+     * Creates a new SWT adapter with the specified wavelet type and periodic boundary handling.
+     * 
+     * @param waveletType the wavelet type identifier (e.g., "db4", "sym8", "haar")
+     * @throws IllegalArgumentException if the wavelet type is not recognized
+     */
     public VectorWaveSwtAdapter(String waveletType) {
         this.waveletType = waveletType;
         this.wavelet = WaveletRegistry.getWavelet(waveletType);
@@ -63,6 +85,13 @@ public class VectorWaveSwtAdapter {
         log("INFO", "VectorWave SWT adapter initialized with wavelet: %s", waveletType);
     }
     
+    /**
+     * Creates a new SWT adapter with the specified wavelet type and boundary mode.
+     * 
+     * @param waveletType the wavelet type identifier (e.g., "db4", "sym8", "haar")
+     * @param boundaryMode the boundary handling mode for the transform
+     * @throws IllegalArgumentException if the wavelet type is not recognized
+     */
     public VectorWaveSwtAdapter(String waveletType, BoundaryMode boundaryMode) {
         this.waveletType = waveletType;
         this.wavelet = WaveletRegistry.getWavelet(waveletType);
@@ -72,7 +101,12 @@ public class VectorWaveSwtAdapter {
     
     
     /**
-     * Perform SWT/MODWT transform on input data
+     * Performs a forward SWT/MODWT transform on the input data.
+     * 
+     * @param data the input signal to transform
+     * @param levels the number of decomposition levels
+     * @return an SwtResult containing the approximation and detail coefficients
+     * @throws IllegalArgumentException if data is null or levels is invalid
      */
     public SwtResult transform(double[] data, int levels) {
         MutableMultiLevelMODWTResult result = swtAdapter.forward(data, levels);
@@ -90,7 +124,11 @@ public class VectorWaveSwtAdapter {
     }
     
     /**
-     * Denoise signal using universal threshold
+     * Denoises a signal using the universal threshold method.
+     * 
+     * @param data the noisy signal to denoise
+     * @param levels the number of decomposition levels
+     * @return the denoised signal
      */
     public double[] denoise(double[] data, int levels) {
         return swtAdapter.denoise(data, levels);
@@ -132,7 +170,11 @@ public class VectorWaveSwtAdapter {
     }
     
     /**
-     * Result container for SWT transform
+     * Container for SWT transform results, holding both approximation and detail coefficients.
+     * 
+     * <p>This class provides methods to access and manipulate the wavelet coefficients
+     * resulting from an SWT decomposition, including thresholding operations for denoising
+     * and signal reconstruction capabilities.
      */
     public static class SwtResult {
         private final double[] approximation;
@@ -182,7 +224,12 @@ public class VectorWaveSwtAdapter {
         }
         
         /**
-         * Apply threshold to a specific detail level
+         * Applies thresholding to a specific detail level for denoising.
+         * 
+         * @param level the detail level to threshold (1-based)
+         * @param threshold the threshold value
+         * @param softThresholding if true, uses soft thresholding; otherwise uses hard thresholding
+         * @throws IllegalArgumentException if level is out of range
          */
         public void applyShrinkage(int level, double threshold, boolean softThresholding) {
             if (level < 1 || level > details.length) {
@@ -219,7 +266,14 @@ public class VectorWaveSwtAdapter {
         }
         
         /**
-         * Reconstruct signal from approximation and specified detail levels
+         * Reconstructs a signal from approximation and specified detail levels.
+         * 
+         * <p>This method performs an inverse SWT transform using coefficients up to
+         * the specified level. Higher-level details are zeroed out, resulting in
+         * a smoother reconstruction.
+         * 
+         * @param maxLevel the maximum detail level to include in reconstruction
+         * @return the reconstructed signal
          */
         public double[] reconstruct(int maxLevel) {
             // Create a copy of the result to avoid modifying the original

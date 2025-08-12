@@ -2,6 +2,7 @@ package com.prophetizo.wavelets.swt;
 
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
+import com.motivewave.platform.sdk.draw.Marker;
 import com.motivewave.platform.sdk.study.Plot;
 import com.motivewave.platform.sdk.study.RuntimeDescriptor;
 import com.motivewave.platform.sdk.study.Study;
@@ -52,6 +53,11 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String MOMENTUM_SUM_PATH = "MOMENTUM_SUM_PATH";
     public static final String SLOPE_PATH = "SLOPE_PATH";
     
+    // Marker keys
+    public static final String LONG_MARKER = "LONG_MARKER";
+    public static final String SHORT_MARKER = "SHORT_MARKER";
+    public static final String EXIT_MARKER = "EXIT_MARKER";
+    
     // Values
     public enum Values { 
         AJ,                    // Approximation (trend)
@@ -79,6 +85,14 @@ public class SwtTrendMomentumStudy extends Study {
     private boolean lastLongFilter = false;
     private boolean lastShortFilter = false;
     
+    // No need for marker tracking - SDK handles this when we follow the pattern:
+    // Only add markers when series.isBarComplete(index) is true
+    
+    // Sliding window buffer for streaming updates
+    private double[] priceBuffer = null;
+    private int bufferStartIndex = -1;
+    private boolean bufferInitialized = false;
+    
     @Override
     public void onLoad(Defaults defaults) {
         logger.info("Study onLoad - initializing");
@@ -92,7 +106,7 @@ public class SwtTrendMomentumStudy extends Study {
     
     @Override
     public void onSettingsUpdated(DataContext ctx) {
-        logger.info("Settings updated - triggering full recalculation for all plots");
+        logger.info("Settings updated - triggering recalculation");
         
         // Log which settings might have changed (for debugging)
         logger.debug("Current settings: wavelet={}, levels={}, window={}, threshold={}, shrinkage={}, k={}, watr={}", 
@@ -105,8 +119,10 @@ public class SwtTrendMomentumStudy extends Study {
                     getSettings().getBoolean(SHOW_WATR, false));
         
         // Clear state to force re-initialization of all components
-        // This ensures ALL plots (overlay and panes) are updated
         clearState();
+        
+        // Clear figures when settings change (this is appropriate)
+        clearFigures();
         
         // Update minimum bars requirement
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
@@ -114,14 +130,7 @@ public class SwtTrendMomentumStudy extends Study {
         // Update momentum plot range for new k value
         updateMomentumPlotRange();
         
-        // CRITICAL: Force complete recalculation of all bars
-        DataSeries series = ctx.getDataSeries();
-        int startIdx = Math.max(0, series.size() - 5000); // Limit to last 5000 bars for performance
-        for (int i = startIdx; i < series.size(); i++) {
-            calculate(i, ctx);
-        }
-        
-        // Call super to trigger any additional framework updates
+        // Call super to trigger recalculation
         super.onSettingsUpdated(ctx);
     }
     
@@ -143,27 +152,17 @@ public class SwtTrendMomentumStudy extends Study {
         swtAdapter = null;
         waveletAtr = null;
         
-        // Clear any figures (markers, etc.)
-        clearFigures();
+        // Clear buffer
+        priceBuffer = null;
+        bufferStartIndex = -1;
+        bufferInitialized = false;
+        
+        // Note: Do NOT call clearFigures() here - let the framework manage figures
     }
     
-    @Override
-    protected void calculateValues(DataContext ctx) {
-        logger.debug("Full recalculation triggered");
-        
-        // Clear all existing figures
-        clearFigures();
-        
-        // Reset signal tracking state
-        lastLongFilter = false;
-        lastShortFilter = false;
-        
-        // Update momentum plot range
-        updateMomentumPlotRange();
-        
-        // Now recalculate all bars
-        super.calculateValues(ctx);
-    }
+    // REMOVED calculateValues override - let the framework handle it
+    // The SDK pattern is to NOT override calculateValues() when using
+    // incremental markers. Only override calculate(int index, DataContext ctx)
     
     private void updateMomentumPlotRange() {
         // Get the runtime descriptor and momentum plot
@@ -244,6 +243,19 @@ public class SwtTrendMomentumStudy extends Study {
         momentumGroup.addRow(new PathDescriptor(SLOPE_PATH, "Trend Slope",
                 new Color(200, 150, 0), 1.5f, null, true, false, true));
         
+        // Markers tab
+        var markersTab = sd.addTab("Markers");
+        var markersGroup = markersTab.addGroup("Signal Markers");
+        markersGroup.addRow(new MarkerDescriptor(LONG_MARKER, "Long Entry", 
+                Enums.MarkerType.TRIANGLE, Enums.Size.SMALL, 
+                new Color(0, 200, 0), new Color(0, 150, 0), true, true));
+        markersGroup.addRow(new MarkerDescriptor(SHORT_MARKER, "Short Entry",
+                Enums.MarkerType.TRIANGLE, Enums.Size.SMALL,
+                new Color(200, 0, 0), new Color(150, 0, 0), true, true));
+        markersGroup.addRow(new MarkerDescriptor(EXIT_MARKER, "Flat Exit",
+                Enums.MarkerType.SQUARE, Enums.Size.SMALL,
+                new Color(128, 128, 128), new Color(100, 100, 100), true, true));
+        
         // Create Runtime Descriptor using the standard pattern
         var desc = createRD();
         
@@ -313,6 +325,13 @@ public class SwtTrendMomentumStudy extends Study {
                 currentLevels = levels;
                 currentWindowLength = windowLength;
                 
+                // Reset buffer when window size changes
+                if (windowChanged || priceBuffer == null) {
+                    priceBuffer = new double[windowLength];
+                    bufferStartIndex = -1;
+                    bufferInitialized = false;
+                }
+                
                 // Reset signal tracking on change
                 lastLongFilter = false;
                 lastShortFilter = false;
@@ -361,25 +380,13 @@ public class SwtTrendMomentumStudy extends Study {
         return "db4";
     }
     
-    @Override
-    public void onBarUpdate(DataContext ctx) {
-        // Handle tick-by-tick updates for the current bar
-        DataSeries series = ctx.getDataSeries();
-        int index = series.size() - 1;
-        
-        if (index >= 0) {
-            // Recalculate only the current bar
-            calculateBarSWT(index, ctx);
-        }
-    }
+    // REMOVED onBarUpdate - not needed since requiresBarUpdates=false
+    // The framework will call calculate() for each bar appropriately
     
     @Override
     protected void calculate(int index, DataContext ctx) {
-        // This is called for historical bars and new complete bars
-        calculateBarSWT(index, ctx);
-    }
-    
-    private void calculateBarSWT(int index, DataContext ctx) {
+        // This is called for each bar by the framework
+        // Following the SDK pattern for incremental marker addition
         try {
             // Ensure components are initialized
             ensureInitialized();
@@ -407,8 +414,8 @@ public class SwtTrendMomentumStudy extends Study {
                 return;
             }
             
-            // Extract price window
-            double[] prices = extractPriceWindow(series, index, windowLength, ctx);
+            // Update sliding window buffer efficiently
+            double[] prices = updateSlidingWindow(series, index, windowLength, ctx);
             
             // Perform SWT
             VectorWaveSwtAdapter.SwtResult swtResult = swtAdapter.transform(prices, levels);
@@ -458,7 +465,7 @@ public class SwtTrendMomentumStudy extends Study {
             series.setDouble(index, Values.SHORT_FILTER, shortFilter ? 1.0 : 0.0);
             
             // Generate signals
-            generateSignals(series, index, longFilter, shortFilter);
+            generateSignals(ctx, series, index, longFilter, shortFilter);
             
             // Calculate and display WATR if enabled
             if (getSettings().getBoolean(SHOW_WATR, false)) {
@@ -493,6 +500,62 @@ public class SwtTrendMomentumStudy extends Study {
         }
         
         return prices;
+    }
+    
+    /**
+     * Updates the sliding window buffer efficiently.
+     * Only fetches new data points instead of the entire window.
+     */
+    private double[] updateSlidingWindow(DataSeries series, int index, int windowLength, DataContext ctx) {
+        int startIndex = index - windowLength + 1;
+        
+        // Check if we need to initialize or completely refresh the buffer
+        if (!bufferInitialized || priceBuffer == null || 
+            bufferStartIndex < 0 || startIndex < bufferStartIndex ||
+            startIndex > bufferStartIndex + windowLength) {
+            
+            // Full refresh needed
+            logger.trace("Full buffer refresh at index {}", index);
+            priceBuffer = extractPriceWindow(series, index, windowLength, ctx);
+            bufferStartIndex = startIndex;
+            bufferInitialized = true;
+            return priceBuffer;
+        }
+        
+        // Sliding window update - only fetch new bars
+        int shift = startIndex - bufferStartIndex;
+        
+        if (shift > 0 && shift < windowLength) {
+            // Slide the window forward
+            logger.trace("Sliding window by {} positions at index {}", shift, index);
+            
+            // Shift existing data to the left
+            System.arraycopy(priceBuffer, shift, priceBuffer, 0, windowLength - shift);
+            
+            // Fetch only the new data points
+            double lastValid = priceBuffer[windowLength - shift - 1];
+            for (int i = 0; i < shift; i++) {
+                int barIndex = index - shift + 1 + i;
+                Double close = series.getDouble(barIndex, Enums.BarInput.CLOSE, ctx.getInstrument());
+                
+                if (close != null) {
+                    priceBuffer[windowLength - shift + i] = close;
+                    lastValid = close;
+                } else {
+                    priceBuffer[windowLength - shift + i] = lastValid;
+                }
+            }
+            
+            bufferStartIndex = startIndex;
+        } else if (shift == 0) {
+            // Same window, just update the last bar (for tick updates)
+            Double close = series.getDouble(index, Enums.BarInput.CLOSE, ctx.getInstrument());
+            if (close != null) {
+                priceBuffer[windowLength - 1] = close;
+            }
+        }
+        
+        return priceBuffer;
     }
     
     private void applyThresholding(VectorWaveSwtAdapter.SwtResult swtResult) {
@@ -541,31 +604,77 @@ public class SwtTrendMomentumStudy extends Study {
         }
     }
     
-    private void generateSignals(DataSeries series, int index, boolean longFilter, boolean shortFilter) {
+    private void generateSignals(DataContext ctx, DataSeries series, int index, boolean longFilter, boolean shortFilter) {
         if (!getSettings().getBoolean(ENABLE_SIGNALS, true)) {
             return;
         }
+        
+        // IMPORTANT: Only add markers when the bar is complete to prevent duplicates
+        // This follows the MotiveWave SDK pattern and ensures markers persist
+        boolean barComplete = series.isBarComplete(index);
         
         // Detect transitions
         boolean wasLongFilter = lastLongFilter;
         boolean wasShortFilter = lastShortFilter;
         boolean wasFlat = !wasLongFilter && !wasShortFilter;
         
+        // Get current price for signal value
+        double price = series.getClose(index);
+        double trendValue = series.getDouble(index, Values.AJ, price);
+        
         if (wasFlat && longFilter) {
-            // Note: Marker API not available in current SDK version
-            // series.setMarker(index, new Marker(Color.GREEN, MarkerType.CIRCLE));
-            // series.setSignal(index, Signals.LONG_ENTER);
-            logger.debug("Long entry signal at index {}", index);
+            // Long entry signal
+            series.setBoolean(index, Signals.LONG_ENTER, true);
+            
+            // Only add marker when bar is complete
+            if (barComplete) {
+                var marker = getSettings().getMarker(LONG_MARKER);
+                if (marker.isEnabled()) {
+                    var coord = new Coordinate(series.getStartTime(index), trendValue);
+                    String msg = String.format("Long Entry @ %.2f", price);
+                    addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
+                }
+                
+                // Generate signal
+                ctx.signal(index, Signals.LONG_ENTER, "Long Entry Signal", price);
+                logger.debug("Long entry signal at index {} price {}", index, price);
+            }
+            
         } else if (wasFlat && shortFilter) {
-            // Note: Marker API not available in current SDK version
-            // series.setMarker(index, new Marker(Color.RED, MarkerType.CIRCLE));
-            // series.setSignal(index, Signals.SHORT_ENTER);
-            logger.debug("Short entry signal at index {}", index);
+            // Short entry signal
+            series.setBoolean(index, Signals.SHORT_ENTER, true);
+            
+            // Only add marker when bar is complete
+            if (barComplete) {
+                var marker = getSettings().getMarker(SHORT_MARKER);
+                if (marker.isEnabled()) {
+                    var coord = new Coordinate(series.getStartTime(index), trendValue);
+                    String msg = String.format("Short Entry @ %.2f", price);
+                    addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
+                }
+                
+                // Generate signal
+                ctx.signal(index, Signals.SHORT_ENTER, "Short Entry Signal", price);
+                logger.debug("Short entry signal at index {} price {}", index, price);
+            }
+            
         } else if ((wasLongFilter || wasShortFilter) && !longFilter && !shortFilter) {
-            // Note: Marker API not available in current SDK version
-            // series.setMarker(index, new Marker(Color.GRAY, MarkerType.SQUARE));
-            // series.setSignal(index, Signals.FLAT_EXIT);
-            logger.debug("Flat exit signal at index {}", index);
+            // Flat exit signal
+            series.setBoolean(index, Signals.FLAT_EXIT, true);
+            
+            // Only add marker when bar is complete
+            if (barComplete) {
+                var marker = getSettings().getMarker(EXIT_MARKER);
+                if (marker.isEnabled()) {
+                    var coord = new Coordinate(series.getStartTime(index), trendValue);
+                    String msg = String.format("Exit @ %.2f", price);
+                    addFigure(new Marker(coord, Enums.Position.CENTER, marker, msg));
+                }
+                
+                // Generate signal
+                ctx.signal(index, Signals.FLAT_EXIT, "Exit Signal", price);
+                logger.debug("Flat exit signal at index {} price {}", index, price);
+            }
         }
         
         // Update state

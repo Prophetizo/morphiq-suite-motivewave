@@ -162,34 +162,8 @@ public class Thresholds {
         return bestThreshold;
     }
     
-    /**
-     * Calculate SURE (Stein's Unbiased Risk Estimate) risk for a given threshold.
-     * 
-     * Returns an unbiased MSE estimate to find optimal threshold balancing noise removal and signal preservation.
-     * Lower risk values indicate better thresholds.
-     * 
-     * Mathematical Details:
-     * The SURE risk formula for soft thresholding is:
-     * SURE(λ) = n - 2 * #{|X_i| > λ} + Σ h(|X_i|, λ)
-     * 
-     * Where:
-     * - n: total number of coefficients
-     * - λ: threshold value being evaluated
-     * - #{|X_i| > λ}: count of coefficients with absolute value greater than threshold
-     * - h(|X_i|, λ) = |X_i|² if |X_i| ≤ λ (coefficient will be zeroed)
-     *                 λ² if |X_i| > λ (coefficient will be shrunk)
-     * 
-     * This formulation accounts for the fact that:
-     * - Coefficients below threshold contribute their squared value to the risk (they're set to 0)
-     * - Coefficients above threshold contribute λ² to the risk (they're shrunk by λ)
-     * 
-     * The risk is normalized by σ² (noise variance) to make it scale-invariant.
-     * 
-     * @param sortedAbsCoeffs Array of wavelet coefficients sorted by absolute value
-     * @param threshold The threshold value to evaluate
-     * @param sigma Estimated noise standard deviation
-     * @return SURE risk estimate (lower is better)
-     */
+    // Calculate SURE (Stein's Unbiased Risk Estimate) risk for soft thresholding
+    // Formula: SURE(λ) = n - 2 * #{|X_i| > λ} + Σ h(|X_i|, λ)
     private static double calculateSureRisk(double[] sortedAbsCoeffs, double threshold, double sigma) {
         int n = sortedAbsCoeffs.length;
         int numKept = 0;
@@ -234,9 +208,7 @@ public class Thresholds {
         return sigma;
     }
     
-    /**
-     * Calculate median of sorted array
-     */
+    // Calculate median of sorted array
     private static double calculateMedian(double[] sortedArray) {
         int n = sortedArray.length;
         if (n == 0) return 0.0;
@@ -249,9 +221,7 @@ public class Thresholds {
         }
     }
     
-    /**
-     * Calculate standard deviation
-     */
+    // Calculate standard deviation
     private static double calculateStandardDeviation(double[] data) {
         if (data.length == 0) return 0.0;
         if (data.length == 1) return 0.0;
