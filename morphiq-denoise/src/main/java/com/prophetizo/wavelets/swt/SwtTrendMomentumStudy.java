@@ -36,6 +36,7 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String SHRINKAGE_TYPE = "SHRINKAGE_TYPE";
     public static final String USE_DENOISED = "USE_DENOISED";
     public static final String DETAIL_CONFIRM_K = "DETAIL_CONFIRM_K";
+    public static final String MOMENTUM_TYPE = "MOMENTUM_TYPE";
     public static final String SHOW_WATR = "SHOW_WATR";
     public static final String WATR_K = "WATR_K";
     public static final String WATR_MULTIPLIER = "WATR_MULTIPLIER";
@@ -127,7 +128,7 @@ public class SwtTrendMomentumStudy extends Study {
         // Update minimum bars requirement
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
         
-        // Update momentum plot range for new k value
+        // Update momentum plot range for new k value or momentum type change
         updateMomentumPlotRange();
         
         // Call super to trigger recalculation
@@ -170,18 +171,22 @@ public class SwtTrendMomentumStudy extends Study {
         if (desc != null) {
             var momentumPlot = desc.getPlot(MOMENTUM_PLOT);
             if (momentumPlot != null) {
-                // Get the k value to determine momentum range
-                int k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
+                String momentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
                 
-                // Momentum sum ranges from -k to +k
-                // Add some padding for the slope values
-                int range = Math.max(k + 1, 3);
-                
-                // Set fixed top and bottom to ensure consistent scale
-                momentumPlot.setFixedTopValue(range);
-                momentumPlot.setFixedBottomValue(-range);
-                
-                logger.debug("Updated momentum plot range: {} to {}", -range, range);
+                if ("SIGN".equals(momentumType)) {
+                    // For SIGN mode: range is -k to +k
+                    int k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
+                    int range = Math.max(k + 1, 3);
+                    momentumPlot.setFixedTopValue(range);
+                    momentumPlot.setFixedBottomValue(-range);
+                    logger.debug("Updated momentum plot range (SIGN): {} to {}", -range, range);
+                } else {
+                    // For SUM mode: use auto-scaling since coefficient sums can vary widely
+                    // Remove fixed scaling to let the plot auto-adjust
+                    momentumPlot.setFixedTopValue(null);
+                    momentumPlot.setFixedBottomValue(null);
+                    logger.debug("Momentum plot using auto-scaling (SUM mode)");
+                }
             }
         }
     }
@@ -218,6 +223,11 @@ public class SwtTrendMomentumStudy extends Study {
         
         var signalGroup = generalTab.addGroup("Signal Configuration");
         signalGroup.addRow(new IntegerDescriptor(DETAIL_CONFIRM_K, "Detail Confirmation (k)", 2, 1, 3, 1));
+        signalGroup.addRow(new DiscreteDescriptor(MOMENTUM_TYPE, "Momentum Calculation", "SUM",
+                Arrays.asList(
+                        new NVP("SUM", "Sum of Details (D₁ + D₂ + ...)"),
+                        new NVP("SIGN", "Sign Count (±1 per level)")
+                )));
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
         
         // Display settings
@@ -278,11 +288,10 @@ public class SwtTrendMomentumStudy extends Study {
         momentumPlot.declareIndicator(Values.SLOPE, "Slope");
         momentumPlot.setRangeKeys(Values.MOMENTUM_SUM, Values.SLOPE);
         
-        // Set initial scale based on default k value
-        int defaultK = 2; // Default k value
-        int range = Math.max(defaultK + 1, 3);
-        momentumPlot.setFixedTopValue(range);
-        momentumPlot.setFixedBottomValue(-range);
+        // Initial scale - will be updated based on momentum type
+        // For SUM mode, we'll use auto-scaling
+        // For SIGN mode, we'll use fixed scale based on k
+        updateMomentumPlotRange();
         
         // Add zero line
         momentumPlot.addHorizontalLine(new LineInfo(0.0, null, 1.0f, new float[]{3, 3}));
@@ -450,14 +459,16 @@ public class SwtTrendMomentumStudy extends Study {
             double slope = currentTrend - previousTrend;
             series.setDouble(index, Values.SLOPE, slope);
             
-            // Calculate cross-scale momentum
-            int momentumSum = calculateMomentumSum(swtResult, detailConfirmK);
-            series.setDouble(index, Values.MOMENTUM_SUM, (double) momentumSum);
+            // Calculate cross-scale momentum (sum of low-scale details)
+            double momentumSum = calculateMomentumSum(swtResult, detailConfirmK);
+            series.setDouble(index, Values.MOMENTUM_SUM, momentumSum);
             
             // Store detail signs
             storeDetailSigns(series, index, swtResult, detailConfirmK);
             
-            // Determine filter states
+            // Determine filter states based on slope and detail sum
+            // Long: positive slope AND positive sum of low-scale details
+            // Short: negative slope AND negative sum of low-scale details
             boolean longFilter = slope > 0 && momentumSum > 0;
             boolean shortFilter = slope < 0 && momentumSum < 0;
             
@@ -576,15 +587,24 @@ public class SwtTrendMomentumStudy extends Study {
         }
     }
     
-    private int calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
-        int sum = 0;
+    private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
+        double sum = 0.0;
         int levelsToUse = Math.min(k, swtResult.getLevels());
+        String momentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
         
         for (int level = 1; level <= levelsToUse; level++) {
             double[] detail = swtResult.getDetail(level);
             if (detail.length > 0) {
                 double lastCoeff = detail[detail.length - 1];
-                sum += (lastCoeff > 0) ? 1 : (lastCoeff < 0) ? -1 : 0;
+                
+                if ("SUM".equals(momentumType)) {
+                    // Sum the actual coefficient values (spec: D₁ + D₂)
+                    // This gives us the true momentum from low-scale details
+                    sum += lastCoeff;
+                } else {
+                    // Sign-based: count +1/-1 per level (alternative approach)
+                    sum += (lastCoeff > 0) ? 1 : (lastCoeff < 0) ? -1 : 0;
+                }
             }
         }
         
@@ -616,53 +636,43 @@ public class SwtTrendMomentumStudy extends Study {
         // Detect transitions
         boolean wasLongFilter = lastLongFilter;
         boolean wasShortFilter = lastShortFilter;
-        boolean wasFlat = !wasLongFilter && !wasShortFilter;
         
         // Get current price for signal value
         double price = series.getClose(index);
         double trendValue = series.getDouble(index, Values.AJ, price);
         
-        if (wasFlat && longFilter) {
-            // Long entry signal
-            series.setBoolean(index, Signals.LONG_ENTER, true);
-            
-            // Only add marker when bar is complete
-            if (barComplete) {
-                var marker = getSettings().getMarker(LONG_MARKER);
-                if (marker.isEnabled()) {
-                    var coord = new Coordinate(series.getStartTime(index), trendValue);
-                    String msg = String.format("Long Entry @ %.2f", price);
-                    addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
-                }
-                
-                // Generate signal
-                ctx.signal(index, Signals.LONG_ENTER, "Long Entry Signal", price);
-                logger.debug("Long entry signal at index {} price {}", index, price);
+        // According to spec:
+        // Entry: slope > 0 AND momentum > 0 (long), slope < 0 AND momentum < 0 (short)
+        // Exit: slope loss OR momentum sign flip
+        
+        // Check for signal changes
+        boolean generateLongEntry = false;
+        boolean generateShortEntry = false;
+        boolean generateExit = false;
+        
+        if (longFilter && !wasLongFilter) {
+            // New long signal
+            if (wasShortFilter) {
+                // Reversal from short to long - exit short first
+                generateExit = true;
             }
-            
-        } else if (wasFlat && shortFilter) {
-            // Short entry signal
-            series.setBoolean(index, Signals.SHORT_ENTER, true);
-            
-            // Only add marker when bar is complete
-            if (barComplete) {
-                var marker = getSettings().getMarker(SHORT_MARKER);
-                if (marker.isEnabled()) {
-                    var coord = new Coordinate(series.getStartTime(index), trendValue);
-                    String msg = String.format("Short Entry @ %.2f", price);
-                    addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
-                }
-                
-                // Generate signal
-                ctx.signal(index, Signals.SHORT_ENTER, "Short Entry Signal", price);
-                logger.debug("Short entry signal at index {} price {}", index, price);
+            generateLongEntry = true;
+        } else if (shortFilter && !wasShortFilter) {
+            // New short signal
+            if (wasLongFilter) {
+                // Reversal from long to short - exit long first
+                generateExit = true;
             }
-            
-        } else if ((wasLongFilter || wasShortFilter) && !longFilter && !shortFilter) {
-            // Flat exit signal
+            generateShortEntry = true;
+        } else if (!longFilter && !shortFilter && (wasLongFilter || wasShortFilter)) {
+            // Exit signal - no longer meeting entry conditions
+            generateExit = true;
+        }
+        
+        // Generate exit signal first if needed (for reversals)
+        if (generateExit) {
             series.setBoolean(index, Signals.FLAT_EXIT, true);
             
-            // Only add marker when bar is complete
             if (barComplete) {
                 var marker = getSettings().getMarker(EXIT_MARKER);
                 if (marker.isEnabled()) {
@@ -671,9 +681,39 @@ public class SwtTrendMomentumStudy extends Study {
                     addFigure(new Marker(coord, Enums.Position.CENTER, marker, msg));
                 }
                 
-                // Generate signal
                 ctx.signal(index, Signals.FLAT_EXIT, "Exit Signal", price);
-                logger.debug("Flat exit signal at index {} price {}", index, price);
+                logger.debug("Exit signal at index {} price {}", index, price);
+            }
+        }
+        
+        // Generate entry signals
+        if (generateLongEntry) {
+            series.setBoolean(index, Signals.LONG_ENTER, true);
+            
+            if (barComplete) {
+                var marker = getSettings().getMarker(LONG_MARKER);
+                if (marker.isEnabled()) {
+                    var coord = new Coordinate(series.getStartTime(index), trendValue);
+                    String msg = String.format("Long Entry @ %.2f", price);
+                    addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
+                }
+                
+                ctx.signal(index, Signals.LONG_ENTER, "Long Entry Signal", price);
+                logger.debug("Long entry signal at index {} price {}", index, price);
+            }
+        } else if (generateShortEntry) {
+            series.setBoolean(index, Signals.SHORT_ENTER, true);
+            
+            if (barComplete) {
+                var marker = getSettings().getMarker(SHORT_MARKER);
+                if (marker.isEnabled()) {
+                    var coord = new Coordinate(series.getStartTime(index), trendValue);
+                    String msg = String.format("Short Entry @ %.2f", price);
+                    addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
+                }
+                
+                ctx.signal(index, Signals.SHORT_ENTER, "Short Entry Signal", price);
+                logger.debug("Short entry signal at index {} price {}", index, price);
             }
         }
         
