@@ -5,6 +5,8 @@ import ai.prophetizo.wavelet.api.Wavelet;
 import ai.prophetizo.wavelet.api.WaveletRegistry;
 import ai.prophetizo.wavelet.modwt.MutableMultiLevelMODWTResult;
 import ai.prophetizo.wavelet.modwt.MutableMultiLevelMODWTResultImpl;
+import com.prophetizo.LoggerConfig;
+import org.slf4j.Logger;
 import java.util.Arrays;
 
 /**
@@ -28,49 +30,7 @@ import java.util.Arrays;
  * @see ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter
  */
 public class VectorWaveSwtAdapter {
-    // Simple logging for debugging
-    private static final boolean TRACE_ENABLED = false; // Configuration flag for trace logging
-    
-    private static void log(String level, String message, Object... args) {
-        // Early return for TRACE level when disabled - avoids all computation
-        if ("TRACE".equals(level) && !TRACE_ENABLED) {
-            return;
-        }
-        
-        // For other log levels or when TRACE is enabled
-        // Extract exception if present as last argument
-        Throwable exception = null;
-        int formatArgCount = args.length;
-        
-        if (args.length > 0 && args[args.length - 1] instanceof Throwable) {
-            exception = (Throwable) args[args.length - 1];
-            formatArgCount--; // Don't include exception in format args
-        }
-        
-        // Build message more efficiently without array creation for simple cases
-        StringBuilder sb = new StringBuilder();
-        sb.append("[").append(level).append("] [VectorWaveSwtAdapter] ");
-        
-        // Format message with arguments if present
-        if (formatArgCount > 0) {
-            // Only create array copy if we have format arguments and an exception
-            if (exception != null && formatArgCount < args.length) {
-                Object[] formatArgs = Arrays.copyOf(args, formatArgCount);
-                sb.append(String.format(message, formatArgs));
-            } else {
-                sb.append(String.format(message, args));
-            }
-        } else {
-            sb.append(message);
-        }
-        
-        System.out.println(sb.toString());
-        
-        // Print stack trace if exception present
-        if (exception != null) {
-            exception.printStackTrace(System.out);
-        }
-    }
+    private static final Logger logger = LoggerConfig.getLogger(VectorWaveSwtAdapter.class);
     
     private final String waveletType;
     private final BoundaryMode boundaryMode;
@@ -88,7 +48,7 @@ public class VectorWaveSwtAdapter {
         this.boundaryMode = BoundaryMode.PERIODIC; // Default boundary mode
         this.wavelet = WaveletRegistry.getWavelet(waveletType);
         this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
-        log("INFO", "VectorWave SWT adapter initialized with wavelet: %s", waveletType);
+        logger.info("VectorWave SWT adapter initialized with wavelet: {}", waveletType);
     }
     
     /**
@@ -103,7 +63,7 @@ public class VectorWaveSwtAdapter {
         this.boundaryMode = boundaryMode;
         this.wavelet = WaveletRegistry.getWavelet(waveletType);
         this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
-        log("INFO", "VectorWave SWT adapter initialized with wavelet: %s, boundary: %s", waveletType, boundaryMode);
+        logger.info("VectorWave SWT adapter initialized with wavelet: {}, boundary: {}", waveletType, boundaryMode);
     }
     
     
@@ -126,7 +86,9 @@ public class VectorWaveSwtAdapter {
             details[j-1] = result.getDetailCoeffsAtLevel(j);
         }
         
-        log("DEBUG", "VectorWave SWT completed for %d levels", levels);
+        if (logger.isDebugEnabled()) {
+            logger.debug("VectorWave SWT completed for {} levels", levels);
+        }
         return new SwtResult(approximation, details, waveletType, boundaryMode, result);
     }
     
@@ -190,6 +152,8 @@ public class VectorWaveSwtAdapter {
         private final BoundaryMode boundaryMode;
         
         private final MutableMultiLevelMODWTResult vectorWaveResult;
+        // Cache the adapter for efficient reconstruction
+        private VectorWaveSwtAdapter cachedAdapter;
         
         public SwtResult(double[] approximation, double[][] details, String waveletType, BoundaryMode boundaryMode, MutableMultiLevelMODWTResult vectorWaveResult) {
             if (vectorWaveResult == null) {
@@ -296,10 +260,12 @@ public class VectorWaveSwtAdapter {
             }
             tempResult.clearCaches();
             
-            // Use VectorWave's inverse transform for proper reconstruction
-            // Pass the same boundary mode to ensure consistency
-            VectorWaveSwtAdapter parent = new VectorWaveSwtAdapter(waveletType, boundaryMode);
-            return parent.inverse(tempResult);
+            // Use cached adapter for efficient reconstruction
+            // Lazy initialization to avoid creating adapter if reconstruction is never called
+            if (cachedAdapter == null) {
+                cachedAdapter = new VectorWaveSwtAdapter(waveletType, boundaryMode);
+            }
+            return cachedAdapter.inverse(tempResult);
         }
         
         /**

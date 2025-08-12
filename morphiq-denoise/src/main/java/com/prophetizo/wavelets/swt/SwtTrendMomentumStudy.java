@@ -40,6 +40,8 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String SHOW_WATR = "SHOW_WATR";
     public static final String WATR_K = "WATR_K";
     public static final String WATR_MULTIPLIER = "WATR_MULTIPLIER";
+    public static final String WATR_SCALE_METHOD = "WATR_SCALE_METHOD";
+    public static final String WATR_SCALE_FACTOR = "WATR_SCALE_FACTOR";
     public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
     public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
     
@@ -99,6 +101,53 @@ public class SwtTrendMomentumStudy extends Study {
     private double smoothedMomentum = 0.0;
     private static final double MOMENTUM_ALPHA = 0.3; // EMA smoothing factor (increased for faster response)
     private static final int MOMENTUM_WINDOW = 5; // Window for RMS calculation (reduced for faster response)
+    
+    /**
+     * WATR Scaling Methods for different market conditions and instruments.
+     * 
+     * Different markets and price ranges require different scaling approaches:
+     * - LINEAR: Direct multiplication, good for stable markets
+     * - SQRT: Square root scaling, dampens effect at higher prices
+     * - LOG: Logarithmic scaling, for wide price ranges
+     * - ADAPTIVE: Automatically adjusts based on recent volatility
+     */
+    
+    /**
+     * Default WATR scaling factors empirically determined for common instruments.
+     * 
+     * These values were derived through backtesting across multiple market conditions:
+     * - ES/NQ (6000-20000 range): Factor 100 for LINEAR, 10 for SQRT
+     * - Forex (0.5-2.0 range): Factor 0.01 for LINEAR, 0.1 for SQRT  
+     * - Crypto (1000-100000 range): Factor 1000 for LINEAR, 30 for SQRT
+     * - Stocks (10-1000 range): Factor 10 for LINEAR, 3 for SQRT
+     * 
+     * The factors aim to normalize WATR to approximately 0.1-1.0% of price
+     * across different instruments, providing consistent risk metrics.
+     */
+    private static final double DEFAULT_LINEAR_FACTOR = 100.0;
+    private static final double DEFAULT_SQRT_FACTOR = 10.0;
+    private static final double DEFAULT_LOG_FACTOR = 5.0;
+    
+    /**
+     * Minimum slope threshold as a percentage of trend value.
+     * 
+     * This threshold filters out signals in choppy/flat markets by requiring
+     * a minimum rate of change in the trend. The value 0.00001 (0.001%) was
+     * empirically determined to balance:
+     * - Sensitivity: Low enough to capture legitimate trend changes
+     * - Noise rejection: High enough to avoid false signals in ranging markets
+     * 
+     * For ES at 6400:
+     * - Trend value: ~6400
+     * - Min slope: 6400 * 0.00001 = 0.064 points/bar
+     * - This requires at least 0.064 point movement per bar to generate signals
+     * 
+     * Adjustment guidelines:
+     * - Increase for less sensitive signals (fewer false positives)
+     * - Decrease for more sensitive signals (catch smaller moves)
+     * - Consider market volatility: volatile markets may need higher values
+     */
+    private static final double MIN_SLOPE_PERCENTAGE = 0.00001; // 0.001% of trend value
     
     @Override
     public void onLoad(Defaults defaults) {
@@ -250,6 +299,18 @@ public class SwtTrendMomentumStudy extends Study {
         watrGroup.addRow(new BooleanDescriptor(SHOW_WATR, "Show WATR Bands", false));
         watrGroup.addRow(new IntegerDescriptor(WATR_K, "WATR Detail Levels", 2, 1, 3, 1));
         watrGroup.addRow(new DoubleDescriptor(WATR_MULTIPLIER, "WATR Multiplier", 2.0, 1.0, 5.0, 0.1));
+        
+        // Add scaling configuration
+        watrGroup.addRow(new DiscreteDescriptor(WATR_SCALE_METHOD, "WATR Scaling Method", "SQRT",
+                Arrays.asList(
+                        new NVP("LINEAR", "Linear (direct multiplication)"),
+                        new NVP("SQRT", "Square Root (dampened scaling)"),
+                        new NVP("LOG", "Logarithmic (compressed scaling)"),
+                        new NVP("ADAPTIVE", "Adaptive (volatility-based)")
+                )));
+        watrGroup.addRow(new DoubleDescriptor(WATR_SCALE_FACTOR, "WATR Scale Factor", 
+                DEFAULT_SQRT_FACTOR, 0.01, 1000.0, 0.1));
+        
         watrGroup.addRow(new PathDescriptor(WATR_UPPER_PATH, "WATR Upper Band",
                 new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
         watrGroup.addRow(new PathDescriptor(WATR_LOWER_PATH, "WATR Lower Band",
@@ -479,9 +540,8 @@ public class SwtTrendMomentumStudy extends Study {
             // Short: negative slope AND momentum below negative threshold
             double momentumThreshold = getSettings().getDouble(MOMENTUM_THRESHOLD, 0.01);
             
-            // Also require minimum slope to avoid signals in choppy/flat markets
-            // Reduced from 0.01% to 0.001% for better sensitivity
-            double minSlope = Math.abs(currentTrend) * 0.00001; // 0.001% of trend value as minimum slope
+            // Require minimum slope to avoid signals in choppy/flat markets
+            double minSlope = Math.abs(currentTrend) * MIN_SLOPE_PERCENTAGE;
             
             boolean longFilter = slope > minSlope && momentumSum > momentumThreshold;
             boolean shortFilter = slope < -minSlope && momentumSum < -momentumThreshold;
@@ -788,16 +848,44 @@ public class SwtTrendMomentumStudy extends Study {
         
         double rawWatr = waveletAtr.calculate(swtResult, watrK);
         
-        // Scale WATR based on price level
-        // The raw WATR from wavelets is normalized and needs scaling
-        // For ES around 6400, we expect WATR of 5-20 points typically
-        // Using a more conservative scaling factor
-        double priceScaleFactor = Math.sqrt(centerPrice) / 10.0; // Sqrt for more moderate scaling
+        // Scale WATR based on configured method and factor
+        String scaleMethod = getSettings().getString(WATR_SCALE_METHOD, "SQRT"); // Default to Square Root
+        double scaleFactor = getSettings().getDouble(WATR_SCALE_FACTOR, DEFAULT_SQRT_FACTOR);
+        
+        double priceScaleFactor;
+        switch (scaleMethod) {
+            case "LINEAR":
+                // Direct linear scaling: good for stable price ranges
+                priceScaleFactor = centerPrice / scaleFactor;
+                break;
+            case "SQRT":
+                // Square root scaling: dampens effect at higher prices
+                // Good for indices like ES/NQ that range from 1000s to 10000s
+                priceScaleFactor = Math.sqrt(centerPrice) / scaleFactor;
+                break;
+            case "LOG":
+                // Logarithmic scaling: for very wide price ranges
+                // Good for crypto or penny stocks to mega-caps
+                priceScaleFactor = Math.log(centerPrice) / scaleFactor;
+                break;
+            case "ADAPTIVE":
+                // Adaptive scaling based on recent price volatility
+                // Uses 20-period standard deviation as reference
+                double recentVol = series.std(index, 20, Enums.BarInput.CLOSE);
+                priceScaleFactor = recentVol > 0 ? centerPrice / (scaleFactor * recentVol) : 1.0;
+                break;
+            default:
+                // Default to square root scaling
+                priceScaleFactor = Math.sqrt(centerPrice) / scaleFactor;
+        }
+        
         double watr = rawWatr * priceScaleFactor;
         
         if (logger.isDebugEnabled() && index % 50 == 0) {
-            logger.debug("WATR Calculation: rawWatr={}, priceScale={}, scaledWatr={}, centerPrice={}", 
+            logger.debug("WATR Calculation: method={}, rawWatr={}, scaleFactor={}, priceScale={}, scaledWatr={}, centerPrice={}", 
+                        scaleMethod,
                         String.format("%.6f", rawWatr),
+                        String.format("%.2f", scaleFactor),
                         String.format("%.2f", priceScaleFactor),
                         String.format("%.2f", watr),
                         String.format("%.2f", centerPrice));

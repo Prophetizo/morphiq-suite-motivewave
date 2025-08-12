@@ -1,7 +1,7 @@
 package com.prophetizo.wavelets.swt.core;
 
-
-
+import com.prophetizo.LoggerConfig;
+import org.slf4j.Logger;
 
 import java.util.Arrays;
 
@@ -10,23 +10,7 @@ import java.util.Arrays;
  * Uses RMS energy from detail coefficients to estimate volatility.
  */
 public class WaveletAtr {
-    // Simple console logging for standalone compilation
-    private static final boolean TRACE_ENABLED = false; // Configuration flag for trace logging
-    private static final boolean DEBUG_ENABLED = false; // Configuration flag for debug logging
-    
-    private static void log(String level, String message, Object... args) {
-        // Early return for disabled log levels - avoids all computation
-        if (("TRACE".equals(level) && !TRACE_ENABLED) || 
-            ("DEBUG".equals(level) && !DEBUG_ENABLED)) {
-            return;
-        }
-        
-        // Combine level with other format arguments
-        Object[] allArgs = new Object[args.length + 1];
-        allArgs[0] = level;
-        System.arraycopy(args, 0, allArgs, 1, args.length);
-        System.out.printf("[%s] [WaveletAtr] " + message + "%n", allArgs);
-    }
+    private static final Logger logger = LoggerConfig.getLogger(WaveletAtr.class);
     
     /**
      * Level weight decay factor for multi-scale energy calculation.
@@ -76,7 +60,9 @@ public class WaveletAtr {
         this.buffer = new double[this.smoothingPeriod];
         Arrays.fill(buffer, 0.0);
         
-        log("DEBUG", "Initialized WaveletAtr with smoothing period: %d", this.smoothingPeriod);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Initialized WaveletAtr with smoothing period: {}", this.smoothingPeriod);
+        }
     }
     
     /**
@@ -93,8 +79,12 @@ public class WaveletAtr {
         // Apply smoothing
         double smoothedWatr = addToSmoothing(rmsEnergy);
         
-        log("TRACE", "WATR calculation: raw RMS=%.4f, smoothed=%.4f, levels=%d", 
-                    rmsEnergy, smoothedWatr, levelsToUse);
+        if (logger.isTraceEnabled()) {
+            logger.trace("WATR calculation: raw RMS={}, smoothed={}, levels={}", 
+                        String.format("%.4f", rmsEnergy), 
+                        String.format("%.4f", smoothedWatr), 
+                        levelsToUse);
+        }
         
         return smoothedWatr;
     }
@@ -142,7 +132,12 @@ public class WaveletAtr {
                 totalEnergy += levelEnergy * weight;
                 totalSamples += detail.length;
                 
-                log("TRACE", "Level %d energy: %.4f, weight: %.2f", level + 1, levelEnergy, weight);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Level {} energy: {}, weight: {}", 
+                                level + 1, 
+                                String.format("%.4f", levelEnergy), 
+                                String.format("%.2f", weight));
+                }
             }
         }
         
@@ -190,7 +185,9 @@ public class WaveletAtr {
         bufferFilled = false;
         ema = 0.0;
         
-        log("DEBUG", "WaveletAtr state reset");
+        if (logger.isDebugEnabled()) {
+            logger.debug("WaveletAtr state reset");
+        }
     }
     
     /**

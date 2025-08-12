@@ -1,5 +1,7 @@
 package com.prophetizo.wavelets.swt.core;
 
+import com.prophetizo.LoggerConfig;
+import org.slf4j.Logger;
 import java.util.Arrays;
 
 /**
@@ -7,10 +9,7 @@ import java.util.Arrays;
  * Implements Universal, BayesShrink, and SURE thresholding.
  */
 public class Thresholds {
-    // Simple console logging for standalone compilation
-    private static void log(String message, Object... args) {
-        System.out.printf("[Thresholds] " + message + "%n", args);
-    }
+    private static final Logger logger = LoggerConfig.getLogger(Thresholds.class);
     
     public enum ThresholdMethod {
         UNIVERSAL("Universal"),
@@ -77,7 +76,7 @@ public class Thresholds {
             case SURE:
                 return calculateSureThreshold(detailCoeffs);
             default:
-                log("Unknown threshold method %s, using Universal", method);
+                logger.warn("Unknown threshold method {}, using Universal", method);
                 return calculateUniversalThreshold(detailCoeffs);
         }
     }
