@@ -161,7 +161,7 @@ public class DenoisedTrendFollowing extends Study {
 
     @Override
     public void onLoad(Defaults defaults) {
-        logger.debug("DenoisedTrendFollowing onLoad called - bar type or settings may have changed");
+        logger.debug("DenoisedTrendFollowing onLoad - initializing");
         
         // Ensure trading services are initialized when study loads
         if (denoiser == null) {
@@ -175,9 +175,36 @@ public class DenoisedTrendFollowing extends Study {
             logger.debug("Updated configuration for bar size context");
         }
         
-        // Clear tracked settings to force update on next calculate
+        // Update minimum bars requirement
+        setMinBars(getSettings().getInteger(LOOKBACK_PERIOD, 512));
+        
+        // CRITICAL: Always call super.onLoad
+        super.onLoad(defaults);
+    }
+    
+    @Override
+    public void onSettingsUpdated(DataContext ctx) {
+        logger.info("Settings updated - triggering recalculation");
+        
+        // Update minimum bars requirement
+        setMinBars(getSettings().getInteger(LOOKBACK_PERIOD, 512));
+        
+        // CRITICAL: Always call super to trigger framework recalculation
+        super.onSettingsUpdated(ctx);
+    }
+    
+    @Override
+    public void clearState() {
+        logger.debug("Clearing state - resetting cached values");
+        
+        // CRITICAL: Call super first
+        super.clearState();
+        
+        // Clear tracked settings to force update
         lastWaveletType = null;
         lastDenoiseStrategy = null;
+        
+        // Note: Don't null denoiser here - it will be updated in checkAndUpdateSettings
     }
 
     private void checkAndUpdateSettings() {

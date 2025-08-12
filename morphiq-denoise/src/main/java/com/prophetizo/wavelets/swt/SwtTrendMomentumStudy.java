@@ -72,28 +72,127 @@ public class SwtTrendMomentumStudy extends Study {
     private WaveletAtr waveletAtr;
     
     // State tracking
-    private String lastWaveletType = null;
-    private Integer lastLevels = null;
+    private String currentWaveletType = null;
+    private Integer currentLevels = null;
+    private Integer currentWindowLength = null;
     private boolean lastLongFilter = false;
     private boolean lastShortFilter = false;
+    
+    @Override
+    public void onLoad(Defaults defaults) {
+        logger.info("Study onLoad - initializing");
+        
+        // Update minimum bars requirement based on window length
+        setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
+        
+        // CRITICAL: Always call super.onLoad to let framework handle setup
+        super.onLoad(defaults);
+    }
+    
+    @Override
+    public void onSettingsUpdated(DataContext ctx) {
+        logger.info("Settings updated - triggering recalculation");
+        
+        // Update minimum bars requirement
+        setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
+        
+        // Update momentum plot range for new k value
+        updateMomentumPlotRange();
+        
+        // CRITICAL: Always call super to trigger framework recalculation
+        super.onSettingsUpdated(ctx);
+    }
+    
+    @Override
+    public void clearState() {
+        logger.debug("Clearing state - resetting all cached values");
+        
+        // CRITICAL: Call super first
+        super.clearState();
+        
+        // Reset all state tracking
+        currentWaveletType = null;
+        currentLevels = null;
+        currentWindowLength = null;
+        lastLongFilter = false;
+        lastShortFilter = false;
+        
+        // Clear components to force re-initialization
+        swtAdapter = null;
+        waveletAtr = null;
+        
+        // Clear any figures (markers, etc.)
+        clearFigures();
+    }
+    
+    @Override
+    protected void calculateValues(DataContext ctx) {
+        logger.debug("Full recalculation triggered");
+        
+        // Clear all existing figures
+        clearFigures();
+        
+        // Get the data series
+        DataSeries series = ctx.getDataSeries();
+        
+        // Clear momentum plot values for all bars
+        for (int i = 0; i < series.size(); i++) {
+            series.setDouble(i, Values.MOMENTUM_SUM, null);
+            series.setDouble(i, Values.SLOPE, null);
+            series.setDouble(i, Values.LONG_FILTER, null);
+            series.setDouble(i, Values.SHORT_FILTER, null);
+        }
+        
+        // Reset signal tracking state
+        lastLongFilter = false;
+        lastShortFilter = false;
+        
+        // Update momentum plot range
+        updateMomentumPlotRange();
+        
+        // Now recalculate all bars
+        super.calculateValues(ctx);
+    }
+    
+    private void updateMomentumPlotRange() {
+        // Get the runtime descriptor and momentum plot
+        var desc = getRuntimeDescriptor();
+        if (desc != null) {
+            var momentumPlot = desc.getPlot(MOMENTUM_PLOT);
+            if (momentumPlot != null) {
+                // Get the k value to determine momentum range
+                int k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
+                
+                // Momentum sum ranges from -k to +k
+                // Add some padding for the slope values
+                int range = Math.max(k + 1, 3);
+                
+                // Set fixed top and bottom to ensure consistent scale
+                momentumPlot.setFixedTopValue(range);
+                momentumPlot.setFixedBottomValue(-range);
+                
+                logger.debug("Updated momentum plot range: {} to {}", -range, range);
+            }
+        }
+    }
     
     @Override
     public void initialize(Defaults defaults) {
         logger.debug("Initializing SWT Trend + Momentum Study");
         
-        SettingsDescriptor settings = new SettingsDescriptor();
-        setSettingsDescriptor(settings);
+        // Create Settings Descriptor using the standard pattern
+        var sd = createSD();
         
         // General settings
-        SettingTab generalTab = settings.addTab("General");
-        SettingGroup waveletGroup = generalTab.addGroup("Wavelet Configuration");
+        var generalTab = sd.addTab("General");
+        var waveletGroup = generalTab.addGroup("Wavelet Configuration");
         
         List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
         waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE, "db4", waveletOptions));
         waveletGroup.addRow(new IntegerDescriptor(LEVELS, "Decomposition Levels", 5, 2, 8, 1));
         waveletGroup.addRow(new IntegerDescriptor(WINDOW_LENGTH, "Window Length (bars)", 4096, 512, 8192, 256));
         
-        SettingGroup thresholdGroup = generalTab.addGroup("Thresholding");
+        var thresholdGroup = generalTab.addGroup("Thresholding");
         thresholdGroup.addRow(new DiscreteDescriptor(THRESHOLD_METHOD, "Threshold Method", "Universal",
                 Arrays.asList(
                         new NVP("Universal", "Universal (robust)"),
@@ -106,18 +205,18 @@ public class SwtTrendMomentumStudy extends Study {
                         new NVP("Hard", "Hard thresholding")
                 )));
         
-        SettingGroup signalGroup = generalTab.addGroup("Signal Configuration");
+        var signalGroup = generalTab.addGroup("Signal Configuration");
         signalGroup.addRow(new IntegerDescriptor(DETAIL_CONFIRM_K, "Detail Confirmation (k)", 2, 1, 3, 1));
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
         
         // Display settings
-        SettingTab displayTab = settings.addTab("Display");
+        var displayTab = sd.addTab("Display");
         
-        SettingGroup trendGroup = displayTab.addGroup("Trend Display");
+        var trendGroup = displayTab.addGroup("Trend Display");
         trendGroup.addRow(new PathDescriptor(AJ_PATH, "Approximation (A_J)",
                 new Color(0, 150, 255), 2.0f, null, true, true, true));
         
-        SettingGroup watrGroup = displayTab.addGroup("Wavelet ATR");
+        var watrGroup = displayTab.addGroup("Wavelet ATR");
         watrGroup.addRow(new BooleanDescriptor(SHOW_WATR, "Show WATR Bands", false));
         watrGroup.addRow(new IntegerDescriptor(WATR_K, "WATR Detail Levels", 2, 1, 3, 1));
         watrGroup.addRow(new DoubleDescriptor(WATR_MULTIPLIER, "WATR Multiplier", 2.0, 1.0, 5.0, 0.1));
@@ -127,15 +226,14 @@ public class SwtTrendMomentumStudy extends Study {
                 new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
         
         // Momentum plot paths
-        SettingGroup momentumGroup = displayTab.addGroup("Momentum Display");
+        var momentumGroup = displayTab.addGroup("Momentum Display");
         momentumGroup.addRow(new PathDescriptor(MOMENTUM_SUM_PATH, "Cross-Scale Momentum",
                 new Color(0, 200, 150), 2.0f, null, true, true, true));
         momentumGroup.addRow(new PathDescriptor(SLOPE_PATH, "Trend Slope",
                 new Color(200, 150, 0), 1.5f, null, true, false, true));
         
-        // Runtime descriptor
-        RuntimeDescriptor desc = new RuntimeDescriptor();
-        setRuntimeDescriptor(desc);
+        // Create Runtime Descriptor using the standard pattern
+        var desc = createRD();
         
         // Main price plot
         desc.declarePath(Values.AJ, AJ_PATH);
@@ -155,74 +253,83 @@ public class SwtTrendMomentumStudy extends Study {
         momentumPlot.declareIndicator(Values.MOMENTUM_SUM, "Momentum");
         momentumPlot.declareIndicator(Values.SLOPE, "Slope");
         momentumPlot.setRangeKeys(Values.MOMENTUM_SUM, Values.SLOPE);
+        
+        // Set initial scale based on default k value
+        int defaultK = 2; // Default k value
+        int range = Math.max(defaultK + 1, 3);
+        momentumPlot.setFixedTopValue(range);
+        momentumPlot.setFixedBottomValue(-range);
+        
+        // Add zero line
         momentumPlot.addHorizontalLine(new LineInfo(0.0, null, 1.0f, new float[]{3, 3}));
         
         // Signals
         desc.declareSignal(Signals.LONG_ENTER, "Long Entry");
         desc.declareSignal(Signals.SHORT_ENTER, "Short Entry");
         desc.declareSignal(Signals.FLAT_EXIT, "Flat Exit");
-        
-        initializeComponents();
     }
     
-    private void initializeComponents() {
-        try {
-            // Initialize with default wavelet
-            this.swtAdapter = new VectorWaveSwtAdapter("db4");
-            this.waveletAtr = new WaveletAtr(14); // 14-period smoothing
-            
-            logger.info("Initialized SWT components successfully");
-        } catch (Exception e) {
-            logger.error("Failed to initialize SWT components", e);
-        }
-    }
     
     @Override
-    public void onLoad(Defaults defaults) {
-        logger.debug("SWT study loaded");
-        checkAndUpdateSettings();
+    public int getMinBars() {
+        // Return the minimum number of bars needed for calculation
+        return getSettings().getInteger(WINDOW_LENGTH, 4096);
     }
     
     @Override
     public int getMinBars(DataContext ctx, BarSize bs) {
+        // Override with context-aware version
         return getSettings().getInteger(WINDOW_LENGTH, 4096);
     }
     
-    private void checkAndUpdateSettings() {
+    private void ensureInitialized() {
         String waveletType = getSettings().getString(WAVELET_TYPE, "db4");
         Integer levels = getSettings().getInteger(LEVELS, 5);
+        Integer windowLength = getSettings().getInteger(WINDOW_LENGTH, 4096);
         
-        boolean settingsChanged = !waveletType.equals(lastWaveletType) || !levels.equals(lastLevels);
+        // Check if settings have changed
+        boolean waveletChanged = currentWaveletType == null || !waveletType.equals(currentWaveletType);
+        boolean levelsChanged = currentLevels == null || !levels.equals(currentLevels);
+        boolean windowChanged = currentWindowLength == null || !windowLength.equals(currentWindowLength);
         
-        if (settingsChanged || swtAdapter == null) {
-            updateComponents(waveletType, levels);
-            lastWaveletType = waveletType;
-            lastLevels = levels;
-            
-            logger.debug("Settings updated: wavelet={}, levels={}", waveletType, levels);
+        // Initialize or reinitialize if needed
+        if (swtAdapter == null || waveletChanged || levelsChanged || windowChanged) {
+            try {
+                String vectorWaveType = mapWaveletName(waveletType);
+                this.swtAdapter = new VectorWaveSwtAdapter(vectorWaveType);
+                currentWaveletType = waveletType;
+                currentLevels = levels;
+                currentWindowLength = windowLength;
+                
+                // Reset signal tracking on change
+                lastLongFilter = false;
+                lastShortFilter = false;
+                
+                logger.info("SWT adapter initialized/updated - wavelet: {} -> {}, levels: {}, window: {}", 
+                           waveletType, vectorWaveType, levels, windowLength);
+            } catch (Exception e) {
+                logger.error("Failed to initialize SWT adapter", e);
+            }
+        }
+        
+        if (waveletAtr == null) {
+            this.waveletAtr = new WaveletAtr(14); // 14-period smoothing
+            logger.debug("Initialized WATR component");
+        } else if (waveletChanged || levelsChanged || windowChanged) {
+            // Reset WATR on settings change
+            waveletAtr.reset();
+            logger.debug("Reset WATR due to settings change");
         }
     }
     
-    private void updateComponents(String waveletType, int levels) {
-        try {
-            // Map to VectorWave naming convention
-            String vectorWaveType = mapWaveletName(waveletType);
-            
-            this.swtAdapter = new VectorWaveSwtAdapter(vectorWaveType);
-            
-            // Reset state
-            if (waveletAtr != null) {
-                waveletAtr.reset();
-            }
-            
-            logger.info("Updated SWT components: wavelet={} -> {}, levels={}", 
-                       waveletType, vectorWaveType, levels);
-        } catch (Exception e) {
-            logger.error("Failed to update SWT components", e);
-        }
-    }
     
     private String mapWaveletName(String displayName) {
+        // Check if already in short form
+        if (displayName.matches("^(db|sym|coif)\\d+$") || displayName.equalsIgnoreCase("haar")) {
+            logger.debug("Wavelet already in short form: {}", displayName);
+            return displayName.toLowerCase();
+        }
+        
         // Map UI display names to VectorWave names
         if (displayName.startsWith("Daubechies")) {
             String number = displayName.replaceAll("[^0-9]", "");
@@ -237,6 +344,7 @@ public class SwtTrendMomentumStudy extends Study {
             return "haar";
         }
         
+        logger.warn("Unknown wavelet type: {}, defaulting to db4", displayName);
         // Default fallback
         return "db4";
     }
@@ -244,15 +352,18 @@ public class SwtTrendMomentumStudy extends Study {
     @Override
     protected void calculate(int index, DataContext ctx) {
         try {
-            DataSeries series = ctx.getDataSeries();
-            
-            // Check settings
-            checkAndUpdateSettings();
+            // Ensure components are initialized
+            ensureInitialized();
             
             if (swtAdapter == null) {
-                logger.warn("SWT adapter not initialized");
-                return;
+                // Clear any stale values when adapter is not ready
+                DataSeries series = ctx.getDataSeries();
+                series.setDouble(index, Values.MOMENTUM_SUM, null);
+                series.setDouble(index, Values.SLOPE, null);
+                return; // Cannot proceed without SWT adapter
             }
+            
+            DataSeries series = ctx.getDataSeries();
             
             // Get configuration
             int windowLength = getSettings().getInteger(WINDOW_LENGTH, 4096);
@@ -261,6 +372,9 @@ public class SwtTrendMomentumStudy extends Study {
             
             // Need enough data
             if (index < windowLength) {
+                // Clear momentum values when we don't have enough data
+                series.setDouble(index, Values.MOMENTUM_SUM, null);
+                series.setDouble(index, Values.SLOPE, null);
                 return;
             }
             
@@ -308,6 +422,9 @@ public class SwtTrendMomentumStudy extends Study {
             if (getSettings().getBoolean(SHOW_WATR, false)) {
                 calculateWatr(series, index, swtResult, currentTrend);
             }
+            
+            // Mark this bar as complete (following MotiveWave best practice)
+            series.setComplete(index);
             
             logger.trace("SWT calculation at {}: trend={:.2f}, slope={:.4f}, momentum={}", 
                         index, currentTrend, slope, momentumSum);
