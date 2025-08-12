@@ -41,6 +41,7 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String WATR_K = "WATR_K";
     public static final String WATR_MULTIPLIER = "WATR_MULTIPLIER";
     public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
+    public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
     
     // Path keys
     public static final String AJ_PATH = "AJ_PATH";
@@ -93,6 +94,11 @@ public class SwtTrendMomentumStudy extends Study {
     private double[] priceBuffer = null;
     private int bufferStartIndex = -1;
     private boolean bufferInitialized = false;
+    
+    // Momentum smoothing
+    private double smoothedMomentum = 0.0;
+    private static final double MOMENTUM_ALPHA = 0.3; // EMA smoothing factor (increased for faster response)
+    private static final int MOMENTUM_WINDOW = 5; // Window for RMS calculation (reduced for faster response)
     
     @Override
     public void onLoad(Defaults defaults) {
@@ -157,6 +163,9 @@ public class SwtTrendMomentumStudy extends Study {
         priceBuffer = null;
         bufferStartIndex = -1;
         bufferInitialized = false;
+        
+        // Reset momentum smoothing
+        smoothedMomentum = 0.0;
         
         // Note: Do NOT call clearFigures() here - let the framework manage figures
     }
@@ -228,6 +237,7 @@ public class SwtTrendMomentumStudy extends Study {
                         new NVP("SUM", "Sum of Details (D₁ + D₂ + ...)"),
                         new NVP("SIGN", "Sign Count (±1 per level)")
                 )));
+        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 0.01, 0.0, 1.0, 0.001));
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
         
         // Display settings
@@ -466,11 +476,23 @@ public class SwtTrendMomentumStudy extends Study {
             // Store detail signs
             storeDetailSigns(series, index, swtResult, detailConfirmK);
             
-            // Determine filter states based on slope and detail sum
-            // Long: positive slope AND positive sum of low-scale details
-            // Short: negative slope AND negative sum of low-scale details
-            boolean longFilter = slope > 0 && momentumSum > 0;
-            boolean shortFilter = slope < 0 && momentumSum < 0;
+            // Determine filter states based on slope and detail sum with threshold
+            // Long: positive slope AND momentum above threshold
+            // Short: negative slope AND momentum below negative threshold
+            double momentumThreshold = getSettings().getDouble(MOMENTUM_THRESHOLD, 0.01);
+            
+            // Also require minimum slope to avoid signals in choppy/flat markets
+            // Reduced from 0.01% to 0.001% for better sensitivity
+            double minSlope = Math.abs(currentTrend) * 0.00001; // 0.001% of trend value as minimum slope
+            
+            boolean longFilter = slope > minSlope && momentumSum > momentumThreshold;
+            boolean shortFilter = slope < -minSlope && momentumSum < -momentumThreshold;
+            
+            // Debug logging to understand why signals aren't generating
+            if (index % 50 == 0) { // Log every 50 bars to avoid spam
+                logger.debug("Signal check at {}: slope={:.6f}, minSlope={:.6f}, momentum={:.4f}, threshold={:.4f}, long={}, short={}", 
+                            index, slope, minSlope, momentumSum, momentumThreshold, longFilter, shortFilter);
+            }
             
             series.setDouble(index, Values.LONG_FILTER, longFilter ? 1.0 : 0.0);
             series.setDouble(index, Values.SHORT_FILTER, shortFilter ? 1.0 : 0.0);
@@ -588,27 +610,60 @@ public class SwtTrendMomentumStudy extends Study {
     }
     
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
-        double sum = 0.0;
         int levelsToUse = Math.min(k, swtResult.getLevels());
         String momentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
         
+        double rawMomentum = 0.0;
+        
+        // Calculate weighted RMS energy from detail coefficients
         for (int level = 1; level <= levelsToUse; level++) {
             double[] detail = swtResult.getDetail(level);
             if (detail.length > 0) {
-                double lastCoeff = detail[detail.length - 1];
+                // Use a window of recent coefficients for RMS calculation
+                int windowSize = Math.min(MOMENTUM_WINDOW, detail.length);
+                int startIdx = Math.max(0, detail.length - windowSize);
                 
-                if ("SUM".equals(momentumType)) {
-                    // Sum the actual coefficient values (spec: D₁ + D₂)
-                    // This gives us the true momentum from low-scale details
-                    sum += lastCoeff;
-                } else {
-                    // Sign-based: count +1/-1 per level (alternative approach)
-                    sum += (lastCoeff > 0) ? 1 : (lastCoeff < 0) ? -1 : 0;
+                // Calculate RMS energy for this level over the window
+                double levelEnergy = 0.0;
+                double levelSum = 0.0;
+                for (int i = startIdx; i < detail.length; i++) {
+                    levelEnergy += detail[i] * detail[i];
+                    levelSum += detail[i];
                 }
+                
+                // Weight factor: finer scales (lower levels) get more weight
+                // Level 1 = 100%, Level 2 = 67%, Level 3 = 50%
+                double weight = 1.0 / (1.0 + (level - 1) * 0.5);
+                
+                double contribution = 0.0;
+                if ("SUM".equals(momentumType)) {
+                    // Use weighted average of coefficients (preserves sign)
+                    double avgCoeff = levelSum / windowSize;
+                    contribution = avgCoeff * weight;
+                    rawMomentum += contribution;
+                } else {
+                    // Sign-based: use RMS with sign of average
+                    double rms = Math.sqrt(levelEnergy / windowSize);
+                    double sign = Math.signum(levelSum);
+                    contribution = sign * rms * weight;
+                    rawMomentum += contribution;
+                }
+                
+                logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
+                            level, windowSize, weight, contribution);
             }
         }
         
-        return sum;
+        // Apply exponential smoothing to filter noise
+        if (smoothedMomentum == 0.0) {
+            // Initialize with first value
+            smoothedMomentum = rawMomentum;
+        } else {
+            // EMA update
+            smoothedMomentum = MOMENTUM_ALPHA * rawMomentum + (1.0 - MOMENTUM_ALPHA) * smoothedMomentum;
+        }
+        
+        return smoothedMomentum;
     }
     
     private void storeDetailSigns(DataSeries series, int index, VectorWaveSwtAdapter.SwtResult swtResult, int k) {
