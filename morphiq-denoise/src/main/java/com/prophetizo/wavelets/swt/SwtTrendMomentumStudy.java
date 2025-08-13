@@ -133,25 +133,28 @@ public class SwtTrendMomentumStudy extends Study {
     private static final double DEFAULT_LOG_FACTOR = 5.0;
     
     /**
-     * Minimum slope threshold as a percentage of trend value.
+     * Default minimum slope threshold as a percentage value (not decimal).
      * 
      * This threshold filters out signals in choppy/flat markets by requiring
-     * a minimum rate of change in the trend. The value 0.00001 (0.001%) was
-     * empirically determined to balance:
+     * a minimum rate of change in the trend. The value 0.001 (displayed as 0.001%)
+     * was empirically determined to balance:
      * - Sensitivity: Low enough to capture legitimate trend changes
      * - Noise rejection: High enough to avoid false signals in ranging markets
      * 
      * For ES at 6400:
      * - Trend value: ~6400
-     * - Min slope: 6400 * 0.00001 = 0.064 points/bar
+     * - Min slope: 6400 * (0.001/100) = 0.064 points/bar
      * - This requires at least 0.064 point movement per bar to generate signals
      * 
      * Adjustment guidelines:
      * - Increase for less sensitive signals (fewer false positives)
      * - Decrease for more sensitive signals (catch smaller moves)
      * - Consider market volatility: volatile markets may need higher values
+     * 
+     * Note: This value is entered as a percentage in the UI (0.001 = 0.001%)
+     *       and converted to decimal (0.00001) during calculation.
      */
-    private static final double DEFAULT_MIN_SLOPE_PERCENTAGE = 0.00001; // 0.001% of trend value (default)
+    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.001; // 0.001% as entered in UI
     
     @Override
     public void onLoad(Defaults defaults) {
@@ -296,7 +299,7 @@ public class SwtTrendMomentumStudy extends Study {
                         new NVP("SIGN", "Sign Count (±1 per level)")
                 )));
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
-        signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (%)", 0.001, 0.0, 0.1, 0.0001));
+        signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (%)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 0.1, 0.0001));
         // Note: Min Slope Threshold is percentage of trend value (0.001 = 0.001% of trend)
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
         
@@ -563,7 +566,7 @@ public class SwtTrendMomentumStudy extends Study {
             double momentumThreshold = getSettings().getDouble(MOMENTUM_THRESHOLD, 1.0);
             
             // Require minimum slope to avoid signals in choppy/flat markets
-            double slopeThresholdPercent = getSettings().getDouble(MIN_SLOPE_THRESHOLD, 0.001) / 100.0; // Convert % to decimal
+            double slopeThresholdPercent = getSettings().getDouble(MIN_SLOPE_THRESHOLD, DEFAULT_MIN_SLOPE_THRESHOLD) / 100.0; // Convert % to decimal
             double minSlope = Math.abs(currentTrend) * slopeThresholdPercent;
             
             boolean longFilter = slope > minSlope && momentumSum > momentumThreshold;
