@@ -8,35 +8,44 @@ import java.util.Arrays;
 /**
  * Wavelet-based Average True Range (WATR) calculation.
  * Uses RMS energy from detail coefficients to estimate volatility.
+ * 
+ * <h3>Level Weight Decay</h3>
+ * The level weight decay factor controls how quickly the weight decreases for coarser wavelet scales.
+ * This is crucial for accurate volatility estimation as different wavelet levels capture different
+ * frequency components of price movements.
+ * 
+ * <h4>Weight Formula</h4>
+ * <pre>
+ * weight = 1.0 / (1.0 + levelIndex * levelWeightDecay)
+ * </pre>
+ * where levelIndex is the 0-based array index used in the calculation loop.
+ * 
+ * <h4>Rationale</h4>
+ * Finer scales (lower levels) capture high-frequency price movements and short-term volatility,
+ * which are more relevant for ATR-like measurements. Coarser scales represent longer-term trends
+ * and should have less influence on the immediate volatility estimate.
+ * 
+ * <h4>Examples with levelWeightDecay = 0.5</h4>
+ * <ul>
+ *   <li>Detail Level D₁ (array index 0): weight = 1.0 / (1.0 + 0 * 0.5) = 1.00 (100% contribution)</li>
+ *   <li>Detail Level D₂ (array index 1): weight = 1.0 / (1.0 + 1 * 0.5) = 0.67 (67% contribution)</li>
+ *   <li>Detail Level D₃ (array index 2): weight = 1.0 / (1.0 + 2 * 0.5) = 0.50 (50% contribution)</li>
+ *   <li>Detail Level D₄ (array index 3): weight = 1.0 / (1.0 + 3 * 0.5) = 0.40 (40% contribution)</li>
+ * </ul>
+ * 
+ * <h4>Optimal Values by Market Condition</h4>
+ * <ul>
+ *   <li>0.3-0.4: More weight on coarser scales (trending markets)</li>
+ *   <li>0.5-0.6: Balanced weighting (default)</li>
+ *   <li>0.7-0.8: More weight on finer scales (volatile/choppy markets)</li>
+ * </ul>
  */
 public class WaveletAtr {
     private static final Logger logger = LoggerConfig.getLogger(WaveletAtr.class);
     
     /**
-     * Default level weight decay factor for multi-scale energy calculation.
-     * 
-     * This factor controls how quickly the weight decreases for coarser wavelet scales.
-     * A value of 0.5 means each successive level (coarser scale) contributes 
-     * proportionally less to the total volatility estimate.
-     * 
-     * Rationale: Finer scales (lower levels) capture high-frequency price movements
-     * and short-term volatility, which are more relevant for ATR-like measurements.
-     * Coarser scales represent longer-term trends and should have less influence
-     * on the immediate volatility estimate.
-     * 
-     * Weight formula: weight = 1.0 / (1.0 + levelIndex * levelWeightDecay)
-     * where levelIndex is the 0-based array index used in the calculation loop
-     * 
-     * Examples with levelWeightDecay = 0.5:
-     * - Detail Level D₁ (array index 0): weight = 1.0 / (1.0 + 0 * 0.5) = 1.00 (100% contribution)
-     * - Detail Level D₂ (array index 1): weight = 1.0 / (1.0 + 1 * 0.5) = 0.67 (67% contribution)  
-     * - Detail Level D₃ (array index 2): weight = 1.0 / (1.0 + 2 * 0.5) = 0.50 (50% contribution)
-     * - Detail Level D₄ (array index 3): weight = 1.0 / (1.0 + 3 * 0.5) = 0.40 (40% contribution)
-     * 
-     * Optimal values vary by market:
-     * - 0.3-0.4: More weight on coarser scales (trending markets)
-     * - 0.5-0.6: Balanced weighting (default)
-     * - 0.7-0.8: More weight on finer scales (volatile/choppy markets)
+     * Default level weight decay factor (0.5 = balanced weighting).
+     * See class documentation for detailed explanation of weight decay formula.
      */
     private static final double DEFAULT_LEVEL_WEIGHT_DECAY = 0.5;
     

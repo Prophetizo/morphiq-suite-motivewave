@@ -258,17 +258,25 @@ public class VectorWaveSwtAdapter {
          * @return the reconstructed signal
          */
         public double[] reconstruct(int maxLevel) {
-            // Only recreate mutable result if maxLevel changed or it's the first call
+            // Cache strategy: We recreate the mutable result only when maxLevel changes
+            // This is optimal because:
+            // 1. Creating a new mutable copy from immutable is a single operation
+            // 2. Trying to restore previously zeroed coefficients would require copying anyway
+            // 3. clearCaches() is only called once per maxLevel change, not per reconstruction
+            // 4. Most use cases call reconstruct with the same maxLevel repeatedly
             if (cachedMutableResult == null || lastMaxLevel != maxLevel) {
-                // Create a mutable copy for this reconstruction level
+                // Create a fresh mutable copy for this reconstruction level
                 cachedMutableResult = new MutableMultiLevelMODWTResultImpl(
                     vectorWaveResult.toImmutable());
                 
-                // Zero out detail coefficients beyond maxLevel
+                // Zero out detail coefficients beyond maxLevel for proper reconstruction
                 for (int level = maxLevel + 1; level <= details.length; level++) {
                     double[] mutableDetails = cachedMutableResult.getMutableDetailCoeffs(level);
                     Arrays.fill(mutableDetails, 0.0);
                 }
+                
+                // Clear internal caches once after coefficient modification
+                // This is necessary for VectorWave to recalculate derived values correctly
                 cachedMutableResult.clearCaches();
                 lastMaxLevel = maxLevel;
             }

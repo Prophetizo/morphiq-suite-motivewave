@@ -243,11 +243,18 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         int positionSizeFactor = getSettings().getInteger(POSITION_SIZE, 1);
         // Get trade lots from settings instead of OrderContext
         int tradeLots = getSettings().getInteger("TRADE_LOTS", 1);
-        return positionSizeFactor * tradeLots;
+        return calculatePositionSize(positionSizeFactor, tradeLots);
     }
     
-    // Test helper method that doesn't require full initialization
-    int calculateFinalQuantityForTest(int positionSizeFactor, int tradeLots) {
+    /**
+     * Calculate the final position size by multiplying position size factor by trade lots.
+     * Extracted as a static method for easy unit testing without SDK dependencies.
+     * 
+     * @param positionSizeFactor base position size from settings
+     * @param tradeLots multiplier for position size
+     * @return final position size
+     */
+    static int calculatePositionSize(int positionSizeFactor, int tradeLots) {
         return positionSizeFactor * tradeLots;
     }
     

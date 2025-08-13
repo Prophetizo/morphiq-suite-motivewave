@@ -11,6 +11,12 @@ import java.util.Arrays;
 public class Thresholds {
     private static final Logger logger = LoggerConfig.getLogger(Thresholds.class);
     
+    // Constants for noise estimation and thresholding
+    private static final double MAD_TO_SIGMA_FACTOR = 0.6745; // MAD to standard deviation conversion factor
+    private static final double MIN_SIGMA = 1e-10; // Minimum sigma to prevent division by zero
+    private static final double LOW_SNR_THRESHOLD = 1.5; // SNR below this indicates high noise
+    private static final double HIGH_SNR_THRESHOLD = 3.0; // SNR above this indicates low noise
+    
     public enum ThresholdMethod {
         UNIVERSAL("Universal"),
         BAYES("BayesShrink"),
@@ -197,7 +203,7 @@ public class Thresholds {
     
     /**
      * Estimate noise standard deviation using Median Absolute Deviation (MAD)
-     * σ ≈ MAD / 0.6745
+     * σ ≈ MAD / MAD_TO_SIGMA_FACTOR (0.6745)
      */
     public static double estimateNoiseSigma(double[] detailCoeffs) {
         if (detailCoeffs.length == 0) {
@@ -210,10 +216,10 @@ public class Thresholds {
         Arrays.sort(absCoeffs);
         
         double median = calculateMedian(absCoeffs);
-        double sigma = median / 0.6745; // MAD to standard deviation conversion
+        double sigma = median / MAD_TO_SIGMA_FACTOR; // MAD to standard deviation conversion
         
         // Ensure reasonable bounds
-        sigma = Math.max(sigma, 1e-10);
+        sigma = Math.max(sigma, MIN_SIGMA);
         sigma = Math.min(sigma, calculateStandardDeviation(detailCoeffs) * 2.0);
         
         return sigma;
@@ -290,11 +296,11 @@ public class Thresholds {
         
         double sigma = estimateNoiseSigma(detailCoeffs);
         double sigmaY = calculateStandardDeviation(detailCoeffs);
-        double snr = sigmaY / Math.max(sigma, 1e-10);
+        double snr = sigmaY / Math.max(sigma, MIN_SIGMA);
         
-        if (snr < 1.5) {
+        if (snr < LOW_SNR_THRESHOLD) {
             return ThresholdMethod.UNIVERSAL; // High noise - use robust method
-        } else if (snr > 3.0) {
+        } else if (snr > HIGH_SNR_THRESHOLD) {
             return ThresholdMethod.SURE; // High signal - use adaptive method
         } else {
             return ThresholdMethod.BAYES; // Balanced - use intermediate method
