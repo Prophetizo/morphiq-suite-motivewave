@@ -117,7 +117,14 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
      */
     @Override
     public void onOrderFilled(OrderContext ctx, com.motivewave.platform.sdk.order_mgmt.Order order) {
-        double fillPrice = order.getAvgFillPrice();
+        Double avgFillPriceObj = order.getAvgFillPrice();
+        double fillPrice;
+        if (avgFillPriceObj == null) {
+            logger.warn("Order filled but avg fill price is null. Using 0.0 as fallback.");
+            fillPrice = 0.0;
+        } else {
+            fillPrice = avgFillPriceObj;
+        }
         boolean isBuy = order.isBuy();
         int quantity = order.getQuantity();
         
