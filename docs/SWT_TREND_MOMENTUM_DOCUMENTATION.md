@@ -94,6 +94,7 @@ Entry signals require BOTH conditions:
 | **Momentum Calculation** | SUM | SUM/SIGN | How to combine details |
 | **Momentum Threshold** | 1.0 | 0-100 | Minimum momentum for signals (scaled) |
 | **Min Slope Threshold (%)** | 0.05 | 0-0.1 | Minimum trend slope |
+| **Momentum Smoothing (α)** | 0.5 | 0.1-0.9 | EMA smoothing factor |
 | **Enable Trading Signals** | ✓ | On/Off | Generate trading signals |
 
 ### Display Tab
@@ -181,6 +182,13 @@ Entry signals require BOTH conditions:
    - Soft thresholding: Fewer signals, cleaner
    - Universal: Most conservative
    - SURE: Most aggressive
+
+6. **Momentum Smoothing × Market Conditions**
+   - **Choppy/Noisy Markets**: Use lower α (0.1-0.3) for heavy smoothing
+   - **Trending Markets**: Use balanced α (0.4-0.6) for standard response
+   - **Fast Markets**: Use higher α (0.7-0.9) for quick response
+   - **Scalping**: Higher α for minimal lag
+   - **Swing Trading**: Lower α for stable signals
 
 ## Market-Specific Configuration
 
@@ -665,8 +673,11 @@ Example for ES:
 - Thread-safe with synchronized blocks
 
 ### Momentum Smoothing
-- EMA smoothing with α = 0.5
-- Window size = 10 bars
+- Configurable EMA smoothing with α (default 0.5)
+  - 0.1-0.3: Heavy smoothing (slow response, fewer false signals)
+  - 0.4-0.6: Balanced smoothing (default range)
+  - 0.7-0.9: Minimal smoothing (fast response, more noise)
+- Window size = 10 bars for RMS calculation
 - 100x scaling for visibility
 - Volatile state for thread safety
 

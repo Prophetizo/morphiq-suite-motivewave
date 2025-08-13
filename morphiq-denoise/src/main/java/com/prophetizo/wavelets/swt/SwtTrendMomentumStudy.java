@@ -46,6 +46,7 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
     public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
     public static final String MIN_SLOPE_THRESHOLD = "MIN_SLOPE_THRESHOLD";
+    public static final String MOMENTUM_SMOOTHING = "MOMENTUM_SMOOTHING";
     
     // Path keys
     public static final String AJ_PATH = "AJ_PATH";
@@ -103,7 +104,7 @@ public class SwtTrendMomentumStudy extends Study {
     
     // Momentum smoothing - volatile for thread safety in MotiveWave's multi-threaded calculation engine
     private volatile double smoothedMomentum = 0.0;
-    private static final double MOMENTUM_ALPHA = 0.5; // EMA smoothing factor (higher = more responsive)
+    private static final double DEFAULT_MOMENTUM_SMOOTHING = 0.5; // Default EMA smoothing factor (0.1-0.9, higher = more responsive)
     private static final int MOMENTUM_WINDOW = 10; // Window for RMS calculation
     
     /**
@@ -301,6 +302,8 @@ public class SwtTrendMomentumStudy extends Study {
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
         signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (%)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 0.1, 0.0001));
         // Note: Min Slope Threshold is percentage of trend value (0.001 = 0.001% of trend)
+        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
+        // Note: Momentum smoothing alpha - 0.1 = heavy smoothing, 0.5 = balanced, 0.9 = minimal smoothing
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
         
         // Display settings
@@ -760,7 +763,8 @@ public class SwtTrendMomentumStudy extends Study {
             smoothedMomentum = rawMomentum;
         } else {
             // EMA update
-            smoothedMomentum = MOMENTUM_ALPHA * rawMomentum + (1.0 - MOMENTUM_ALPHA) * smoothedMomentum;
+            double alpha = getSettings().getDouble(MOMENTUM_SMOOTHING, DEFAULT_MOMENTUM_SMOOTHING);
+            smoothedMomentum = alpha * rawMomentum + (1.0 - alpha) * smoothedMomentum;
         }
         
         return smoothedMomentum;
