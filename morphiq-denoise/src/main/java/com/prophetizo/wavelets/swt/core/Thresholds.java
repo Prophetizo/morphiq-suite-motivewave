@@ -95,7 +95,10 @@ public class Thresholds {
         int n = detailCoeffs.length;
         double threshold = sigma * Math.sqrt(2.0 * Math.log(n));
         
-        // log("Universal threshold: σ={:.4f}, N={}, threshold={:.4f}", sigma, n, threshold);
+        if (logger.isTraceEnabled()) {
+            logger.trace("Universal threshold: σ={}, N={}, threshold={}", 
+                        String.format("%.4f", sigma), n, String.format("%.4f", threshold));
+        }
         return threshold;
     }
     
@@ -112,7 +115,10 @@ public class Thresholds {
         if (sigmaX2 <= 0) {
             // Pure noise - use high threshold
             double threshold = sigma * Math.sqrt(2.0 * Math.log(detailCoeffs.length));
-            // log("BayesShrink (pure noise) level {}: threshold={:.4f}", level, threshold);
+            if (logger.isTraceEnabled()) {
+                logger.trace("BayesShrink (pure noise) level {}: threshold={}", 
+                            level, String.format("%.4f", threshold));
+            }
             return threshold;
         }
         
@@ -122,8 +128,11 @@ public class Thresholds {
         double levelFactor = 1.0 + 0.1 * (level - 1);
         threshold *= levelFactor;
         
-        // log("BayesShrink level {}: σ={:.4f}, σY={:.4f}, σX²={:.4f}, threshold={:.4f}", 
-        //            level, sigma, sigmaY, sigmaX2, threshold);
+        if (logger.isTraceEnabled()) {
+            logger.trace("BayesShrink level {}: σ={}, σY={}, σX²={}, threshold={}", 
+                        level, String.format("%.4f", sigma), String.format("%.4f", sigmaY), 
+                        String.format("%.4f", sigmaX2), String.format("%.4f", threshold));
+        }
         return threshold;
     }
     
@@ -157,7 +166,10 @@ public class Thresholds {
             }
         }
         
-        // log("SURE threshold: best={:.4f}, risk={:.4f}", bestThreshold, minRisk);
+        if (logger.isTraceEnabled()) {
+            logger.trace("SURE threshold: best={}, risk={}", 
+                        String.format("%.4f", bestThreshold), String.format("%.4f", minRisk));
+        }
         return bestThreshold;
     }
     
