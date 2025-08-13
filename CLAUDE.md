@@ -29,6 +29,15 @@ Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced 
 - Fixed Maven Shade overlapping class warnings
 - Removed Point Value Override (now auto-detected)
 - Fixed order fill validation
+- Fixed slope threshold from 0.001 to 0.05 (50x increase for proper signal generation)
+
+### Code Quality Improvements
+- Removed ~65 lines of dead code from SwtTrendMomentumStrategy
+- Preserved P&L tracking logic in docs/REFERENCE_PNL_TRACKING.md for future reference
+- Optimized VectorWaveSwtAdapter.reconstruct() to cache adapter and reduce object creation
+  - Caches VectorWaveSwtAdapter instance to avoid recreation
+  - Tracks last reconstruction level to avoid unnecessary MutableMultiLevelMODWTResult recreations
+  - Reduces GC pressure in high-frequency scenarios (called on every bar update)
 
 ## Build Commands
 
@@ -137,6 +146,9 @@ The `CUSTOM_WAVELET_DESIGN.md` outlines advanced features including:
 ### When Working with Settings
 - **Momentum Threshold**: Now scaled by 100x (use 1.0 instead of 0.01)
 - **Min Slope Threshold**: Expressed as percentage (0.05 = 0.05%)
+  - FIXED: Changed default from 0.001 to 0.05 (50x increase)
+  - Old value was too restrictive (0.064 points/bar for ES at 6400)
+  - New value is reasonable (3.2 points/bar for ES at 6400)
 - **Trade Lots**: Properly multiplies position size
 - **Point Value**: Auto-detected from instrument (ES=$50, NQ=$20)
 

@@ -55,6 +55,10 @@ public class WaveletAtr {
     private final double alpha; // Smoothing factor
     private final double levelWeightDecay; // Configurable weight decay factor
     
+    // Pre-calculated level weights for performance optimization
+    private static final int MAX_CACHED_LEVELS = 10; // Most decompositions use <= 10 levels
+    private final double[] cachedLevelWeights;
+    
     // Circular buffer for smoothing - requires synchronization for thread safety
     private double[] buffer;
     private int bufferIndex = 0;
@@ -84,9 +88,16 @@ public class WaveletAtr {
         this.buffer = new double[this.smoothingPeriod];
         Arrays.fill(buffer, 0.0);
         
+        // Pre-calculate level weights for performance optimization
+        this.cachedLevelWeights = new double[MAX_CACHED_LEVELS];
+        for (int i = 0; i < MAX_CACHED_LEVELS; i++) {
+            cachedLevelWeights[i] = calculateLevelWeight(i, this.levelWeightDecay);
+        }
+        
         if (logger.isDebugEnabled()) {
             logger.debug("Initialized WaveletAtr with smoothing period: {}, level weight decay: {}", 
                         this.smoothingPeriod, this.levelWeightDecay);
+            logger.debug("Pre-calculated {} level weights for performance", MAX_CACHED_LEVELS);
         }
     }
     
@@ -160,7 +171,9 @@ public class WaveletAtr {
                 // Weight by level (finer details contribute more to volatility)
                 // Apply reciprocal linear decay to weight finer scales more heavily.
                 // This emphasizes short-term volatility and reduces the influence of coarser (long-term) trends.
-                double weight = calculateLevelWeight(level, levelWeightDecay);
+                double weight = (level < MAX_CACHED_LEVELS) ? 
+                    cachedLevelWeights[level] : 
+                    calculateLevelWeight(level, levelWeightDecay);
                 totalEnergy += levelEnergy * weight;
                 totalSamples += detail.length;
                 
@@ -256,12 +269,28 @@ public class WaveletAtr {
         double totalEnergy = 0.0;
         int totalSamples = 0;
         
+        // Pre-calculate weights for common case (DEFAULT_LEVEL_WEIGHT_DECAY)
+        // to avoid repeated calculations in this static context
+        boolean useDefaultWeights = Math.abs(levelWeightDecay - DEFAULT_LEVEL_WEIGHT_DECAY) < 0.001;
+        double[] weights = null;
+        if (useDefaultWeights) {
+            weights = new double[Math.min(MAX_CACHED_LEVELS, levelsToUse)];
+            for (int i = 0; i < weights.length; i++) {
+                weights[i] = calculateLevelWeight(i, DEFAULT_LEVEL_WEIGHT_DECAY);
+            }
+        }
+        
         for (int level = 0; level < levelsToUse; level++) {
             double[] detail = details[level];
             if (detail != null && detail.length > 0) {
                 // Use only the most recent coefficient for instantaneous calculation
                 double lastCoeff = detail[detail.length - 1];
-                double weight = calculateLevelWeight(level, levelWeightDecay);
+                double weight;
+                if (useDefaultWeights && level < weights.length) {
+                    weight = weights[level];
+                } else {
+                    weight = calculateLevelWeight(level, levelWeightDecay);
+                }
                 totalEnergy += lastCoeff * lastCoeff * weight;
                 totalSamples++;
             }

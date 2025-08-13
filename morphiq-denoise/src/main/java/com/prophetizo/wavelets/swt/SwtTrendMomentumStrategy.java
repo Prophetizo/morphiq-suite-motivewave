@@ -779,72 +779,8 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         targetPrice = 0.0;
     }
     
-    /* DEAD CODE - These methods don't match any MotiveWave SDK interface and are never called
-     * The SDK's onPositionClosed(OrderContext) doesn't provide trade details
-     * All position tracking is handled in onOrderFilled() which has access to Order object
-     * 
-     * Keeping commented for reference of the P&L tracking logic that could be integrated
-     * into onOrderFilled() if needed in the future.
-     
-    public void onPositionOpened(OrderContext ctx, Instrument instrument, boolean isLong, float quantity, double avgPrice) {
-        logger.info("Position opened: {} {} shares/contracts at {:.2f}", 
-                   isLong ? "Long" : "Short", quantity, avgPrice);
-        
-        // Update tracking
-        hasPosition = true;
-        this.isLong = isLong;
-        entryPrice = avgPrice;
-    }
-    
-    public void onPositionClosed(OrderContext ctx, Instrument instrument, boolean isLong, float quantity, double avgPrice) {
-        // Determine exit type
-        String exitType = "MANUAL";
-        if (stopPrice > 0) {
-            double stopDistance = Math.abs(avgPrice - stopPrice);
-            double targetDistance = Math.abs(avgPrice - targetPrice);
-            
-            if (stopDistance < targetDistance * 0.2) {
-                exitType = "STOP_LOSS";
-            } else if (targetPrice > 0 && targetDistance < Math.abs(targetPrice - entryPrice) * 0.1) {
-                exitType = "TARGET";
-            }
-        }
-        
-        logger.info("=== POSITION CLOSED [{}] ===", exitType);
-        logger.info("  Direction: {} {} shares/contracts", 
-                   isLong ? "LONG" : "SHORT", quantity);
-        logger.info("  Entry: {}, Exit: {}", 
-                   String.format("%.2f", entryPrice), 
-                   String.format("%.2f", avgPrice));
-        
-        // Calculate P&L
-        if (hasPosition && entryPrice > 0) {
-            double pnl = isLong ? (avgPrice - entryPrice) * quantity : (entryPrice - avgPrice) * quantity;
-            double pnlPercent = ((avgPrice - entryPrice) / entryPrice) * 100 * (isLong ? 1 : -1);
-            
-            if (pnl >= 0) {
-                logger.info("  ✅ PROFIT: ${} ({}%)", 
-                           String.format("%.2f", pnl), 
-                           String.format("%.2f", pnlPercent));
-            } else {
-                logger.warn("  ❌ LOSS: ${} ({}%)", 
-                           String.format("%.2f", pnl), 
-                           String.format("%.2f", pnlPercent));
-            }
-            
-            // Log stop/target info if available
-            if (stopPrice > 0) {
-                logger.info("  Stop was at: {}, Target was at: {}", 
-                           String.format("%.2f", stopPrice), 
-                           targetPrice > 0 ? String.format("%.2f", targetPrice) : "N/A");
-            }
-        }
-        logger.info("==============================");
-        
-        // Reset tracking
-        resetPositionTracking();
-    }
-    */
+    // P&L tracking logic preserved in docs/REFERENCE_PNL_TRACKING.md
+    // These methods don't match MotiveWave SDK interfaces and were removed
     
     /**
      * Helper class for position sizing calculations

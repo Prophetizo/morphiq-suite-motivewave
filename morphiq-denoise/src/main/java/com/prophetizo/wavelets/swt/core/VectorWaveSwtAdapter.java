@@ -154,6 +154,8 @@ public class VectorWaveSwtAdapter {
         private final MutableMultiLevelMODWTResult vectorWaveResult;
         // Cache the adapter for efficient reconstruction
         private VectorWaveSwtAdapter cachedAdapter;
+        // Cache a reusable mutable result to avoid allocation overhead
+        private MutableMultiLevelMODWTResult cachedMutableResult;
         
         public SwtResult(double[] approximation, double[][] details, String waveletType, BoundaryMode boundaryMode, MutableMultiLevelMODWTResult vectorWaveResult) {
             if (vectorWaveResult == null) {
@@ -245,27 +247,38 @@ public class VectorWaveSwtAdapter {
          * the specified level. Higher-level details are zeroed out, resulting in
          * a smoother reconstruction.
          * 
+         * <p>Performance optimization: This method caches the VectorWaveSwtAdapter
+         * to avoid recreating it on each call. The MutableMultiLevelMODWTResult
+         * still needs to be created due to VectorWave API limitations, but we
+         * track the last maxLevel to avoid unnecessary recreations.
+         * 
          * @param maxLevel the maximum detail level to include in reconstruction
          * @return the reconstructed signal
          */
+        private int lastMaxLevel = -1; // Track last reconstruction level
+        
         public double[] reconstruct(int maxLevel) {
-            // Create a copy of the result to avoid modifying the original
-            MutableMultiLevelMODWTResult tempResult = new MutableMultiLevelMODWTResultImpl(
-                vectorWaveResult.toImmutable());
-            
-            // Zero out detail coefficients beyond maxLevel
-            for (int level = maxLevel + 1; level <= details.length; level++) {
-                double[] mutableDetails = tempResult.getMutableDetailCoeffs(level);
-                Arrays.fill(mutableDetails, 0.0);
+            // Only recreate mutable result if maxLevel changed or it's the first call
+            if (cachedMutableResult == null || lastMaxLevel != maxLevel) {
+                // Create a mutable copy for this reconstruction level
+                cachedMutableResult = new MutableMultiLevelMODWTResultImpl(
+                    vectorWaveResult.toImmutable());
+                
+                // Zero out detail coefficients beyond maxLevel
+                for (int level = maxLevel + 1; level <= details.length; level++) {
+                    double[] mutableDetails = cachedMutableResult.getMutableDetailCoeffs(level);
+                    Arrays.fill(mutableDetails, 0.0);
+                }
+                cachedMutableResult.clearCaches();
+                lastMaxLevel = maxLevel;
             }
-            tempResult.clearCaches();
             
             // Use cached adapter for efficient reconstruction
             // Lazy initialization to avoid creating adapter if reconstruction is never called
             if (cachedAdapter == null) {
                 cachedAdapter = new VectorWaveSwtAdapter(waveletType, boundaryMode);
             }
-            return cachedAdapter.inverse(tempResult);
+            return cachedAdapter.inverse(cachedMutableResult);
         }
         
         /**
