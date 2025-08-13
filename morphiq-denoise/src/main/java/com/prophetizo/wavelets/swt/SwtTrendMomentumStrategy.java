@@ -257,13 +257,35 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
      */
     @Override
     public void onSignal(OrderContext ctx, Object signal) {
-        if (!getSettings().getBoolean(ENABLE_SIGNALS, true)) {
+        // Check if signals are enabled
+        boolean signalsEnabled = getSettings().getBoolean(ENABLE_SIGNALS, true);
+        if (!signalsEnabled) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("Signal received but signals disabled: {}", signal);
+            }
             return;
+        }
+        
+        // Log signal reception
+        if (logger.isDebugEnabled()) {
+            logger.debug("=== SIGNAL RECEIVED ===");
+            logger.debug("Signal type: {}", signal != null ? signal.getClass().getSimpleName() : "null");
+            logger.debug("Signal value: {}", signal);
+            logger.debug("Current position: {}", hasPosition ? (isLong ? "LONG" : "SHORT") : "FLAT");
         }
         
         try {
             DataSeries series = ctx.getDataContext().getDataSeries();
             int index = series.size() - 1;
+            double currentPrice = series.getClose(index);
+            
+            // Log market context
+            if (logger.isDebugEnabled()) {
+                logger.debug("Market context - Index: {}, Price: {}, Time: {}", 
+                    index, 
+                    String.format("%.2f", currentPrice),
+                    series.getStartTime(index));
+            }
             
             // Log position status periodically
             logPositionStatus(ctx, series, index);
@@ -271,20 +293,53 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             if (signal instanceof Signals) {
                 Signals swtSignal = (Signals) signal;
                 
+                // Log signal processing
+                logger.info("Processing {} signal at price {}", 
+                    swtSignal, 
+                    String.format("%.2f", currentPrice));
+                
                 switch (swtSignal) {
                     case LONG_ENTER:
+                        if (logger.isInfoEnabled()) {
+                            logger.info("LONG ENTRY signal - Current position: {}", 
+                                hasPosition ? (isLong ? "Already LONG" : "SHORT (will exit first)") : "FLAT");
+                        }
                         handleLongEntry(ctx, index);
                         break;
                     case SHORT_ENTER:
+                        if (logger.isInfoEnabled()) {
+                            logger.info("SHORT ENTRY signal - Current position: {}", 
+                                hasPosition ? (isLong ? "LONG (will exit first)" : "Already SHORT") : "FLAT");
+                        }
                         handleShortEntry(ctx, index);
                         break;
                     case FLAT_EXIT:
+                        if (logger.isInfoEnabled()) {
+                            logger.info("FLAT EXIT signal - Current position: {}", 
+                                hasPosition ? (isLong ? "LONG" : "SHORT") : "Already FLAT");
+                        }
                         handleFlatExit(ctx, index);
                         break;
+                    default:
+                        logger.warn("Unknown signal type: {}", swtSignal);
                 }
+                
+                // Log post-signal state
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Post-signal position: {}", 
+                        hasPosition ? (isLong ? "LONG" : "SHORT") : "FLAT");
+                }
+            } else {
+                logger.warn("Received non-Signals type: {} ({})", 
+                    signal, 
+                    signal != null ? signal.getClass().getName() : "null");
             }
         } catch (Exception e) {
-            logger.error("Error handling signal: {}", signal, e);
+            logger.error("Error handling signal: {} - Exception: {}", signal, e.getMessage(), e);
+        } finally {
+            if (logger.isDebugEnabled()) {
+                logger.debug("=== SIGNAL PROCESSING COMPLETE ===");
+            }
         }
     }
     
@@ -334,16 +389,26 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     private void handleLongEntry(OrderContext ctx, int index) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(">>> Entering handleLongEntry - Index: {}, HasPosition: {}", index, hasPosition);
+        }
+        
         if (hasPosition) {
-            logger.debug("Already have position, ignoring long entry signal");
+            logger.info("Already have {} position, ignoring long entry signal", 
+                isLong ? "LONG" : "SHORT");
             return;
         }
         
         DataSeries series = ctx.getDataContext().getDataSeries();
         double currentPrice = series.getClose(index);
         
+        if (logger.isDebugEnabled()) {
+            logger.debug("Long entry context - Price: {}, Bar: {}/{}", 
+                String.format("%.2f", currentPrice), index, series.size());
+        }
+        
         if (currentPrice <= 0) {
-            logger.warn("Invalid price for long entry: {}", currentPrice);
+            logger.error("Invalid price for long entry: {} at index {}", currentPrice, index);
             return;
         }
         
@@ -428,16 +493,26 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     private void handleShortEntry(OrderContext ctx, int index) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(">>> Entering handleShortEntry - Index: {}, HasPosition: {}", index, hasPosition);
+        }
+        
         if (hasPosition) {
-            logger.debug("Already have position, ignoring short entry signal");
+            logger.info("Already have {} position, ignoring short entry signal", 
+                isLong ? "LONG" : "SHORT");
             return;
         }
         
         DataSeries series = ctx.getDataContext().getDataSeries();
         double currentPrice = series.getClose(index);
         
+        if (logger.isDebugEnabled()) {
+            logger.debug("Short entry context - Price: {}, Bar: {}/{}", 
+                String.format("%.2f", currentPrice), index, series.size());
+        }
+        
         if (currentPrice <= 0) {
-            logger.warn("Invalid price for short entry: {}", currentPrice);
+            logger.error("Invalid price for short entry: {} at index {}", currentPrice, index);
             return;
         }
         
@@ -517,21 +592,68 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     private void handleFlatExit(OrderContext ctx, int index) {
+        if (logger.isDebugEnabled()) {
+            logger.debug(">>> Entering handleFlatExit - Index: {}, HasPosition: {}", index, hasPosition);
+        }
+        
         if (!hasPosition) {
-            logger.debug("No position to exit");
+            logger.info("No position to exit - already flat");
             return;
+        }
+        
+        DataSeries series = ctx.getDataContext().getDataSeries();
+        double exitPrice = series.getClose(index);
+        
+        // Calculate P&L before exit
+        double pnl = 0.0;
+        String exitReason = "Flat Exit Signal";
+        if (entryPrice > 0 && exitPrice > 0) {
+            pnl = isLong ? (exitPrice - entryPrice) : (entryPrice - exitPrice);
+            double pnlPercent = (pnl / entryPrice) * 100;
+            
+            logger.info("🔴 POSITION EXIT - {}", exitReason);
+            logger.info("  Position: {} from {} to {}", 
+                isLong ? "LONG" : "SHORT",
+                String.format("%.2f", entryPrice),
+                String.format("%.2f", exitPrice));
+            logger.info("  P&L: {} points ({:.2f}%)", 
+                String.format("%.2f", pnl),
+                pnlPercent);
+            
+            if (pnl >= 0) {
+                logger.info("  Result: ✅ PROFIT");
+            } else {
+                logger.info("  Result: ❌ LOSS");
+            }
         }
         
         try {
             // Close all positions
             ctx.cancelOrders();
-            logger.info("Closed all positions on flat exit signal");
+            
+            logger.info("Exit order placed - Closing {} position at market", 
+                isLong ? "LONG" : "SHORT");
+            
+            // Log final position summary
+            if (logger.isInfoEnabled()) {
+                logger.info("═══ POSITION SUMMARY ═══");
+                logger.info("  Entry: {}", String.format("%.2f", entryPrice));
+                logger.info("  Exit: {}", String.format("%.2f", exitPrice));
+                logger.info("  Stop was at: {}", String.format("%.2f", stopPrice));
+                logger.info("  Target was at: {}", String.format("%.2f", targetPrice));
+                logger.info("  Final P&L: {} points", String.format("%.2f", pnl));
+                logger.info("═══════════════════════");
+            }
             
             // Reset position tracking
             resetPositionTracking();
             
+            if (logger.isDebugEnabled()) {
+                logger.debug("Position tracking reset - Now FLAT");
+            }
+            
         } catch (Exception e) {
-            logger.error("Failed to close positions on flat exit", e);
+            logger.error("Failed to close positions on flat exit: {}", e.getMessage(), e);
         }
     }
     
