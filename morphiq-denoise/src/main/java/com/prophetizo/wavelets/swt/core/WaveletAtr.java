@@ -135,7 +135,14 @@ public class WaveletAtr {
     
     /**
      * Calculate WATR from detail coefficients of first k levels.
-     * Thread-safe: synchronizes access to mutable state.
+     * 
+     * <p>Thread-safety: This method is thread-safe with respect to internal state.
+     * For input safety, it makes defensive copies of the required array portions
+     * to prevent issues from concurrent modification of the input arrays.
+     * 
+     * @param allDetails array of detail coefficient arrays (may be modified by other threads)
+     * @param k number of detail levels to use
+     * @return smoothed WATR value
      */
     public double calculate(double[][] allDetails, int k) {
         if (allDetails == null || allDetails.length == 0 || k <= 0) {
@@ -143,7 +150,18 @@ public class WaveletAtr {
         }
         
         int levelsToUse = Math.min(k, allDetails.length);
-        double rmsEnergy = calculateRmsEnergy(allDetails, levelsToUse);
+        
+        // Make defensive copies of the arrays we'll read to prevent concurrent modification issues
+        // Only copy the arrays we actually need (first k levels)
+        double[][] detailsCopy = new double[levelsToUse][];
+        for (int i = 0; i < levelsToUse; i++) {
+            if (allDetails[i] != null) {
+                // Defensive copy to prevent concurrent modification during calculation
+                detailsCopy[i] = Arrays.copyOf(allDetails[i], allDetails[i].length);
+            }
+        }
+        
+        double rmsEnergy = calculateRmsEnergy(detailsCopy, levelsToUse);
         
         // Apply smoothing - synchronized for thread safety
         double smoothedWatr;
@@ -163,7 +181,14 @@ public class WaveletAtr {
     
     /**
      * Calculate WATR from SWT result.
-     * Thread-safe: delegates to synchronized calculate method.
+     * 
+     * <p>Thread-safe: Extracts detail arrays from the SWT result and delegates to
+     * the main calculate method. The SwtResult.getDetail() method returns defensive
+     * copies, so this is safe from concurrent modification.
+     * 
+     * @param swtResult the SWT decomposition result
+     * @param k number of detail levels to use
+     * @return smoothed WATR value
      */
     public double calculate(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         if (swtResult == null || k <= 0) {
@@ -174,7 +199,7 @@ public class WaveletAtr {
         double[][] details = new double[levelsToUse][];
         
         for (int i = 0; i < levelsToUse; i++) {
-            details[i] = swtResult.getDetail(i + 1); // SWT uses 1-based indexing
+            details[i] = swtResult.getDetail(i + 1); // SWT uses 1-based indexing, returns defensive copy
         }
         
         return calculate(details, k);

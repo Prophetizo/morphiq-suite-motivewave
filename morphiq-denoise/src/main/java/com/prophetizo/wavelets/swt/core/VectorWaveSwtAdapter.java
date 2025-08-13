@@ -154,10 +154,6 @@ public class VectorWaveSwtAdapter {
         private final MutableMultiLevelMODWTResult vectorWaveResult;
         // Cache the adapter for efficient reconstruction
         private VectorWaveSwtAdapter cachedAdapter;
-        // Cache a reusable mutable result to avoid allocation overhead
-        private MutableMultiLevelMODWTResult cachedMutableResult;
-        // Track last reconstruction level to avoid unnecessary recreations
-        private int lastMaxLevel = -1;
         
         public SwtResult(double[] approximation, double[][] details, String waveletType, BoundaryMode boundaryMode, MutableMultiLevelMODWTResult vectorWaveResult) {
             if (vectorWaveResult == null) {
@@ -252,61 +248,54 @@ public class VectorWaveSwtAdapter {
          * <p>Performance optimization: This method implements a sophisticated caching
          * strategy to minimize object allocation:
          * <ul>
+         *   <li>Works directly with the original mutable result (no deep copy)</li>
+         *   <li>Temporarily modifies coefficients for reconstruction</li>
+         *   <li>Restores original coefficients after reconstruction</li>
          *   <li>Caches the VectorWaveSwtAdapter to avoid recreation</li>
-         *   <li>Reuses MutableMultiLevelMODWTResult when maxLevel is unchanged</li>
-         *   <li>Only recreates the mutable result when maxLevel changes</li>
-         *   <li>Restores coefficients instead of recreating when switching back to a previous level</li>
          * </ul>
          * 
          * @param maxLevel the maximum detail level to include in reconstruction
          * @return the reconstructed signal
          */
         public double[] reconstruct(int maxLevel) {
-            // Optimized caching strategy based on usage patterns:
-            // - In practice, reconstruct() is called with the same maxLevel repeatedly
-            // - When USE_DENOISED=true: reconstructLevels = max(2, levels-1) is constant
-            // - Creating new MutableMultiLevelMODWTResultImpl is expensive
+            // Optimized strategy: Work directly with vectorWaveResult
+            // No need to create copies - we'll restore coefficients after use
+            // This eliminates the expensive toImmutable() -> new MutableMultiLevelMODWTResultImpl() conversion
             
-            if (cachedMutableResult == null) {
-                // First time: create the mutable result
-                cachedMutableResult = new MutableMultiLevelMODWTResultImpl(
-                    vectorWaveResult.toImmutable());
-                lastMaxLevel = -1; // Force coefficient setup
-            }
+            // Store original coefficients for levels we'll zero out
+            double[][] savedCoeffs = null;
+            int startLevel = maxLevel + 1;
+            int endLevel = details.length;
             
-            if (lastMaxLevel != maxLevel) {
-                // Level changed: adjust coefficients
-                if (lastMaxLevel > 0) {
-                    // Restore previously zeroed coefficients if going to a higher level
-                    // This avoids recreating the entire object
-                    if (maxLevel > lastMaxLevel) {
-                        // Restore coefficients from lastMaxLevel+1 to maxLevel
-                        for (int level = lastMaxLevel + 1; level <= maxLevel && level <= details.length; level++) {
-                            double[] mutableDetails = cachedMutableResult.getMutableDetailCoeffs(level);
-                            double[] originalDetails = details[level - 1];
-                            System.arraycopy(originalDetails, 0, mutableDetails, 0, originalDetails.length);
-                        }
-                    }
-                }
-                
-                // Zero out detail coefficients beyond maxLevel for proper reconstruction
-                for (int level = maxLevel + 1; level <= details.length; level++) {
-                    double[] mutableDetails = cachedMutableResult.getMutableDetailCoeffs(level);
+            if (startLevel <= endLevel) {
+                // Save coefficients we're about to zero
+                savedCoeffs = new double[endLevel - startLevel + 1][];
+                for (int level = startLevel; level <= endLevel; level++) {
+                    double[] mutableDetails = vectorWaveResult.getMutableDetailCoeffs(level);
+                    savedCoeffs[level - startLevel] = Arrays.copyOf(mutableDetails, mutableDetails.length);
                     Arrays.fill(mutableDetails, 0.0);
                 }
-                
-                // Clear internal caches after coefficient modification
-                // This is necessary for VectorWave to recalculate derived values correctly
-                cachedMutableResult.clearCaches();
-                lastMaxLevel = maxLevel;
+                // Clear caches after modification
+                vectorWaveResult.clearCaches();
             }
             
-            // Use cached adapter for efficient reconstruction
-            // Lazy initialization to avoid creating adapter if reconstruction is never called
-            if (cachedAdapter == null) {
-                cachedAdapter = new VectorWaveSwtAdapter(waveletType, boundaryMode);
+            try {
+                // Use cached adapter for efficient reconstruction
+                if (cachedAdapter == null) {
+                    cachedAdapter = new VectorWaveSwtAdapter(waveletType, boundaryMode);
+                }
+                return cachedAdapter.inverse(vectorWaveResult);
+            } finally {
+                // Restore original coefficients
+                if (savedCoeffs != null) {
+                    for (int level = startLevel; level <= endLevel; level++) {
+                        double[] mutableDetails = vectorWaveResult.getMutableDetailCoeffs(level);
+                        System.arraycopy(savedCoeffs[level - startLevel], 0, mutableDetails, 0, mutableDetails.length);
+                    }
+                    // Clear caches after restoration
+                    vectorWaveResult.clearCaches();
+                }
             }
-            return cachedAdapter.inverse(cachedMutableResult);
         }
         
         /**

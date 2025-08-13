@@ -12,10 +12,12 @@ Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced 
 - Fixed slope threshold documentation across all files
 - Clarified that Min Slope Threshold is in absolute price points, NOT percentage
 - Updated market-specific configurations with correct units
-- Optimized VectorWaveSwtAdapter.reconstruct() to reuse MutableMultiLevelMODWTResult objects
-  - Reduces object allocation overhead
-  - Restores coefficients instead of recreating when switching levels
-  - Maintains caching for same-level repeated calls
+- Major optimization of VectorWaveSwtAdapter.reconstruct() method:
+  - **Eliminated deep copy**: Now works directly with original MutableMultiLevelMODWTResult
+  - **Removed unnecessary conversion**: No more toImmutable() -> new MutableMultiLevelMODWTResultImpl()
+  - **Temporary modification strategy**: Zeros coefficients, reconstructs, then restores
+  - **Significant performance gain**: Avoids expensive object allocation on every reconstruction
+  - **Memory efficient**: Only allocates small arrays for coefficient backup
 - Fixed non-deterministic test behavior in VectorWaveSwtAdapterTest
   - All test methods now use the seeded Random instance
   - Ensures consistent, reproducible test results
@@ -24,6 +26,11 @@ Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced 
   - Core logic tested via static calculatePositionSize method
   - Integration tests handle full SDK initialization separately
   - Removed duplicate test file (CalculateFinalQuantityTest.java)
+- Enhanced thread safety in WaveletAtr.calculate() method:
+  - Now makes defensive copies of input arrays to prevent concurrent modification issues
+  - Protects against ArrayIndexOutOfBoundsException from external array modifications
+  - Verified with comprehensive concurrent access tests (5000+ operations)
+  - Maintains performance while ensuring correctness
 
 ### Trade Lots Integration
 - Fixed Trade Lots multiplication in `SwtTrendMomentumStrategy`
