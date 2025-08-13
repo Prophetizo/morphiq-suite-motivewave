@@ -63,7 +63,6 @@ public class SwtTrendMomentumStudy extends Study {
     // Marker keys
     public static final String LONG_MARKER = "LONG_MARKER";
     public static final String SHORT_MARKER = "SHORT_MARKER";
-    public static final String EXIT_MARKER = "EXIT_MARKER";
     
     // Values
     public enum Values { 
@@ -76,9 +75,9 @@ public class SwtTrendMomentumStudy extends Study {
         SLOPE                  // Trend slope
     }
     
-    // Signals
+    // Signals - state-based, not action-based
     public enum Signals {
-        LONG_ENTER, SHORT_ENTER, FLAT_EXIT
+        LONG, SHORT
     }
     
     // Core components - volatile for thread safety
@@ -353,16 +352,13 @@ public class SwtTrendMomentumStudy extends Study {
         
         // Markers tab
         var markersTab = sd.addTab("Markers");
-        var markersGroup = markersTab.addGroup("Signal Markers");
-        markersGroup.addRow(new MarkerDescriptor(LONG_MARKER, "Long Entry", 
+        var markersGroup = markersTab.addGroup("State Markers");
+        markersGroup.addRow(new MarkerDescriptor(LONG_MARKER, "Long State", 
                 Enums.MarkerType.TRIANGLE, Enums.Size.SMALL, 
                 new Color(0, 200, 0), new Color(0, 150, 0), true, true));
-        markersGroup.addRow(new MarkerDescriptor(SHORT_MARKER, "Short Entry",
+        markersGroup.addRow(new MarkerDescriptor(SHORT_MARKER, "Short State",
                 Enums.MarkerType.TRIANGLE, Enums.Size.SMALL,
                 new Color(200, 0, 0), new Color(150, 0, 0), true, true));
-        markersGroup.addRow(new MarkerDescriptor(EXIT_MARKER, "Flat Exit",
-                Enums.MarkerType.SQUARE, Enums.Size.SMALL,
-                new Color(128, 128, 128), new Color(100, 100, 100), true, true));
         
         // Create Runtime Descriptor using the standard pattern
         var desc = createRD();
@@ -394,10 +390,9 @@ public class SwtTrendMomentumStudy extends Study {
         // Add zero line
         momentumPlot.addHorizontalLine(new LineInfo(0.0, null, 1.0f, new float[]{3, 3}));
         
-        // Signals
-        desc.declareSignal(Signals.LONG_ENTER, "Long Entry");
-        desc.declareSignal(Signals.SHORT_ENTER, "Short Entry");
-        desc.declareSignal(Signals.FLAT_EXIT, "Flat Exit");
+        // Signals - state based, not action based
+        desc.declareSignal(Signals.LONG, "Long State");
+        desc.declareSignal(Signals.SHORT, "Short State");
     }
     
     
@@ -819,87 +814,44 @@ public class SwtTrendMomentumStudy extends Study {
         // Entry: slope > 0 AND momentum > 0 (long), slope < 0 AND momentum < 0 (short)
         // Exit: slope loss OR momentum sign flip
         
-        // Check for signal changes
-        boolean generateLongEntry = false;
-        boolean generateShortEntry = false;
-        boolean generateExit = false;
-        
-        if (longFilter && !wasLongFilter) {
-            // New long signal
-            if (wasShortFilter) {
-                // Reversal from short to long - exit short first
-                generateExit = true;
-            }
-            generateLongEntry = true;
-        } else if (shortFilter && !wasShortFilter) {
-            // New short signal
-            if (wasLongFilter) {
-                // Reversal from long to short - exit long first
-                generateExit = true;
-            }
-            generateShortEntry = true;
-        } else if (!longFilter && !shortFilter && (wasLongFilter || wasShortFilter)) {
-            // Exit signal - no longer meeting entry conditions
-            generateExit = true;
-        }
-        
-        // Generate exit signal first if needed (for reversals)
-        if (generateExit) {
-            series.setBoolean(index, Signals.FLAT_EXIT, true);
+        // Emit state signals - not entry decisions
+        if (longFilter) {
+            series.setBoolean(index, Signals.LONG, true);
             
-            if (barComplete) {
-                try {
-                    var marker = getSettings().getMarker(EXIT_MARKER);
-                    if (marker != null && marker.isEnabled()) {
-                        var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Exit @ %.2f", price);
-                        addFigure(new Marker(coord, Enums.Position.CENTER, marker, msg));
-                    }
-                } catch (Exception e) {
-                    logger.trace("Could not add exit marker: {}", e.getMessage());
-                }
-                
-                ctx.signal(index, Signals.FLAT_EXIT, "Exit Signal", price);
-                logger.debug("Exit signal at index {} price {}", index, price);
-            }
-        }
-        
-        // Generate entry signals
-        if (generateLongEntry) {
-            series.setBoolean(index, Signals.LONG_ENTER, true);
-            
-            if (barComplete) {
+            // Only add marker on state transition
+            if (barComplete && !wasLongFilter) {
                 try {
                     var marker = getSettings().getMarker(LONG_MARKER);
                     if (marker != null && marker.isEnabled()) {
                         var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Long Entry @ %.2f", price);
+                        String msg = String.format("Long State @ %.2f", price);
                         addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
                     }
                 } catch (Exception e) {
                     logger.trace("Could not add long marker: {}", e.getMessage());
                 }
                 
-                ctx.signal(index, Signals.LONG_ENTER, "Long Entry Signal", price);
-                logger.debug("Long entry signal at index {} price {}", index, price);
+                ctx.signal(index, Signals.LONG, "Long State", price);
+                logger.debug("Long state at index {} price {}", index, price);
             }
-        } else if (generateShortEntry) {
-            series.setBoolean(index, Signals.SHORT_ENTER, true);
+        } else if (shortFilter) {
+            series.setBoolean(index, Signals.SHORT, true);
             
-            if (barComplete) {
+            // Only add marker on state transition
+            if (barComplete && !wasShortFilter) {
                 try {
                     var marker = getSettings().getMarker(SHORT_MARKER);
                     if (marker != null && marker.isEnabled()) {
                         var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Short Entry @ %.2f", price);
+                        String msg = String.format("Short State @ %.2f", price);
                         addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
                     }
                 } catch (Exception e) {
                     logger.trace("Could not add short marker: {}", e.getMessage());
                 }
                 
-                ctx.signal(index, Signals.SHORT_ENTER, "Short Entry Signal", price);
-                logger.debug("Short entry signal at index {} price {}", index, price);
+                ctx.signal(index, Signals.SHORT, "Short State", price);
+                logger.debug("Short state at index {} price {}", index, price);
             }
         }
         

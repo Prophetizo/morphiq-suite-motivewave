@@ -90,7 +90,7 @@ class SwtTrendMomentumFullIT {
         strategy.onActivate(mockOrderContext);
         
         // Generate and process LONG signal
-        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG_ENTER);
+        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG);
         
         // Verify position tracking
         // Note: Actual order placement would be verified through OrderContext mock
@@ -228,27 +228,21 @@ class SwtTrendMomentumFullIT {
         strategy.onActivate(mockOrderContext);
         
         // Test state transitions
-        assertFalse(strategy.hasPosition());
+        assertFalse(strategy.hasPosition(mockOrderContext));
         
-        // Long entry
-        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG_ENTER);
+        // Long state signal
+        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG);
         // Simulate order fill
         simulateOrderFill(true, 2, 4500.0);
-        assertTrue(strategy.hasPosition());
-        assertTrue(strategy.isPositionLong());
+        assertTrue(strategy.hasPosition(mockOrderContext));
+        assertTrue(strategy.isLong(mockOrderContext));
         
-        // Exit signal
-        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.FLAT_EXIT);
-        // Simulate position close
-        strategy.onPositionClosed(mockOrderContext);
-        assertFalse(strategy.hasPosition());
-        
-        // Short entry
-        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.SHORT_ENTER);
+        // Short state signal (which will exit the long position first)
+        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.SHORT);
         // Simulate order fill
         simulateOrderFill(false, 2, 4495.0);
-        assertTrue(strategy.hasPosition());
-        assertFalse(strategy.isPositionLong());
+        assertTrue(strategy.hasPosition(mockOrderContext));
+        assertFalse(strategy.isLong(mockOrderContext));
     }
     
     @Test

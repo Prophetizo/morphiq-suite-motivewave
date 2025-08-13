@@ -41,8 +41,6 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     public static final String ENABLE_BRACKET_ORDERS = "ENABLE_BRACKET_ORDERS";
     
     // Position tracking
-    private boolean hasPosition = false;
-    private boolean isLong = false;
     private double entryPrice = 0.0;
     private double stopPrice = 0.0;
     private double targetPrice = 0.0;
@@ -90,17 +88,19 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         logger.info("SWT Strategy activated");
         
         // Reset state
-        hasPosition = false;
-        isLong = false;
         entryPrice = 0.0;
         stopPrice = 0.0;
+        targetPrice = 0.0;
         
         // Check if we already have a position
-        int posSize = ctx.getPosition();
+        int posSize = getPosition(ctx);
         if (posSize != 0) {
-            hasPosition = true;
-            isLong = posSize > 0;
             logger.info("Existing position detected: size={}", posSize);
+            // Try to get entry price from average entry
+            entryPrice = ctx.getAvgEntryPrice();
+            if (entryPrice > 0) {
+                logger.info("Average entry price: {}", String.format("%.2f", entryPrice));
+            }
         }
     }
     
@@ -113,8 +113,8 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         logger.info("SWT Strategy deactivated");
         
         // Optionally close any open positions
-        int posSize = ctx.getPosition();
-        if (hasPosition && posSize != 0) {
+        int posSize = getPosition(ctx);
+        if (hasPosition(ctx) && posSize != 0) {
             logger.info("Closing position on deactivation: size={}", posSize);
             ctx.closeAtMarket();
         }
@@ -161,8 +161,9 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         String orderType = "MARKET";
         
         // Detect stop hit: opposite direction order when we have a position
-        if (hasPosition) {
-            if ((isLong && !isBuy) || (!isLong && isBuy)) {
+        if (hasPosition(ctx)) {
+            boolean currentlyLong = isLong(ctx);
+            if ((currentlyLong && !isBuy) || (!currentlyLong && isBuy)) {
                 // Check if fill price is near our stop price
                 if (stopPrice > 0) {
                     double stopDistance = Math.abs(fillPrice - stopPrice);
@@ -183,10 +184,11 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             
             // Calculate loss
             if (entryPrice > 0) {
-                double loss = isLong ? 
+                boolean wasLong = isLong(ctx);
+                double loss = wasLong ? 
                     (fillPrice - entryPrice) * quantity : 
                     (entryPrice - fillPrice) * quantity;
-                double lossPerUnit = isLong ? fillPrice - entryPrice : entryPrice - fillPrice;
+                double lossPerUnit = wasLong ? fillPrice - entryPrice : entryPrice - fillPrice;
                 logger.warn("Stop loss realized: ${} per unit, Total: ${}", 
                            String.format("%.2f", lossPerUnit), 
                            String.format("%.2f", loss));
@@ -198,15 +200,13 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         }
         
         // Update position state
-        int posSize = ctx.getPosition();
+        int posSize = getPosition(ctx);
         if (posSize != 0) {
-            hasPosition = true;
-            isLong = posSize > 0;
             if (!isStopHit) { // Only update entry if not a stop
                 entryPrice = fillPrice;
             }
         } else {
-            hasPosition = false;
+            // Position closed - reset tracking
             entryPrice = 0.0;
             stopPrice = 0.0;
             targetPrice = 0.0;
@@ -220,17 +220,11 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     @Override
     public void onPositionClosed(OrderContext ctx) {
         logger.info("Position closed");
-        hasPosition = false;
-        isLong = false;
         entryPrice = 0.0;
         stopPrice = 0.0;
     }
     
     // Test helper methods - package private for testing
-    boolean hasPosition() { return hasPosition; }
-    void setHasPosition(boolean hasPosition) { this.hasPosition = hasPosition; }
-    boolean isPositionLong() { return isLong; }  // Renamed to avoid conflict
-    void setIsLong(boolean isLong) { this.isLong = isLong; }
     double getEntryPrice() { return entryPrice; }
     void setEntryPrice(double entryPrice) { this.entryPrice = entryPrice; }
     double getStopPriceValue() { return stopPrice; } // Renamed to avoid conflict
@@ -278,7 +272,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             logger.debug("=== SIGNAL RECEIVED ===");
             logger.debug("Signal type: {}", signal != null ? signal.getClass().getSimpleName() : "null");
             logger.debug("Signal value: {}", signal);
-            logger.debug("Current position: {}", hasPosition ? (isLong ? "LONG" : "SHORT") : "FLAT");
+            logger.debug("Current position: {}", hasPosition(ctx) ? (isLong(ctx) ? "LONG" : "SHORT") : "FLAT");
         }
         
         try {
@@ -306,26 +300,25 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                     String.format("%.2f", currentPrice));
                 
                 switch (swtSignal) {
-                    case LONG_ENTER:
+                    case LONG:
                         if (logger.isInfoEnabled()) {
-                            logger.info("LONG ENTRY signal - Current position: {}", 
-                                hasPosition ? (isLong ? "Already LONG" : "SHORT (will exit first)") : "FLAT");
+                            logger.info("LONG state signal - Current position: {}", 
+                                hasPosition(ctx) ? (isLong(ctx) ? "Already LONG" : "SHORT") : "FLAT");
                         }
-                        handleLongEntry(ctx, index);
+                        // Strategy decides whether to enter based on state
+                        if (!hasPosition(ctx) || isShort(ctx)) {
+                            handleLongEntry(ctx, index);
+                        }
                         break;
-                    case SHORT_ENTER:
+                    case SHORT:
                         if (logger.isInfoEnabled()) {
-                            logger.info("SHORT ENTRY signal - Current position: {}", 
-                                hasPosition ? (isLong ? "LONG (will exit first)" : "Already SHORT") : "FLAT");
+                            logger.info("SHORT state signal - Current position: {}", 
+                                hasPosition(ctx) ? (isLong(ctx) ? "LONG" : "Already SHORT") : "FLAT");
                         }
-                        handleShortEntry(ctx, index);
-                        break;
-                    case FLAT_EXIT:
-                        if (logger.isInfoEnabled()) {
-                            logger.info("FLAT EXIT signal - Current position: {}", 
-                                hasPosition ? (isLong ? "LONG" : "SHORT") : "Already FLAT");
+                        // Strategy decides whether to enter based on state
+                        if (!hasPosition(ctx) || isLong(ctx)) {
+                            handleShortEntry(ctx, index);
                         }
-                        handleFlatExit(ctx, index);
                         break;
                     default:
                         logger.warn("Unknown signal type: {}", swtSignal);
@@ -334,7 +327,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                 // Log post-signal state
                 if (logger.isDebugEnabled()) {
                     logger.debug("Post-signal position: {}", 
-                        hasPosition ? (isLong ? "LONG" : "SHORT") : "FLAT");
+                        hasPosition(ctx) ? (isLong(ctx) ? "LONG" : "SHORT") : "FLAT");
                 }
             } else {
                 logger.warn("Received non-Signals type: {} ({})", 
@@ -351,7 +344,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     private void logPositionStatus(OrderContext ctx, DataSeries series, int index) {
-        if (!hasPosition) {
+        if (!hasPosition(ctx)) {
             return;
         }
         
@@ -365,14 +358,15 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             return;
         }
         
-        double unrealizedPnL = isLong ? 
-            (currentPrice - entryPrice) * ctx.getPosition() :
-            (entryPrice - currentPrice) * Math.abs(ctx.getPosition());
+        boolean currentlyLong = isLong(ctx);
+        double unrealizedPnL = currentlyLong ? 
+            (currentPrice - entryPrice) * getPosition(ctx) :
+            (entryPrice - currentPrice) * Math.abs(getPosition(ctx));
         
-        double stopDistance = isLong ? 
+        double stopDistance = currentlyLong ? 
             currentPrice - stopPrice : stopPrice - currentPrice;
         
-        double targetDistance = isLong ? 
+        double targetDistance = currentlyLong ? 
             targetPrice - currentPrice : currentPrice - targetPrice;
         
         String status = unrealizedPnL >= 0 ? "PROFIT" : "LOSS";
@@ -397,12 +391,18 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     
     private void handleLongEntry(OrderContext ctx, int index) {
         if (logger.isDebugEnabled()) {
-            logger.debug(">>> Entering handleLongEntry - Index: {}, HasPosition: {}", index, hasPosition);
+            logger.debug(">>> Entering handleLongEntry - Index: {}, HasPosition: {}", index, hasPosition(ctx));
         }
         
-        if (hasPosition) {
-            logger.info("Already have {} position, ignoring long entry signal", 
-                isLong ? "LONG" : "SHORT");
+        // If we have a short position, exit it first
+        if (hasPosition(ctx) && isShort(ctx)) {
+            logger.info("Long signal received while SHORT - exiting short position");
+            handleFlatExit(ctx, index);
+        }
+        
+        // If we already have a long position, return
+        if (hasPosition(ctx) && isLong(ctx)) {
+            logger.info("Already have LONG position, ignoring long entry signal");
             return;
         }
         
@@ -488,8 +488,6 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             }
             
             // Update position tracking
-            hasPosition = true;
-            isLong = true;
             entryPrice = currentPrice;
             stopPrice = positionInfo.stopPrice;
             targetPrice = positionInfo.targetPrice;
@@ -501,12 +499,18 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     
     private void handleShortEntry(OrderContext ctx, int index) {
         if (logger.isDebugEnabled()) {
-            logger.debug(">>> Entering handleShortEntry - Index: {}, HasPosition: {}", index, hasPosition);
+            logger.debug(">>> Entering handleShortEntry - Index: {}, HasPosition: {}", index, hasPosition(ctx));
         }
         
-        if (hasPosition) {
-            logger.info("Already have {} position, ignoring short entry signal", 
-                isLong ? "LONG" : "SHORT");
+        // If we have a long position, exit it first
+        if (hasPosition(ctx) && isLong(ctx)) {
+            logger.info("Short signal received while LONG - exiting long position");
+            handleFlatExit(ctx, index);
+        }
+        
+        // If we already have a short position, return
+        if (hasPosition(ctx) && isShort(ctx)) {
+            logger.info("Already have SHORT position, ignoring short entry signal");
             return;
         }
         
@@ -587,8 +591,6 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             }
             
             // Update position tracking
-            hasPosition = true;
-            isLong = false;
             entryPrice = currentPrice;
             stopPrice = positionInfo.stopPrice;
             targetPrice = positionInfo.targetPrice;
@@ -600,10 +602,10 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     
     private void handleFlatExit(OrderContext ctx, int index) {
         if (logger.isDebugEnabled()) {
-            logger.debug(">>> Entering handleFlatExit - Index: {}, HasPosition: {}", index, hasPosition);
+            logger.debug(">>> Entering handleFlatExit - Index: {}, HasPosition: {}", index, hasPosition(ctx));
         }
         
-        if (!hasPosition) {
+        if (!hasPosition(ctx)) {
             logger.info("No position to exit - already flat");
             return;
         }
@@ -614,13 +616,14 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         // Calculate P&L before exit
         double pnl = 0.0;
         String exitReason = "Flat Exit Signal";
+        boolean wasLong = isLong(ctx);
         if (entryPrice > 0 && exitPrice > 0) {
-            pnl = isLong ? (exitPrice - entryPrice) : (entryPrice - exitPrice);
+            pnl = wasLong ? (exitPrice - entryPrice) : (entryPrice - exitPrice);
             double pnlPercent = (pnl / entryPrice) * 100;
             
             logger.info("🔴 POSITION EXIT - {}", exitReason);
             logger.info("  Position: {} from {} to {}", 
-                isLong ? "LONG" : "SHORT",
+                wasLong ? "LONG" : "SHORT",
                 String.format("%.2f", entryPrice),
                 String.format("%.2f", exitPrice));
             logger.info("  P&L: {} points ({:.2f}%)", 
@@ -639,7 +642,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             ctx.cancelOrders();
             
             logger.info("Exit order placed - Closing {} position at market", 
-                isLong ? "LONG" : "SHORT");
+                wasLong ? "LONG" : "SHORT");
             
             // Log final position summary
             if (logger.isInfoEnabled()) {
@@ -906,11 +909,38 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     private void resetPositionTracking() {
-        hasPosition = false;
-        isLong = false;
         entryPrice = 0.0;
         stopPrice = 0.0;
         targetPrice = 0.0;
+    }
+    
+    /**
+     * Get current position from OrderContext
+     * @return positive for long, negative for short, 0 for flat
+     */
+    int getPosition(OrderContext ctx) {
+        return ctx.getPosition();
+    }
+    
+    /**
+     * Check if we have any position
+     */
+    boolean hasPosition(OrderContext ctx) {
+        return getPosition(ctx) != 0;
+    }
+    
+    /**
+     * Check if current position is long
+     */
+    boolean isLong(OrderContext ctx) {
+        return getPosition(ctx) > 0;
+    }
+    
+    /**
+     * Check if current position is short
+     */
+    boolean isShort(OrderContext ctx) {
+        return getPosition(ctx) < 0;
     }
     
     // P&L tracking logic preserved in docs/REFERENCE_PNL_TRACKING.md

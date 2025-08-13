@@ -91,7 +91,7 @@ class SwtTrendMomentumStrategyFullIT {
         strategy.onActivate(mockOrderContext);
         
         // Verify state is initialized
-        assertFalse(strategy.hasPosition());
+        assertFalse(strategy.hasPosition(mockOrderContext));
         assertEquals(0.0, strategy.getEntryPrice());
         assertEquals(0.0, strategy.getStopPriceValue());
     }
@@ -103,15 +103,14 @@ class SwtTrendMomentumStrategyFullIT {
         
         strategy.onActivate(mockOrderContext);
         
-        assertTrue(strategy.hasPosition());
-        assertTrue(strategy.isPositionLong());
+        assertTrue(strategy.hasPosition(mockOrderContext));
+        assertTrue(strategy.isLong(mockOrderContext));
     }
     
     @Test
     @DisplayName("onDeactivate should close open positions")
     void testOnDeactivate() {
         when(mockOrderContext.getPosition()).thenReturn(2);
-        strategy.setHasPosition(true);
         
         strategy.onDeactivate(mockOrderContext);
         
@@ -128,8 +127,8 @@ class SwtTrendMomentumStrategyFullIT {
         
         strategy.onOrderFilled(mockOrderContext, mockOrder);
         
-        assertTrue(strategy.hasPosition());
-        assertTrue(strategy.isPositionLong());
+        assertTrue(strategy.hasPosition(mockOrderContext));
+        assertTrue(strategy.isLong(mockOrderContext));
         assertEquals(4500.25, strategy.getEntryPrice());
     }
     
@@ -143,8 +142,8 @@ class SwtTrendMomentumStrategyFullIT {
         
         strategy.onOrderFilled(mockOrderContext, mockOrder);
         
-        assertTrue(strategy.hasPosition());
-        assertFalse(strategy.isPositionLong());
+        assertTrue(strategy.hasPosition(mockOrderContext));
+        assertFalse(strategy.isLong(mockOrderContext));
         assertEquals(4500.25, strategy.getEntryPrice());
     }
     
@@ -152,8 +151,7 @@ class SwtTrendMomentumStrategyFullIT {
     @DisplayName("onOrderFilled should detect stop hits")
     void testOnOrderFilledStopHit() {
         // Setup existing long position
-        strategy.setHasPosition(true);
-        strategy.setIsLong(true);
+        when(mockOrderContext.getPosition()).thenReturn(2); // Start with long position
         strategy.setEntryPrice(4500.0);
         strategy.setStopPrice(4490.0);
         
@@ -165,7 +163,7 @@ class SwtTrendMomentumStrategyFullIT {
         
         strategy.onOrderFilled(mockOrderContext, mockOrder);
         
-        assertFalse(strategy.hasPosition());
+        assertFalse(strategy.hasPosition(mockOrderContext));
         assertEquals(0.0, strategy.getEntryPrice());
         assertEquals(0.0, strategy.getStopPriceValue());
     }
@@ -201,50 +199,54 @@ class SwtTrendMomentumStrategyFullIT {
     @Test
     @DisplayName("onPositionClosed should reset state")
     void testOnPositionClosed() {
-        strategy.setHasPosition(true);
+        when(mockOrderContext.getPosition()).thenReturn(0);
         strategy.setEntryPrice(4500.0);
         strategy.setStopPrice(4490.0);
         
         strategy.onPositionClosed(mockOrderContext);
         
-        assertFalse(strategy.hasPosition());
+        assertFalse(strategy.hasPosition(mockOrderContext));
         assertEquals(0.0, strategy.getEntryPrice());
         assertEquals(0.0, strategy.getStopPriceValue());
     }
     
     @Test
-    @DisplayName("onSignal should handle LONG_ENTER signal")
-    void testOnSignalLongEnter() {
+    @DisplayName("onSignal should handle LONG signal")
+    void testOnSignalLong() {
         when(mockSettings.getBoolean(SwtTrendMomentumStrategy.ENABLE_SIGNALS, true))
             .thenReturn(true);
+        when(mockOrderContext.getPosition()).thenReturn(0); // No position
         
-        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG_ENTER);
+        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG);
         
         // Verify handleLongEntry was called (would need to verify through side effects)
         // In a real test, we'd verify the order was placed
     }
     
     @Test
-    @DisplayName("onSignal should handle SHORT_ENTER signal")
-    void testOnSignalShortEnter() {
+    @DisplayName("onSignal should handle SHORT signal")
+    void testOnSignalShort() {
         when(mockSettings.getBoolean(SwtTrendMomentumStrategy.ENABLE_SIGNALS, true))
             .thenReturn(true);
+        when(mockOrderContext.getPosition()).thenReturn(0); // No position
         
-        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.SHORT_ENTER);
+        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.SHORT);
         
         // Verify handleShortEntry was called
     }
     
+    
     @Test
-    @DisplayName("onSignal should handle FLAT_EXIT signal")
-    void testOnSignalFlatExit() {
+    @DisplayName("onSignal should not re-enter when already in position")
+    void testOnSignalNoReentry() {
         when(mockSettings.getBoolean(SwtTrendMomentumStrategy.ENABLE_SIGNALS, true))
             .thenReturn(true);
-        strategy.setHasPosition(true);
+        when(mockOrderContext.getPosition()).thenReturn(2); // Already long
         
-        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.FLAT_EXIT);
+        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG);
         
-        // Verify handleExit was called
+        // Verify no new order was placed
+        verify(mockOrderContext, never()).buy(anyInt());
     }
     
     @Test
@@ -253,7 +255,7 @@ class SwtTrendMomentumStrategyFullIT {
         when(mockSettings.getBoolean(SwtTrendMomentumStrategy.ENABLE_SIGNALS, true))
             .thenReturn(false);
         
-        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG_ENTER);
+        strategy.onSignal(mockOrderContext, SwtTrendMomentumStrategy.Signals.LONG);
         
         // Verify no action was taken (no orders placed)
         verify(mockOrderContext, never()).buy(anyInt());
