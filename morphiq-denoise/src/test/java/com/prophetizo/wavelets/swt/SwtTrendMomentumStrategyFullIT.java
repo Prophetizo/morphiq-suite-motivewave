@@ -18,7 +18,7 @@ import static org.mockito.Mockito.*;
  * Unit tests for SwtTrendMomentumStrategy.
  * Tests trading logic, signal handling, and position management.
  */
-class SwtTrendMomentumStrategyIT {
+class SwtTrendMomentumStrategyFullIT {
     
     private SwtTrendMomentumStrategy strategy;
     private OrderContext mockOrderContext;
@@ -262,6 +262,9 @@ class SwtTrendMomentumStrategyIT {
     @Test
     @DisplayName("Position sizing with trade lots multiplication")
     void testPositionSizingWithTradeLots() {
+        // Initialize strategy first to set up settingsDescriptor
+        strategy.initialize(mockDefaults);
+        
         // Setup settings for position sizing
         strategy.setSettings(mockSettings);
         when(mockSettings.getInteger(SwtTrendMomentumStrategy.POSITION_SIZE, 1))

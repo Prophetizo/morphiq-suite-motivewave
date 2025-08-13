@@ -16,16 +16,18 @@
     <packaging>pom</packaging>
 
     <dependencies>
-        <!-- Include all indicator modules -->
+        <!-- Include shaded indicator modules with classifier -->
         <dependency>
             <groupId>ai.prophetizo</groupId>
             <artifactId>morphiq-autowave</artifactId>
             <version>${project.version}</version>
+            <classifier>motivewave</classifier>
         </dependency>
         <dependency>
             <groupId>ai.prophetizo</groupId>
             <artifactId>morphiq-denoise</artifactId>
             <version>${project.version}</version>
+            <classifier>motivewave</classifier>
         </dependency>
     </dependencies>
 

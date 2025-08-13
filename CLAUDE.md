@@ -145,10 +145,9 @@ The `CUSTOM_WAVELET_DESIGN.md` outlines advanced features including:
 
 ### When Working with Settings
 - **Momentum Threshold**: Now scaled by 100x (use 1.0 instead of 0.01)
-- **Min Slope Threshold**: Expressed as percentage (0.05 = 0.05%)
-  - FIXED: Changed default from 0.001 to 0.05 (50x increase)
-  - Old value was too restrictive (0.064 points/bar for ES at 6400)
-  - New value is reasonable (3.2 points/bar for ES at 6400)
+- **Min Slope Threshold**: Absolute price points (0.05 = 0.05 point minimum move, NOT percentage)
+  - FIXED: Changed from percentage-based to absolute points
+  - 0.00 disables filtering, 0.05-0.10 typical for ES futures
 - **Trade Lots**: Properly multiplies position size
 - **Point Value**: Auto-detected from instrument (ES=$50, NQ=$20)
 
@@ -159,9 +158,10 @@ The `CUSTOM_WAVELET_DESIGN.md` outlines advanced features including:
 - Never call `clearFigures()` outside `onSettingsUpdated()`
 
 ### Maven Build Configuration
-- Use `shadedArtifactAttached=true` to avoid JAR conflicts
-- Classifier `motivewave` creates separate shaded JAR
+- Use `shadedArtifactAttached=true` to avoid JAR conflicts and overlapping class warnings
+- Classifier `motivewave` creates separate shaded JAR for MotiveWave deployment
 - Dependencies included: morphiq-core, vector-wave, slf4j
+- Bundle uses shaded JARs with classifier to avoid duplicate classes
 
 ### Testing Best Practices
 - Use instance-specific Random with fixed seeds

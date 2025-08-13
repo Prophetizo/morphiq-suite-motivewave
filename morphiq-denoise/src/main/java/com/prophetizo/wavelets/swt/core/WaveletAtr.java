@@ -41,6 +41,29 @@ public class WaveletAtr {
     private static final double DEFAULT_LEVEL_WEIGHT_DECAY = 0.5;
     
     /**
+     * Epsilon value for floating-point equality comparisons.
+     * Used to determine if two double values are effectively equal,
+     * accounting for floating-point precision limitations.
+     */
+    private static final double EPSILON = 0.001;
+    
+    /**
+     * Volatility thresholds for estimating appropriate WATR band multipliers.
+     * These values categorize market volatility levels.
+     */
+    private static final double VERY_LOW_VOLATILITY_THRESHOLD = 0.001;
+    private static final double LOW_VOLATILITY_THRESHOLD = 0.01;
+    private static final double HIGH_VOLATILITY_THRESHOLD = 0.1;
+    
+    /**
+     * WATR band multipliers for different volatility regimes.
+     * These control the width of volatility-based bands.
+     */
+    private static final double DEFAULT_MULTIPLIER = 2.0;
+    private static final double CONSERVATIVE_MULTIPLIER = 1.5;
+    private static final double WIDE_BANDS_MULTIPLIER = 3.0;
+    
+    /**
      * Calculate weight for a given wavelet level.
      * 
      * @param level 0-based array index (0 for D₁, 1 for D₂, etc.)
@@ -271,7 +294,7 @@ public class WaveletAtr {
         
         // Pre-calculate weights for common case (DEFAULT_LEVEL_WEIGHT_DECAY)
         // to avoid repeated calculations in this static context
-        boolean useDefaultWeights = Math.abs(levelWeightDecay - DEFAULT_LEVEL_WEIGHT_DECAY) < 0.001;
+        boolean useDefaultWeights = Math.abs(levelWeightDecay - DEFAULT_LEVEL_WEIGHT_DECAY) < EPSILON;
         double[] weights = null;
         if (useDefaultWeights) {
             weights = new double[Math.min(MAX_CACHED_LEVELS, levelsToUse)];
@@ -360,14 +383,14 @@ public class WaveletAtr {
     public double estimateMultiplier() {
         double currentWatr = getCurrentValue();
         
-        if (currentWatr < 0.001) {
-            return 2.0; // Default for very low volatility
-        } else if (currentWatr < 0.01) {
-            return 1.5; // Conservative for low volatility
-        } else if (currentWatr > 0.1) {
-            return 3.0; // Wide bands for high volatility
+        if (currentWatr < VERY_LOW_VOLATILITY_THRESHOLD) {
+            return DEFAULT_MULTIPLIER; // Default for very low volatility
+        } else if (currentWatr < LOW_VOLATILITY_THRESHOLD) {
+            return CONSERVATIVE_MULTIPLIER; // Conservative for low volatility
+        } else if (currentWatr > HIGH_VOLATILITY_THRESHOLD) {
+            return WIDE_BANDS_MULTIPLIER; // Wide bands for high volatility
         } else {
-            return 2.0; // Standard multiplier
+            return DEFAULT_MULTIPLIER; // Standard multiplier
         }
     }
     

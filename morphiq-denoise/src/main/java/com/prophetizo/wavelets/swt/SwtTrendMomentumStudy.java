@@ -100,7 +100,7 @@ public class SwtTrendMomentumStudy extends Study {
     private double[] priceBuffer = null;
     private int bufferStartIndex = -1;
     private boolean bufferInitialized = false;
-    private final Object bufferLock = new Object(); // Lock for buffer operations
+    protected final Object bufferLock = new Object(); // Lock for buffer operations (protected for test access)
     
     // Momentum smoothing - volatile for thread safety in MotiveWave's multi-threaded calculation engine
     private volatile double smoothedMomentum = 0.0;
@@ -134,28 +134,32 @@ public class SwtTrendMomentumStudy extends Study {
     private static final double DEFAULT_LOG_FACTOR = 5.0;
     
     /**
-     * Default minimum slope threshold as a percentage value (not decimal).
+     * Default minimum slope threshold in absolute price points.
      * 
      * This threshold filters out signals in choppy/flat markets by requiring
-     * a minimum rate of change in the trend. The value 0.001 (displayed as 0.001%)
-     * was empirically determined to balance:
+     * a minimum absolute change in the trend line between bars.
+     * The value 0.05 means the trend must change by at least 0.05 points
+     * from one bar to the next to generate a signal.
+     * 
+     * This value was empirically determined to balance:
      * - Sensitivity: Low enough to capture legitimate trend changes
      * - Noise rejection: High enough to avoid false signals in ranging markets
      * 
-     * For ES at 6400:
-     * - Trend value: ~6400
-     * - Min slope: 6400 * (0.05/100) = 3.2 points/bar
-     * - This requires at least 3.2 point movement per bar to generate signals
+     * For ES futures:
+     * - Typical bar-to-bar trend changes: 0.25 - 2.0 points
+     * - Threshold of 0.05 filters out very small noise
+     * - Allows most legitimate moves through
      * 
      * Adjustment guidelines:
-     * - Increase for less sensitive signals (fewer false positives)
-     * - Decrease for more sensitive signals (catch smaller moves)
-     * - Consider market volatility: volatile markets may need higher values
+     * - 0.00: Disable slope filtering entirely
+     * - 0.01-0.05: Very sensitive (catches small moves)
+     * - 0.05-0.10: Balanced (default range)
+     * - 0.10-0.50: Conservative (filters more aggressively)
+     * - 0.50+: Very conservative (only large moves)
      * 
-     * Note: This value is entered as a percentage in the UI (0.05 = 0.05%)
-     *       and converted to decimal (0.0005) during calculation.
+     * Note: This is an absolute threshold in price points, NOT a percentage.
      */
-    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.05; // Percentage value as entered in UI (0.05 = 0.05%), converted to decimal (0.0005) during calculation
+    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.05; // Absolute price points (e.g., 0.05 = 0.05 point minimum move)
     
     @Override
     public void onLoad(Defaults defaults) {

@@ -18,7 +18,14 @@ import java.util.Arrays;
         menu = "MorphIQ | Wavelet Strategies",
         overlay = true,
         strategy = true,
-        requiresBarUpdates = false
+        requiresBarUpdates = false,
+        autoEntry = true,
+        supportsEntryPrice = true,
+        supportsPosition = true,
+        supportsUnrealizedPL = true,
+        supportsCurrentPL = true,
+        supportsRealizedPL = true,
+        supportsTotalPL = true
 )
 public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     private static final Logger logger = LoggerConfig.getLogger(SwtTrendMomentumStrategy.class);
@@ -229,20 +236,18 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     double getStopPriceValue() { return stopPrice; } // Renamed to avoid conflict
     void setStopPrice(double stopPrice) { this.stopPrice = stopPrice; }
     Object getBufferLock() { 
-        // bufferLock is defined in parent class SwtTrendMomentumStudy
-        return new Object(); // Return dummy for testing
-    }
-    void updateBuffer(int index, double value) { 
-        // Test helper for simulating buffer updates
-    }
-    double readBuffer(int index) { 
-        // Test helper for simulating buffer reads
-        return 0.0; 
+        // Return the actual bufferLock from parent class (now protected)
+        return bufferLock;
     }
     int calculateFinalQuantity(OrderContext ctx) { 
         int positionSizeFactor = getSettings().getInteger(POSITION_SIZE, 1);
         // Get trade lots from settings instead of OrderContext
         int tradeLots = getSettings().getInteger("TRADE_LOTS", 1);
+        return positionSizeFactor * tradeLots;
+    }
+    
+    // Test helper method that doesn't require full initialization
+    int calculateFinalQuantityForTest(int positionSizeFactor, int tradeLots) {
         return positionSizeFactor * tradeLots;
     }
     

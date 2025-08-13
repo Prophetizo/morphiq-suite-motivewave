@@ -67,7 +67,8 @@
                         </goals>
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
-                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>motivewave</shadedClassifierName>
                             <minimizeJar>false</minimizeJar>
                             <artifactSet>
                                 <includes>
