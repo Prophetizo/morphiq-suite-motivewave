@@ -1,6 +1,7 @@
 package com.prophetizo.wavelets.swt;
 
 import com.motivewave.platform.sdk.common.*;
+import com.prophetizo.wavelets.swt.core.PositionSizer;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.order_mgmt.OrderContext;
 import com.motivewave.platform.sdk.study.StudyHeader;
@@ -309,7 +310,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             return;
         }
         
-        // Calculate position size and risk
+        // Calculate position size and risk using new PositionSizer
         PositionSize positionInfo = calculatePositionSize(ctx, index, true, currentPrice);
         if (positionInfo == null || positionInfo.quantity <= 0) {
             logger.warn("Cannot calculate valid position size for long entry");
@@ -658,28 +659,61 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             return null;
         }
         
-        // Adjust quantity based on risk
-        int maxQuantityByRisk = (int) (maxRisk / riskPerUnit);
-        int finalQuantity = Math.min(baseQuantity, maxQuantityByRisk);
+        // Use PositionSizer for risk-based position sizing
+        PositionSizer sizer = PositionSizer.createValidated(ctx.getInstrument());
+        if (sizer == null) {
+            logger.error("Failed to create position sizer for instrument {}", ctx.getInstrument().getSymbol());
+            // Fallback to simple calculation
+            int maxQuantityByRisk = (int) (maxRisk / riskPerUnit);
+            int finalQuantity = Math.min(baseQuantity, maxQuantityByRisk);
+            return new PositionSize(finalQuantity, stopPrice, targetPrice);
+        }
+        
+        // Use WATR-based or direct position calculation
+        PositionSizer.PositionInfo sizerInfo;
+        if (useWatrStops && series.getDouble(index, Values.WATR) != null) {
+            double watr = series.getDouble(index, Values.WATR);
+            double minStopPoints = getSettings().getDouble(MIN_STOP_POINTS, 5.0);
+            double maxStopPoints = getSettings().getDouble(MAX_STOP_POINTS, 25.0);
+            
+            sizerInfo = sizer.calculatePositionWithWatr(
+                baseQuantity,    // positionSizeFactor
+                1,               // tradeLots (will be applied later)
+                maxRisk,         // maxRiskDollars
+                watr,           // watr value
+                stopMultiplier,  // stopMultiplier
+                minStopPoints,   // minStopPoints
+                maxStopPoints    // maxStopPoints
+            );
+        } else {
+            sizerInfo = sizer.calculatePosition(
+                baseQuantity,  // positionSizeFactor
+                1,             // tradeLots (will be applied later)
+                maxRisk,       // maxRiskDollars
+                riskInPoints   // stopDistancePoints
+            );
+        }
+        
+        int finalQuantity = sizerInfo.getFinalQuantity();
         finalQuantity = Math.max(1, finalQuantity); // Minimum 1 unit
         
         if (logger.isInfoEnabled()) {
             logger.info("🧮 Quantity Calculation:");
             logger.info("  ├─ Max Risk Allowed: ${}", String.format("%.2f", maxRisk));
-            logger.info("  ├─ Risk Per Unit: ${}", String.format("%.2f", riskPerUnit));
+            logger.info("  ├─ Risk Per Unit: ${}", String.format("%.2f", sizerInfo.getRiskPerUnit()));
             logger.info("  ├─ Max Qty by Risk: {} (${} ÷ ${})", 
-                       maxQuantityByRisk, 
+                       sizerInfo.getBaseQuantity(), 
                        String.format("%.2f", maxRisk), 
-                       String.format("%.2f", riskPerUnit));
+                       String.format("%.2f", sizerInfo.getRiskPerUnit()));
             logger.info("  ├─ Position Size Factor: {}", baseQuantity);
             logger.info("  └─ Final Quantity: {} {}", 
                        finalQuantity,
-                       finalQuantity < baseQuantity ? "(LIMITED BY RISK)" : "(USING FACTOR)");
+                       sizerInfo.wasRiskAdjusted() ? "(LIMITED BY RISK)" : "(USING FACTOR)");
         }
         
-        if (finalQuantity < baseQuantity) {
+        if (sizerInfo.wasRiskAdjusted()) {
             logger.warn("⚠️  POSITION SIZE REDUCED: {} → {} (risk limit exceeded)", 
-                       baseQuantity, finalQuantity);
+                       sizerInfo.getBaseQuantity(), finalQuantity);
             logger.warn("    Original risk would be: ${}", 
                        String.format("%.2f", baseQuantity * riskPerUnit));
         }
