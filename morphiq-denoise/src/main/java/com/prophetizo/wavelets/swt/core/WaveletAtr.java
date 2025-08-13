@@ -192,7 +192,7 @@ public class WaveletAtr {
                 }
                 
                 // Weight by level (finer details contribute more to volatility)
-                // Apply reciprocal linear decay to weight finer scales more heavily.
+                // Apply hyperbolic decay: weight = 1.0 / (1.0 + level * decay)
                 // This emphasizes short-term volatility and reduces the influence of coarser (long-term) trends.
                 double weight = (level < MAX_CACHED_LEVELS) ? 
                     cachedLevelWeights[level] : 

@@ -14,6 +14,29 @@ import java.util.Random;
 public class VectorWaveSwtAdapterTest {
     
     private static final long TEST_SEED = 42L;
+    
+    // Test signal parameters
+    private static final int SMALL_SIGNAL_LENGTH = 32;
+    private static final int MEDIUM_SIGNAL_LENGTH = 64;
+    private static final int LARGE_SIGNAL_LENGTH = 128;
+    
+    // Signal generation parameters
+    private static final double NOISE_AMPLITUDE = 0.1;
+    private static final double SIGNAL_AMPLITUDE = 1.0;
+    private static final double SINE_FREQUENCY = 8.0;
+    private static final double TEST_FREQUENCY_1 = 16.0;  // For mixed frequency signals
+    private static final double TEST_FREQUENCY_2 = 8.0;   // For mixed frequency signals
+    private static final double TREND_COEFFICIENT = 0.01; // For trend component
+    
+    // Thresholding parameters
+    private static final double HARD_THRESHOLD = 0.1;
+    private static final double SOFT_THRESHOLD = 0.1;
+    
+    // Test tolerances
+    private static final double RECONSTRUCTION_TOLERANCE = 1e-10;
+    private static final double ENERGY_TOLERANCE = 0.1;  // 10% energy difference tolerance
+    private static final int SHIFT_AMOUNT = 4;
+    
     private VectorWaveSwtAdapter adapter;
     private Random random;
     
@@ -26,7 +49,7 @@ public class VectorWaveSwtAdapterTest {
     @Test
     void testBasicTransform() {
         // Test with simple sine wave
-        double[] data = generateSineWave(128, 1.0, 8.0);
+        double[] data = generateSineWave(LARGE_SIGNAL_LENGTH, SIGNAL_AMPLITUDE, SINE_FREQUENCY);
         
         VectorWaveSwtAdapter.SwtResult result = adapter.transform(data, 3);
         
@@ -43,7 +66,7 @@ public class VectorWaveSwtAdapterTest {
     @Test
     void testReconstructionAccuracy() {
         // Test perfect reconstruction property (within numerical tolerance)
-        double[] original = generateTestSignal(64);
+        double[] original = generateTestSignal(MEDIUM_SIGNAL_LENGTH);
         
         VectorWaveSwtAdapter.SwtResult result = adapter.transform(original, 4);
         
@@ -94,9 +117,10 @@ public class VectorWaveSwtAdapterTest {
     void testHardThresholding() {
         // Create a simple test signal with deterministic noise
         Random localRandom = new Random(TEST_SEED);
-        double[] testSignal = new double[32];
+        double[] testSignal = new double[SMALL_SIGNAL_LENGTH];
         for (int i = 0; i < testSignal.length; i++) {
-            testSignal[i] = Math.sin(2 * Math.PI * i / 32) + 0.1 * localRandom.nextDouble();
+            testSignal[i] = Math.sin(2 * Math.PI * i / SMALL_SIGNAL_LENGTH) + 
+                           NOISE_AMPLITUDE * localRandom.nextDouble();
         }
         
         // Perform SWT transform
@@ -106,14 +130,13 @@ public class VectorWaveSwtAdapterTest {
         double[] originalDetail = result.getDetail(1).clone();
         
         // Apply hard thresholding
-        double threshold = 0.1;
-        result.applyShrinkage(1, threshold, false);
+        result.applyShrinkage(1, HARD_THRESHOLD, false);
         
         double[] thresholded = result.getDetail(1);
         
         // Verify hard thresholding behavior
         for (int i = 0; i < originalDetail.length; i++) {
-            if (Math.abs(originalDetail[i]) <= threshold) {
+            if (Math.abs(originalDetail[i]) <= HARD_THRESHOLD) {
                 assertEquals(0.0, thresholded[i], 1e-10, 
                     "Coefficients below threshold should be zeroed");
             } else {
@@ -127,9 +150,10 @@ public class VectorWaveSwtAdapterTest {
     void testSoftThresholding() {
         // Create a simple test signal with deterministic noise
         Random localRandom = new Random(TEST_SEED);
-        double[] testSignal = new double[32];
+        double[] testSignal = new double[SMALL_SIGNAL_LENGTH];
         for (int i = 0; i < testSignal.length; i++) {
-            testSignal[i] = Math.sin(2 * Math.PI * i / 32) + 0.1 * localRandom.nextDouble();
+            testSignal[i] = Math.sin(2 * Math.PI * i / SMALL_SIGNAL_LENGTH) + 
+                           NOISE_AMPLITUDE * localRandom.nextDouble();
         }
         
         // Perform SWT transform
@@ -139,19 +163,18 @@ public class VectorWaveSwtAdapterTest {
         double[] originalDetail = result.getDetail(1).clone();
         
         // Apply soft thresholding
-        double threshold = 0.1;
-        result.applyShrinkage(1, threshold, true);
+        result.applyShrinkage(1, SOFT_THRESHOLD, true);
         
         double[] thresholded = result.getDetail(1);
         
         // Verify soft thresholding behavior
         for (int i = 0; i < originalDetail.length; i++) {
-            if (Math.abs(originalDetail[i]) <= threshold) {
-                assertEquals(0.0, thresholded[i], 1e-10,
+            if (Math.abs(originalDetail[i]) <= SOFT_THRESHOLD) {
+                assertEquals(0.0, thresholded[i], RECONSTRUCTION_TOLERANCE,
                     "Coefficients below threshold should be zeroed");
             } else {
                 double expected = Math.signum(originalDetail[i]) * 
-                                 (Math.abs(originalDetail[i]) - threshold);
+                                 (Math.abs(originalDetail[i]) - SOFT_THRESHOLD);
                 assertEquals(expected, thresholded[i], 1e-10,
                     "Coefficients above threshold should be shrunk by threshold amount");
             }

@@ -235,8 +235,8 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     void setEntryPrice(double entryPrice) { this.entryPrice = entryPrice; }
     double getStopPriceValue() { return stopPrice; } // Renamed to avoid conflict
     void setStopPrice(double stopPrice) { this.stopPrice = stopPrice; }
-    Object getBufferLock() { 
-        // Return the actual bufferLock from parent class (now protected)
+    public Object getBufferLock() { 
+        // Return the actual bufferLock from parent class for thread-safe test access
         return bufferLock;
     }
     int calculateFinalQuantity(OrderContext ctx) { 

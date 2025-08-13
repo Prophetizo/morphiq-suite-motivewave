@@ -156,6 +156,8 @@ public class VectorWaveSwtAdapter {
         private VectorWaveSwtAdapter cachedAdapter;
         // Cache a reusable mutable result to avoid allocation overhead
         private MutableMultiLevelMODWTResult cachedMutableResult;
+        // Track last reconstruction level to avoid unnecessary recreations
+        private int lastMaxLevel = -1;
         
         public SwtResult(double[] approximation, double[][] details, String waveletType, BoundaryMode boundaryMode, MutableMultiLevelMODWTResult vectorWaveResult) {
             if (vectorWaveResult == null) {
@@ -255,8 +257,6 @@ public class VectorWaveSwtAdapter {
          * @param maxLevel the maximum detail level to include in reconstruction
          * @return the reconstructed signal
          */
-        private int lastMaxLevel = -1; // Track last reconstruction level
-        
         public double[] reconstruct(int maxLevel) {
             // Only recreate mutable result if maxLevel changed or it's the first call
             if (cachedMutableResult == null || lastMaxLevel != maxLevel) {
