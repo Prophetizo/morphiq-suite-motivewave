@@ -42,8 +42,10 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String WATR_MULTIPLIER = "WATR_MULTIPLIER";
     public static final String WATR_SCALE_METHOD = "WATR_SCALE_METHOD";
     public static final String WATR_SCALE_FACTOR = "WATR_SCALE_FACTOR";
+    public static final String WATR_LEVEL_DECAY = "WATR_LEVEL_DECAY";
     public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
     public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
+    public static final String MIN_SLOPE_THRESHOLD = "MIN_SLOPE_THRESHOLD";
     
     // Path keys
     public static final String AJ_PATH = "AJ_PATH";
@@ -78,27 +80,29 @@ public class SwtTrendMomentumStudy extends Study {
         LONG_ENTER, SHORT_ENTER, FLAT_EXIT
     }
     
-    // Core components
-    private VectorWaveSwtAdapter swtAdapter;
-    private WaveletAtr waveletAtr;
+    // Core components - volatile for thread safety
+    private volatile VectorWaveSwtAdapter swtAdapter;
+    private volatile WaveletAtr waveletAtr;
     
-    // State tracking
-    private String currentWaveletType = null;
-    private Integer currentLevels = null;
-    private Integer currentWindowLength = null;
-    private boolean lastLongFilter = false;
-    private boolean lastShortFilter = false;
+    // State tracking - volatile for thread safety in multi-threaded calculation engine
+    private volatile String currentWaveletType = null;
+    private volatile Integer currentLevels = null;
+    private volatile Integer currentWindowLength = null;
+    private volatile boolean lastLongFilter = false;
+    private volatile boolean lastShortFilter = false;
     
     // No need for marker tracking - SDK handles this when we follow the pattern:
     // Only add markers when series.isBarComplete(index) is true
     
-    // Sliding window buffer for streaming updates
+    // Sliding window buffer for streaming updates - synchronized for thread safety
+    // These fields must be accessed together atomically, so we use synchronization
     private double[] priceBuffer = null;
     private int bufferStartIndex = -1;
     private boolean bufferInitialized = false;
+    private final Object bufferLock = new Object(); // Lock for buffer operations
     
-    // Momentum smoothing
-    private double smoothedMomentum = 0.0;
+    // Momentum smoothing - volatile for thread safety in MotiveWave's multi-threaded calculation engine
+    private volatile double smoothedMomentum = 0.0;
     private static final double MOMENTUM_ALPHA = 0.3; // EMA smoothing factor (increased for faster response)
     private static final int MOMENTUM_WINDOW = 5; // Window for RMS calculation (reduced for faster response)
     
@@ -147,7 +151,7 @@ public class SwtTrendMomentumStudy extends Study {
      * - Decrease for more sensitive signals (catch smaller moves)
      * - Consider market volatility: volatile markets may need higher values
      */
-    private static final double MIN_SLOPE_PERCENTAGE = 0.00001; // 0.001% of trend value
+    private static final double DEFAULT_MIN_SLOPE_PERCENTAGE = 0.00001; // 0.001% of trend value (default)
     
     @Override
     public void onLoad(Defaults defaults) {
@@ -209,10 +213,12 @@ public class SwtTrendMomentumStudy extends Study {
         swtAdapter = null;
         waveletAtr = null;
         
-        // Clear buffer
-        priceBuffer = null;
-        bufferStartIndex = -1;
-        bufferInitialized = false;
+        // Clear buffer - synchronized to ensure atomic updates
+        synchronized (bufferLock) {
+            priceBuffer = null;
+            bufferStartIndex = -1;
+            bufferInitialized = false;
+        }
         
         // Reset momentum smoothing
         smoothedMomentum = 0.0;
@@ -289,6 +295,8 @@ public class SwtTrendMomentumStudy extends Study {
                         new NVP("SIGN", "Sign Count (±1 per level)")
                 )));
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 0.01, 0.0, 1.0, 0.001));
+        signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (%)", 0.001, 0.0, 0.1, 0.0001));
+        // Note: Min Slope Threshold is percentage of trend value (0.001 = 0.001% of trend)
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
         
         // Display settings
@@ -313,6 +321,12 @@ public class SwtTrendMomentumStudy extends Study {
                 )));
         watrGroup.addRow(new DoubleDescriptor(WATR_SCALE_FACTOR, "WATR Scale Factor", 
                 DEFAULT_SQRT_FACTOR, 0.01, 1000.0, 0.1));
+        watrGroup.addRow(new DoubleDescriptor(WATR_LEVEL_DECAY, "WATR Level Weight Decay", 
+                0.5, 0.1, 1.0, 0.05));
+        // Note: Level Weight Decay controls contribution of coarser scales
+        // - 0.3-0.4: More weight on coarser scales (trending markets)
+        // - 0.5-0.6: Balanced weighting (default)
+        // - 0.7-0.8: More weight on finer scales (volatile/choppy markets)
         
         watrGroup.addRow(new PathDescriptor(WATR_UPPER_PATH, "WATR Upper Band",
                 new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
@@ -407,11 +421,13 @@ public class SwtTrendMomentumStudy extends Study {
                 currentLevels = levels;
                 currentWindowLength = windowLength;
                 
-                // Reset buffer when window size changes
+                // Reset buffer when window size changes - synchronized for thread safety
                 if (windowChanged || priceBuffer == null) {
-                    priceBuffer = new double[windowLength];
-                    bufferStartIndex = -1;
-                    bufferInitialized = false;
+                    synchronized (bufferLock) {
+                        priceBuffer = new double[windowLength];
+                        bufferStartIndex = -1;
+                        bufferInitialized = false;
+                    }
                 }
                 
                 // Reset signal tracking on change
@@ -426,8 +442,9 @@ public class SwtTrendMomentumStudy extends Study {
         }
         
         if (waveletAtr == null) {
-            this.waveletAtr = new WaveletAtr(14); // 14-period smoothing
-            logger.debug("Initialized WATR component");
+            double levelDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
+            this.waveletAtr = new WaveletAtr(14, levelDecay); // 14-period smoothing with configurable decay
+            logger.debug("Initialized WATR component with level decay: {}", levelDecay);
         } else if (waveletChanged || levelsChanged || windowChanged) {
             // Reset WATR on settings change
             waveletAtr.reset();
@@ -544,7 +561,8 @@ public class SwtTrendMomentumStudy extends Study {
             double momentumThreshold = getSettings().getDouble(MOMENTUM_THRESHOLD, 0.01);
             
             // Require minimum slope to avoid signals in choppy/flat markets
-            double minSlope = Math.abs(currentTrend) * MIN_SLOPE_PERCENTAGE;
+            double slopeThresholdPercent = getSettings().getDouble(MIN_SLOPE_THRESHOLD, 0.001) / 100.0; // Convert % to decimal
+            double minSlope = Math.abs(currentTrend) * slopeThresholdPercent;
             
             boolean longFilter = slope > minSlope && momentumSum > momentumThreshold;
             boolean shortFilter = slope < -minSlope && momentumSum < -momentumThreshold;
@@ -600,61 +618,65 @@ public class SwtTrendMomentumStudy extends Study {
     /**
      * Updates the sliding window buffer efficiently.
      * Only fetches new data points instead of the entire window.
+     * Thread-safe: All buffer operations are synchronized.
      */
     private double[] updateSlidingWindow(DataSeries series, int index, int windowLength, DataContext ctx) {
         int startIndex = index - windowLength + 1;
         
-        // Check if we need to initialize or completely refresh the buffer
-        if (!bufferInitialized || priceBuffer == null || 
-            bufferStartIndex < 0 || startIndex < bufferStartIndex ||
-            startIndex > bufferStartIndex + windowLength) {
-            
-            // Full refresh needed
-            if (logger.isTraceEnabled()) {
-                logger.trace("Full buffer refresh at index {}", index);
-            }
-            priceBuffer = extractPriceWindow(series, index, windowLength, ctx);
-            bufferStartIndex = startIndex;
-            bufferInitialized = true;
-            return priceBuffer;
-        }
-        
-        // Sliding window update - only fetch new bars
-        int shift = startIndex - bufferStartIndex;
-        
-        if (shift > 0 && shift < windowLength) {
-            // Slide the window forward
-            if (logger.isTraceEnabled()) {
-                logger.trace("Sliding window by {} positions at index {}", shift, index);
-            }
-            
-            // Shift existing data to the left
-            System.arraycopy(priceBuffer, shift, priceBuffer, 0, windowLength - shift);
-            
-            // Fetch only the new data points
-            double lastValid = priceBuffer[windowLength - shift - 1];
-            for (int i = 0; i < shift; i++) {
-                int barIndex = index - shift + 1 + i;
-                Double close = series.getDouble(barIndex, Enums.BarInput.CLOSE, ctx.getInstrument());
+        // Synchronize all buffer operations for thread safety
+        synchronized (bufferLock) {
+            // Check if we need to initialize or completely refresh the buffer
+            if (!bufferInitialized || priceBuffer == null || 
+                bufferStartIndex < 0 || startIndex < bufferStartIndex ||
+                startIndex > bufferStartIndex + windowLength) {
                 
+                // Full refresh needed
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Full buffer refresh at index {}", index);
+                }
+                priceBuffer = extractPriceWindow(series, index, windowLength, ctx);
+                bufferStartIndex = startIndex;
+                bufferInitialized = true;
+                return priceBuffer.clone(); // Return copy to prevent external modification
+            }
+            
+            // Sliding window update - only fetch new bars
+            int shift = startIndex - bufferStartIndex;
+            
+            if (shift > 0 && shift < windowLength) {
+                // Slide the window forward
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Sliding window by {} positions at index {}", shift, index);
+                }
+                
+                // Shift existing data to the left
+                System.arraycopy(priceBuffer, shift, priceBuffer, 0, windowLength - shift);
+                
+                // Fetch only the new data points
+                double lastValid = priceBuffer[windowLength - shift - 1];
+                for (int i = 0; i < shift; i++) {
+                    int barIndex = index - shift + 1 + i;
+                    Double close = series.getDouble(barIndex, Enums.BarInput.CLOSE, ctx.getInstrument());
+                    
+                    if (close != null) {
+                        priceBuffer[windowLength - shift + i] = close;
+                        lastValid = close;
+                    } else {
+                        priceBuffer[windowLength - shift + i] = lastValid;
+                    }
+                }
+                
+                bufferStartIndex = startIndex;
+            } else if (shift == 0) {
+                // Same window, just update the last bar (for tick updates)
+                Double close = series.getDouble(index, Enums.BarInput.CLOSE, ctx.getInstrument());
                 if (close != null) {
-                    priceBuffer[windowLength - shift + i] = close;
-                    lastValid = close;
-                } else {
-                    priceBuffer[windowLength - shift + i] = lastValid;
+                    priceBuffer[windowLength - 1] = close;
                 }
             }
             
-            bufferStartIndex = startIndex;
-        } else if (shift == 0) {
-            // Same window, just update the last bar (for tick updates)
-            Double close = series.getDouble(index, Enums.BarInput.CLOSE, ctx.getInstrument());
-            if (close != null) {
-                priceBuffer[windowLength - 1] = close;
-            }
-        }
-        
-        return priceBuffer;
+            return priceBuffer.clone(); // Return copy to prevent external modification
+        } // End of synchronized block
     }
     
     private void applyThresholding(VectorWaveSwtAdapter.SwtResult swtResult) {

@@ -8,19 +8,23 @@ import java.util.Random;
 
 /**
  * Unit tests for wavelet thresholding methods.
+ * Uses separate Random instances per test method to support parallel test execution.
  */
 public class ThresholdsTest {
     
     /**
-     * Shared Random instance with fixed seed (42) for test data generation.
-     * Ensures reproducible test results and avoids repeated instantiation overhead.
+     * Fixed seed for reproducible test results.
+     * Each test method creates its own Random instance with this seed.
      */
-    private static final Random RANDOM = new Random(42);
+    private static final long TEST_SEED = 42L;
     
     @Test
     void testUniversalThreshold() {
+        // Create test-specific Random instance for thread safety
+        Random random = new Random(TEST_SEED);
+        
         // Test with known noise characteristics
-        double[] noise = generateGaussianNoise(1000, 0.0, 1.0);
+        double[] noise = generateGaussianNoise(1000, 0.0, 1.0, random);
         
         double threshold = Thresholds.calculateUniversalThreshold(noise);
         
@@ -32,8 +36,11 @@ public class ThresholdsTest {
     
     @Test
     void testBayesThreshold() {
+        // Create test-specific Random instance for thread safety
+        Random random = new Random(TEST_SEED);
+        
         // Create signal with different noise levels
-        double[] signal = generateMixedSignal(512);
+        double[] signal = generateMixedSignal(512, random);
         
         double threshold1 = Thresholds.calculateBayesThreshold(signal, 1);
         double threshold2 = Thresholds.calculateBayesThreshold(signal, 2);
@@ -56,8 +63,11 @@ public class ThresholdsTest {
     
     @Test
     void testNoiseEstimation() {
+        // Create test-specific Random instance for thread safety
+        Random random = new Random(TEST_SEED);
+        
         // Test MAD-based noise estimation
-        double[] pureNoise = generateGaussianNoise(1000, 0.0, 2.0); // σ = 2.0
+        double[] pureNoise = generateGaussianNoise(1000, 0.0, 2.0, random); // σ = 2.0
         
         double estimatedSigma = Thresholds.estimateNoiseSigma(pureNoise);
         
@@ -124,8 +134,11 @@ public class ThresholdsTest {
     
     @Test
     void testAutoSelectMethod() {
+        // Create test-specific Random instance for thread safety
+        Random random = new Random(TEST_SEED);
+        
         // High noise scenario
-        double[] highNoise = generateGaussianNoise(100, 0.0, 5.0);
+        double[] highNoise = generateGaussianNoise(100, 0.0, 5.0, random);
         Thresholds.ThresholdMethod method1 = Thresholds.autoSelectMethod(highNoise, 1);
         assertEquals(Thresholds.ThresholdMethod.UNIVERSAL, method1);
         
@@ -155,8 +168,11 @@ public class ThresholdsTest {
     
     @Test
     void testThresholdConsistency() {
+        // Create test-specific Random instance for thread safety
+        Random random = new Random(TEST_SEED);
+        
         // Same data should give same thresholds
-        double[] data = generateMixedSignal(256);
+        double[] data = generateMixedSignal(256, random);
         
         double t1 = Thresholds.calculateThreshold(data, Thresholds.ThresholdMethod.UNIVERSAL, 1);
         double t2 = Thresholds.calculateThreshold(data, Thresholds.ThresholdMethod.UNIVERSAL, 1);
@@ -166,17 +182,17 @@ public class ThresholdsTest {
     
     // Helper methods
     
-    private double[] generateGaussianNoise(int length, double mean, double stdDev) {
+    private double[] generateGaussianNoise(int length, double mean, double stdDev, Random random) {
         double[] noise = new double[length];
         
         for (int i = 0; i < length; i++) {
-            noise[i] = mean + stdDev * RANDOM.nextGaussian();
+            noise[i] = mean + stdDev * random.nextGaussian();
         }
         
         return noise;
     }
     
-    private double[] generateMixedSignal(int length) {
+    private double[] generateMixedSignal(int length, Random random) {
         double[] signal = new double[length];
         
         for (int i = 0; i < length; i++) {
@@ -184,7 +200,7 @@ public class ThresholdsTest {
             double s = Math.sin(2 * Math.PI * i / 32) + 0.5 * Math.sin(2 * Math.PI * i / 8);
             
             // Noise component
-            double n = 0.2 * RANDOM.nextGaussian();
+            double n = 0.2 * random.nextGaussian();
             
             signal[i] = s + n;
         }
