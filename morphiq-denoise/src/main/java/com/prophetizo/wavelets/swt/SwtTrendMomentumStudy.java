@@ -305,7 +305,7 @@ public class SwtTrendMomentumStudy extends Study {
                 )));
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
         signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
-        // Note: Min Slope Threshold is in absolute price points (0.05 = 0.05 point minimum move)
+        // Note: Min Slope Threshold is in absolute price points (0.05 = 0.05 point minimum move, NOT percentage)
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
         // Note: Momentum smoothing alpha - 0.1 = heavy smoothing, 0.5 = balanced, 0.9 = minimal smoothing
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));

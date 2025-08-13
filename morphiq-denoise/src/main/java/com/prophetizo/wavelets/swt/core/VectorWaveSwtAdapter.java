@@ -249,25 +249,45 @@ public class VectorWaveSwtAdapter {
          * the specified level. Higher-level details are zeroed out, resulting in
          * a smoother reconstruction.
          * 
-         * <p>Performance optimization: This method caches the VectorWaveSwtAdapter
-         * to avoid recreating it on each call. The MutableMultiLevelMODWTResult
-         * still needs to be created due to VectorWave API limitations, but we
-         * track the last maxLevel to avoid unnecessary recreations.
+         * <p>Performance optimization: This method implements a sophisticated caching
+         * strategy to minimize object allocation:
+         * <ul>
+         *   <li>Caches the VectorWaveSwtAdapter to avoid recreation</li>
+         *   <li>Reuses MutableMultiLevelMODWTResult when maxLevel is unchanged</li>
+         *   <li>Only recreates the mutable result when maxLevel changes</li>
+         *   <li>Restores coefficients instead of recreating when switching back to a previous level</li>
+         * </ul>
          * 
          * @param maxLevel the maximum detail level to include in reconstruction
          * @return the reconstructed signal
          */
         public double[] reconstruct(int maxLevel) {
-            // Cache strategy: We recreate the mutable result only when maxLevel changes
-            // This is optimal because:
-            // 1. Creating a new mutable copy from immutable is a single operation
-            // 2. Trying to restore previously zeroed coefficients would require copying anyway
-            // 3. clearCaches() is only called once per maxLevel change, not per reconstruction
-            // 4. Most use cases call reconstruct with the same maxLevel repeatedly
-            if (cachedMutableResult == null || lastMaxLevel != maxLevel) {
-                // Create a fresh mutable copy for this reconstruction level
+            // Optimized caching strategy based on usage patterns:
+            // - In practice, reconstruct() is called with the same maxLevel repeatedly
+            // - When USE_DENOISED=true: reconstructLevels = max(2, levels-1) is constant
+            // - Creating new MutableMultiLevelMODWTResultImpl is expensive
+            
+            if (cachedMutableResult == null) {
+                // First time: create the mutable result
                 cachedMutableResult = new MutableMultiLevelMODWTResultImpl(
                     vectorWaveResult.toImmutable());
+                lastMaxLevel = -1; // Force coefficient setup
+            }
+            
+            if (lastMaxLevel != maxLevel) {
+                // Level changed: adjust coefficients
+                if (lastMaxLevel > 0) {
+                    // Restore previously zeroed coefficients if going to a higher level
+                    // This avoids recreating the entire object
+                    if (maxLevel > lastMaxLevel) {
+                        // Restore coefficients from lastMaxLevel+1 to maxLevel
+                        for (int level = lastMaxLevel + 1; level <= maxLevel && level <= details.length; level++) {
+                            double[] mutableDetails = cachedMutableResult.getMutableDetailCoeffs(level);
+                            double[] originalDetails = details[level - 1];
+                            System.arraycopy(originalDetails, 0, mutableDetails, 0, originalDetails.length);
+                        }
+                    }
+                }
                 
                 // Zero out detail coefficients beyond maxLevel for proper reconstruction
                 for (int level = maxLevel + 1; level <= details.length; level++) {
@@ -275,7 +295,7 @@ public class VectorWaveSwtAdapter {
                     Arrays.fill(mutableDetails, 0.0);
                 }
                 
-                // Clear internal caches once after coefficient modification
+                // Clear internal caches after coefficient modification
                 // This is necessary for VectorWave to recalculate derived values correctly
                 cachedMutableResult.clearCaches();
                 lastMaxLevel = maxLevel;

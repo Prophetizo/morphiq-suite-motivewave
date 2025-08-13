@@ -92,10 +92,20 @@ Entry signals require BOTH conditions:
 |---------|---------|-------|-------------|
 | **Detail Confirmation (k)** | 1 | 1-3 | Detail levels for momentum |
 | **Momentum Calculation** | SUM | SUM/SIGN | How to combine details |
-| **Momentum Threshold** | 1.0 | 0-100 | Minimum momentum for signals (scaled) |
-| **Min Slope Threshold (%)** | 0.05 | 0-0.1 | Minimum trend slope |
+| **Momentum Threshold** | 1.0 | 0-100 | Minimum momentum for signals (scaled by 100x) |
+| **Min Slope Threshold (Points)** | 0.05 | 0-5.0 | Minimum trend slope in absolute price points |
 | **Momentum Smoothing (α)** | 0.5 | 0.1-0.9 | EMA smoothing factor |
 | **Enable Trading Signals** | ✓ | On/Off | Generate trading signals |
+
+**Important Note on Min Slope Threshold**:
+- This value is in **absolute price points**, NOT percentage
+- Example for ES futures: 0.05 means the trend must move at least 0.05 points between bars
+- Set to 0.00 to disable slope filtering entirely
+- Typical values:
+  - ES/NQ: 0.02-0.10 points
+  - Stocks: 0.01-0.05 points (adjust for price level)
+  - Forex: 0.0001-0.0005 points (4-5 decimal places)
+  - Crypto: 1-50 points (depends on asset price)
 
 ### Display Tab
 
@@ -204,7 +214,7 @@ Shrinkage Type: Hard
 Use Denoised: No
 Detail Confirmation: 2
 Momentum Threshold: 1.0
-Min Slope Threshold: 0.02-0.03%
+Min Slope Threshold: 0.02-0.03 points
 Stop Multiplier: 2.0
 Target Multiplier: 3.0
 Min Stop: 5 points
@@ -221,7 +231,7 @@ Shrinkage Type: Hard
 Use Denoised: No
 Detail Confirmation: 2
 Momentum Threshold: 1.0
-Min Slope Threshold: 0.01%  # Lower due to smoother trend
+Min Slope Threshold: 0.01 points  # Lower due to smoother trend
 Stop Multiplier: 2.0
 Target Multiplier: 3.0
 Min Stop: 5 points
@@ -238,7 +248,7 @@ Shrinkage Type: Hard
 Use Denoised: No
 Detail Confirmation: 1
 Momentum Threshold: 0.5-1.0
-Min Slope Threshold: 0.03-0.05%  # Higher for shorter window
+Min Slope Threshold: 0.03-0.05 points  # Higher for shorter window
 Stop Multiplier: 1.5
 Target Multiplier: 2.0
 Min Stop: 3 points
@@ -256,7 +266,7 @@ Shrinkage Type: Soft
 Use Denoised: Yes
 Detail Confirmation: 2
 Momentum Threshold: 2.0
-Min Slope Threshold: 0.07%
+Min Slope Threshold: 0.07 points
 Stop Multiplier: 2.5
 Target Multiplier: 3.0
 Min Stop: 10 points
@@ -274,7 +284,7 @@ Shrinkage Type: Soft
 Use Denoised: Yes
 Detail Confirmation: 2
 Momentum Threshold: 1.5
-Min Slope Threshold: 0.01%
+Min Slope Threshold: 0.0001 points  # For forex pairs
 Stop Multiplier: 2.0
 Target Multiplier: 2.5
 Min Stop: 10 pips
@@ -292,7 +302,7 @@ Shrinkage Type: Soft
 Use Denoised: Yes
 Detail Confirmation: 3
 Momentum Threshold: 3.0
-Min Slope Threshold: 0.02%
+Min Slope Threshold: 0.02 points  # Adjust based on stock price
 Stop Multiplier: 1.5
 Target Multiplier: 2.0
 Min Stop: 0.20
@@ -310,7 +320,7 @@ Shrinkage Type: Soft
 Use Denoised: Yes
 Detail Confirmation: 2
 Momentum Threshold: 5.0
-Min Slope Threshold: 0.10%
+Min Slope Threshold: 10 points  # Higher for crypto volatility
 Stop Multiplier: 3.0
 Target Multiplier: 2.5
 Min Stop: 100 points
@@ -323,14 +333,14 @@ Max Stop: 500 points
 
 **Long Entry**:
 ```java
-slope > (currentTrend × minSlopeThreshold) AND
+slope > minSlopeThreshold AND  // Slope in absolute price points
 momentum > momentumThreshold AND
 NOT currently in position
 ```
 
 **Short Entry**:
 ```java
-slope < -(currentTrend × minSlopeThreshold) AND
+slope < -minSlopeThreshold AND  // Negative slope in absolute price points
 momentum < -momentumThreshold AND
 NOT currently in position
 ```

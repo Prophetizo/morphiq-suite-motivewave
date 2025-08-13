@@ -116,11 +116,10 @@ public class VectorWaveSwtAdapterTest {
     @Test
     void testHardThresholding() {
         // Create a simple test signal with deterministic noise
-        Random localRandom = new Random(TEST_SEED);
         double[] testSignal = new double[SMALL_SIGNAL_LENGTH];
         for (int i = 0; i < testSignal.length; i++) {
             testSignal[i] = Math.sin(2 * Math.PI * i / SMALL_SIGNAL_LENGTH) + 
-                           NOISE_AMPLITUDE * localRandom.nextDouble();
+                           NOISE_AMPLITUDE * random.nextDouble();
         }
         
         // Perform SWT transform
@@ -149,11 +148,10 @@ public class VectorWaveSwtAdapterTest {
     @Test
     void testSoftThresholding() {
         // Create a simple test signal with deterministic noise
-        Random localRandom = new Random(TEST_SEED);
         double[] testSignal = new double[SMALL_SIGNAL_LENGTH];
         for (int i = 0; i < testSignal.length; i++) {
             testSignal[i] = Math.sin(2 * Math.PI * i / SMALL_SIGNAL_LENGTH) + 
-                           NOISE_AMPLITUDE * localRandom.nextDouble();
+                           NOISE_AMPLITUDE * random.nextDouble();
         }
         
         // Perform SWT transform
@@ -237,6 +235,7 @@ public class VectorWaveSwtAdapterTest {
     }
     
     private double[] generateNoisySignal(int length) {
+        // Uses the seeded random for deterministic noise generation
         double[] signal = generateTestSignal(length);
         for (int i = 0; i < length; i++) {
             signal[i] += 0.1 * (random.nextDouble() - 0.5);

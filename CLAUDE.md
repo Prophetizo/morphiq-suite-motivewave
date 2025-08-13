@@ -8,6 +8,23 @@ Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced 
 
 ## Recent Updates (August 2024)
 
+### Documentation Corrections & Performance Optimization (August 13, 2024)
+- Fixed slope threshold documentation across all files
+- Clarified that Min Slope Threshold is in absolute price points, NOT percentage
+- Updated market-specific configurations with correct units
+- Optimized VectorWaveSwtAdapter.reconstruct() to reuse MutableMultiLevelMODWTResult objects
+  - Reduces object allocation overhead
+  - Restores coefficients instead of recreating when switching levels
+  - Maintains caching for same-level repeated calls
+- Fixed non-deterministic test behavior in VectorWaveSwtAdapterTest
+  - All test methods now use the seeded Random instance
+  - Ensures consistent, reproducible test results
+- Clarified testing approach for calculateFinalQuantity method
+  - Method exists and is package-private (accessible to tests in same package)
+  - Core logic tested via static calculatePositionSize method
+  - Integration tests handle full SDK initialization separately
+  - Removed duplicate test file (CalculateFinalQuantityTest.java)
+
 ### Trade Lots Integration
 - Fixed Trade Lots multiplication in `SwtTrendMomentumStrategy`
 - Final position = Position Size Factor × Trade Lots
