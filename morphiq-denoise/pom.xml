@@ -62,11 +62,14 @@
                         </goals>
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
-                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>motivewave</shadedClassifierName>
                             <minimizeJar>false</minimizeJar>
                             <artifactSet>
                                 <includes>
-                                    <include>ai.prophetizo:*</include>
+                                    <include>ai.prophetizo:morphiq-core</include>
+                                    <include>ai.prophetizo:morphiq-common</include>
+                                    <include>ai.prophetizo:vector-wave</include>
                                     <include>org.slf4j:*</include>
                                 </includes>
                             </artifactSet>
@@ -103,6 +106,13 @@
                                 </relocation>
                             </relocations>
                             <transformers>
+                                <!-- DontIncludeResourceTransformer to handle duplicates -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.DontIncludeResourceTransformer">
+                                    <resources>
+                                        <resource>.git</resource>
+                                        <resource>.gitignore</resource>
+                                    </resources>
+                                </transformer>
                                 <!-- Handle META-INF/services files -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                                 <!-- Handle manifest -->

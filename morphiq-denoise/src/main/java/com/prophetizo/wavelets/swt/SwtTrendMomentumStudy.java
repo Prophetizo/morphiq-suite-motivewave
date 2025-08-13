@@ -169,21 +169,22 @@ public class SwtTrendMomentumStudy extends Study {
         logger.info("Settings updated - triggering recalculation");
         
         // Log which settings might have changed (for debugging)
-        logger.debug("Current settings: wavelet={}, levels={}, window={}, threshold={}, shrinkage={}, k={}, watr={}", 
-                    getSettings().getString(WAVELET_TYPE, "db4"),
-                    getSettings().getInteger(LEVELS, 5),
-                    getSettings().getInteger(WINDOW_LENGTH, 4096),
-                    getSettings().getString(THRESHOLD_METHOD, "Universal"),
-                    getSettings().getString(SHRINKAGE_TYPE, "Soft"),
-                    getSettings().getInteger(DETAIL_CONFIRM_K, 2),
-                    getSettings().getBoolean(SHOW_WATR, false));
+        if (logger.isDebugEnabled()) {
+            logger.debug("Current settings: wavelet={}, levels={}, window={}, threshold={}, shrinkage={}, k={}, watr={}", 
+                        getSettings().getString(WAVELET_TYPE, "db4"),
+                        getSettings().getInteger(LEVELS, 5),
+                        getSettings().getInteger(WINDOW_LENGTH, 4096),
+                        getSettings().getString(THRESHOLD_METHOD, "Universal"),
+                        getSettings().getString(SHRINKAGE_TYPE, "Soft"),
+                        getSettings().getInteger(DETAIL_CONFIRM_K, 2),
+                        getSettings().getBoolean(SHOW_WATR, false));
+        }
         
         // Clear state to force re-initialization of all components
         clearState();
         
-        // Clear figures when settings change - this IS appropriate here
-        // Unlike clearState(), onSettingsUpdated() requires clearFigures() to redraw with new settings
-        clearFigures();
+        // Note: We don't call clearFigures() here as it can cause JavaFX threading issues
+        // The framework will handle figure updates when we recalculate
         
         // Update minimum bars requirement
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
@@ -819,11 +820,15 @@ public class SwtTrendMomentumStudy extends Study {
             series.setBoolean(index, Signals.FLAT_EXIT, true);
             
             if (barComplete) {
-                var marker = getSettings().getMarker(EXIT_MARKER);
-                if (marker.isEnabled()) {
-                    var coord = new Coordinate(series.getStartTime(index), trendValue);
-                    String msg = String.format("Exit @ %.2f", price);
-                    addFigure(new Marker(coord, Enums.Position.CENTER, marker, msg));
+                try {
+                    var marker = getSettings().getMarker(EXIT_MARKER);
+                    if (marker != null && marker.isEnabled()) {
+                        var coord = new Coordinate(series.getStartTime(index), trendValue);
+                        String msg = String.format("Exit @ %.2f", price);
+                        addFigure(new Marker(coord, Enums.Position.CENTER, marker, msg));
+                    }
+                } catch (Exception e) {
+                    logger.trace("Could not add exit marker: {}", e.getMessage());
                 }
                 
                 ctx.signal(index, Signals.FLAT_EXIT, "Exit Signal", price);
@@ -836,11 +841,15 @@ public class SwtTrendMomentumStudy extends Study {
             series.setBoolean(index, Signals.LONG_ENTER, true);
             
             if (barComplete) {
-                var marker = getSettings().getMarker(LONG_MARKER);
-                if (marker.isEnabled()) {
-                    var coord = new Coordinate(series.getStartTime(index), trendValue);
-                    String msg = String.format("Long Entry @ %.2f", price);
-                    addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
+                try {
+                    var marker = getSettings().getMarker(LONG_MARKER);
+                    if (marker != null && marker.isEnabled()) {
+                        var coord = new Coordinate(series.getStartTime(index), trendValue);
+                        String msg = String.format("Long Entry @ %.2f", price);
+                        addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
+                    }
+                } catch (Exception e) {
+                    logger.trace("Could not add long marker: {}", e.getMessage());
                 }
                 
                 ctx.signal(index, Signals.LONG_ENTER, "Long Entry Signal", price);
@@ -850,11 +859,15 @@ public class SwtTrendMomentumStudy extends Study {
             series.setBoolean(index, Signals.SHORT_ENTER, true);
             
             if (barComplete) {
-                var marker = getSettings().getMarker(SHORT_MARKER);
-                if (marker.isEnabled()) {
-                    var coord = new Coordinate(series.getStartTime(index), trendValue);
-                    String msg = String.format("Short Entry @ %.2f", price);
-                    addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
+                try {
+                    var marker = getSettings().getMarker(SHORT_MARKER);
+                    if (marker != null && marker.isEnabled()) {
+                        var coord = new Coordinate(series.getStartTime(index), trendValue);
+                        String msg = String.format("Short Entry @ %.2f", price);
+                        addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
+                    }
+                } catch (Exception e) {
+                    logger.trace("Could not add short marker: {}", e.getMessage());
                 }
                 
                 ctx.signal(index, Signals.SHORT_ENTER, "Short Entry Signal", price);

@@ -30,7 +30,6 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     public static final String MIN_STOP_POINTS = "MIN_STOP_POINTS";
     public static final String MAX_STOP_POINTS = "MAX_STOP_POINTS";
     public static final String MAX_RISK_PER_TRADE = "MAX_RISK_PER_TRADE";
-    public static final String POINT_VALUE = "POINT_VALUE";
     public static final String ENABLE_BRACKET_ORDERS = "ENABLE_BRACKET_ORDERS";
     
     // Position tracking
@@ -52,11 +51,13 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         SettingTab strategyTab = settings.addTab("Strategy");
         
         SettingGroup positionGroup = strategyTab.addGroup("Position Management");
-        positionGroup.addRow(new IntegerDescriptor(POSITION_SIZE, "Position Size (shares/contracts)", 100, 1, 10000, 1));
+        positionGroup.addRow(new IntegerDescriptor(POSITION_SIZE, "Position Size Factor", 1, 1, 100, 1));
+        // Note: This is multiplied by Trade Lots from Trading Options panel.
+        // Example: If Trade Lots = 2 and Position Size Factor = 1, total quantity = 2
+        // Set to 1 to use only Trade Lots value.
         positionGroup.addRow(new DoubleDescriptor(MAX_RISK_PER_TRADE, "Max Risk Per Trade ($)", 500.0, 50.0, 5000.0, 50.0));
-        positionGroup.addRow(new DoubleDescriptor(POINT_VALUE, "Point Value Override ($/point)", 1.0, 0.01, 100.0, 0.01));
-        // Note: Point Value is auto-detected from instrument. Only set this to override the automatic value.
-        // Common values: ES=50, NQ=20, CL=1000, GC=100, 6E=125000, Stock=1
+        // Note: Point Value is automatically detected from the instrument.
+        // Common values: ES=$50, NQ=$20, CL=$1000, GC=$100, 6E=$125000, Stock=$1
         
         SettingGroup riskGroup = strategyTab.addGroup("Risk Management");
         riskGroup.addRow(new BooleanDescriptor(USE_WATR_STOPS, "Use WATR-based Stops", true));
@@ -138,6 +139,13 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         if (quantity <= 0) {
             logger.error("Invalid order quantity: {}", quantity);
             return;
+        }
+        
+        if (logger.isInfoEnabled()) {
+            logger.info("📊 ORDER FILL RECEIVED:");
+            logger.info("  ├─ Actual Filled Quantity: {} (includes Trade Lots multiplier)", quantity);
+            logger.info("  ├─ Direction: {}", isBuy ? "BUY" : "SELL");
+            logger.info("  └─ Fill Price: ${}", String.format("%.2f", fillPrice));
         }
         
         // Check if this is a stop order being filled
@@ -309,36 +317,46 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         }
         
         try {
+            // Get Trade Lots from strategy settings (Trading Options panel)
+            int tradeLots = getSettings().getTradeLots();
+            if (tradeLots <= 0) tradeLots = 1; // Default to 1 if not set
+            
+            // Calculate final quantity including Trade Lots
+            int finalQuantity = positionInfo.quantity * tradeLots;
+            
+            if (logger.isInfoEnabled()) {
+                logger.info("📊 Trade Lots Calculation:");
+                logger.info("  ├─ Position Size Factor: {}", positionInfo.quantity);
+                logger.info("  ├─ Trade Lots Setting: {}", tradeLots);
+                logger.info("  └─ Final Order Quantity: {} ({}×{})", finalQuantity, positionInfo.quantity, tradeLots);
+            }
+            
             if (getSettings().getBoolean(ENABLE_BRACKET_ORDERS, true)) {
-                // Place bracket order (entry + stop + target)
-                ctx.buy(positionInfo.quantity);
+                // Place bracket order (entry + stop + target) with Trade Lots multiplied
+                ctx.buy(finalQuantity);
                 
                 if (logger.isInfoEnabled()) {
                     logger.info("✅ LONG BRACKET ORDER PLACED:");
-                    logger.info("  - Quantity: {} contracts", positionInfo.quantity);
-                    logger.info("  - Entry Price: {}", String.format("%.2f", currentPrice));
-                    logger.info("  - Stop Loss: {} ({} points risk)", 
+                    logger.info("  ├─ Order Quantity: {} ({} × {} Trade Lots)", finalQuantity, positionInfo.quantity, tradeLots);
+                    logger.info("  ├─ Entry Price: ${}", String.format("%.2f", currentPrice));
+                    logger.info("  ├─ Stop Loss: ${} ({} points risk)", 
                                String.format("%.2f", positionInfo.stopPrice), 
                                String.format("%.2f", currentPrice - positionInfo.stopPrice));
-                    logger.info("  - Target: {} ({} points profit)", 
+                    logger.info("  └─ Target: ${} ({} points profit)", 
                                String.format("%.2f", positionInfo.targetPrice), 
                                String.format("%.2f", positionInfo.targetPrice - currentPrice));
                     
-                    // Get actual point value from instrument or settings
+                    // Get actual point value from instrument
                     com.motivewave.platform.sdk.common.Instrument instrument = ctx.getInstrument();
                     double pointValue = 1.0;
                     if (instrument != null) {
                         pointValue = instrument.getPointValue();
                         if (pointValue <= 0) pointValue = 1.0;
                     }
-                    // Check for user override
-                    double configuredPointValue = getSettings().getDouble(POINT_VALUE, 1.0);
-                    if (Math.abs(configuredPointValue - 1.0) > 0.001) {
-                        pointValue = configuredPointValue;
-                    }
                     
-                    double dollarRisk = positionInfo.quantity * Math.abs(currentPrice - positionInfo.stopPrice) * pointValue;
-                    double dollarReward = positionInfo.quantity * (positionInfo.targetPrice - currentPrice) * pointValue;
+                    // Use finalQuantity (includes Trade Lots) for dollar calculations
+                    double dollarRisk = finalQuantity * Math.abs(currentPrice - positionInfo.stopPrice) * pointValue;
+                    double dollarReward = finalQuantity * (positionInfo.targetPrice - currentPrice) * pointValue;
                     double riskReward = (positionInfo.targetPrice - currentPrice) / (currentPrice - positionInfo.stopPrice);
                     
                     logger.info("  - Dollar Risk: ${}", String.format("%.2f", Math.abs(dollarRisk)));
@@ -347,11 +365,12 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                     logger.info("🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢\n");
                 }
             } else {
-                // Simple market order
-                ctx.buy(positionInfo.quantity);
+                // Simple market order with Trade Lots multiplied
+                ctx.buy(finalQuantity);
                 if (logger.isInfoEnabled()) {
                     logger.info("✅ LONG MARKET ORDER PLACED:");
-                    logger.info("  - Quantity: {} contracts at market price", positionInfo.quantity);
+                    logger.info("  - Quantity: {} contracts at market price ({}×{} Trade Lots)", 
+                               finalQuantity, positionInfo.quantity, tradeLots);
                     logger.info("  - Expected Entry: {}", String.format("%.2f", currentPrice));
                     logger.info("  - Planned Stop: {}", String.format("%.2f", positionInfo.stopPrice));
                     logger.info("  - Planned Target: {}", String.format("%.2f", positionInfo.targetPrice));
@@ -392,36 +411,45 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         }
         
         try {
+            // Get Trade Lots from strategy settings (Trading Options panel)
+            int tradeLots = getSettings().getTradeLots();
+            if (tradeLots <= 0) tradeLots = 1; // Default to 1 if not set
+            
+            // Calculate final quantity including Trade Lots
+            int finalQuantity = positionInfo.quantity * tradeLots;
+            
+            if (logger.isInfoEnabled()) {
+                logger.info("📊 Trade Lots Calculation:");
+                logger.info("  ├─ Position Size Factor: {}", positionInfo.quantity);
+                logger.info("  ├─ Trade Lots Setting: {}", tradeLots);
+                logger.info("  └─ Final Order Quantity: {} ({}×{})", finalQuantity, positionInfo.quantity, tradeLots);
+            }
+            
             if (getSettings().getBoolean(ENABLE_BRACKET_ORDERS, true)) {
-                // Place bracket order (entry + stop + target)
-                ctx.sell(positionInfo.quantity);
+                // Place bracket order (entry + stop + target) with Trade Lots multiplied
+                ctx.sell(finalQuantity);
                 
                 if (logger.isInfoEnabled()) {
                     logger.info("✅ SHORT BRACKET ORDER PLACED:");
-                    logger.info("  - Quantity: {} contracts", positionInfo.quantity);
-                    logger.info("  - Entry Price: {}", String.format("%.2f", currentPrice));
-                    logger.info("  - Stop Loss: {} ({} points risk)", 
+                    logger.info("  ├─ Order Quantity: {} ({} × {} Trade Lots)", finalQuantity, positionInfo.quantity, tradeLots);
+                    logger.info("  ├─ Entry Price: ${}", String.format("%.2f", currentPrice));
+                    logger.info("  ├─ Stop Loss: ${} ({} points risk)", 
                                String.format("%.2f", positionInfo.stopPrice), 
                                String.format("%.2f", positionInfo.stopPrice - currentPrice));
-                    logger.info("  - Target: {} ({} points profit)", 
+                    logger.info("  └─ Target: ${} ({} points profit)", 
                                String.format("%.2f", positionInfo.targetPrice), 
                                String.format("%.2f", currentPrice - positionInfo.targetPrice));
                     
-                    // Get actual point value from instrument or settings
+                    // Get actual point value from instrument
                     com.motivewave.platform.sdk.common.Instrument instrument = ctx.getInstrument();
                     double pointValue = 1.0;
                     if (instrument != null) {
                         pointValue = instrument.getPointValue();
                         if (pointValue <= 0) pointValue = 1.0;
                     }
-                    // Check for user override
-                    double configuredPointValue = getSettings().getDouble(POINT_VALUE, 1.0);
-                    if (Math.abs(configuredPointValue - 1.0) > 0.001) {
-                        pointValue = configuredPointValue;
-                    }
                     
-                    double dollarRisk = positionInfo.quantity * Math.abs(positionInfo.stopPrice - currentPrice) * pointValue;
-                    double dollarReward = positionInfo.quantity * (currentPrice - positionInfo.targetPrice) * pointValue;
+                    double dollarRisk = finalQuantity * Math.abs(positionInfo.stopPrice - currentPrice) * pointValue;
+                    double dollarReward = finalQuantity * (currentPrice - positionInfo.targetPrice) * pointValue;
                     double riskReward = (currentPrice - positionInfo.targetPrice) / (positionInfo.stopPrice - currentPrice);
                     
                     logger.info("  - Dollar Risk: ${}", String.format("%.2f", Math.abs(dollarRisk)));
@@ -430,10 +458,11 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                     logger.info("🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴\n");
                 }
             } else {
-                // Simple market order
-                ctx.sell(positionInfo.quantity);
+                // Simple market order with Trade Lots multiplied
+                ctx.sell(finalQuantity);
                 if (logger.isInfoEnabled()) {
-                    logger.info("Short market order: qty={}, price={}", positionInfo.quantity, String.format("%.2f", currentPrice));
+                    logger.info("Short market order: qty={} ({}×{} Trade Lots), price={}", 
+                               finalQuantity, positionInfo.quantity, tradeLots, String.format("%.2f", currentPrice));
                 }
             }
             
@@ -470,10 +499,13 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     
     private PositionSize calculatePositionSize(OrderContext ctx, int index, boolean isLongTrade, double entryPrice) {
         if (logger.isInfoEnabled()) {
-            logger.info("========== POSITION SIZING CALCULATION ==========");
-            logger.info("Direction: {}, Entry Price: {}", 
+            logger.info("╔══════════════════════════════════════════════════════════╗");
+            logger.info("║           POSITION SIZING CALCULATION                      ║");
+            logger.info("╠══════════════════════════════════════════════════════════╣");
+            logger.info("║ Direction: {:8} | Entry Price: ${:10}         ║", 
                        isLongTrade ? "LONG" : "SHORT", 
                        String.format("%.2f", entryPrice));
+            logger.info("╚══════════════════════════════════════════════════════════╝");
         }
         
         DataSeries series = ctx.getDataContext().getDataSeries();
@@ -491,28 +523,28 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             }
         }
         
+        // Get base quantity from strategy settings
+        // Note: MotiveWave multiplies this by Trade Lots from Trading Options panel
+        // Default to 1 to respect only the Trade Lots setting
+        int baseQuantity = getSettings().getInteger(POSITION_SIZE, 1);
+        
+        if (logger.isInfoEnabled()) {
+            logger.info("📊 Position Size Factor: {} (from strategy settings)", baseQuantity);
+            logger.info("   ⚠️  NOTE: This will be multiplied by Trade Lots in Trading Options panel");
+            logger.info("   📌 If Trade Lots = 2 and Factor = {}, Final Quantity = {}", 
+                       baseQuantity, baseQuantity * 2);
+        }
+        
         // Get risk parameters
-        int baseQuantity = getSettings().getInteger(POSITION_SIZE, 100);
         double maxRisk = getSettings().getDouble(MAX_RISK_PER_TRADE, 500.0);
         
-        // Check if user has overridden point value, otherwise use instrument value
-        double configuredPointValue = getSettings().getDouble(POINT_VALUE, 1.0);
-        double pointValue = configuredPointValue;
+        // Always use instrument point value from SDK
+        double pointValue = instrumentPointValue;
         
-        // If configured value is still default (1.0), use instrument value
-        if (Math.abs(configuredPointValue - 1.0) < 0.001) {
-            pointValue = instrumentPointValue;
-            if (logger.isInfoEnabled() && instrumentPointValue != 1.0) {
-                logger.info("Using instrument point value: ${}/point for {}", 
-                           instrumentPointValue, 
-                           instrument != null ? instrument.getSymbol() : "unknown");
-            }
-        } else {
-            // User has explicitly configured a value
-            if (logger.isInfoEnabled()) {
-                logger.info("Using user-configured point value: ${}/point (overrides instrument value {})", 
-                           pointValue, instrumentPointValue);
-            }
+        if (logger.isInfoEnabled()) {
+            logger.info("Using instrument point value: ${}/point for {}", 
+                       pointValue, 
+                       instrument != null ? instrument.getSymbol() : "unknown");
         }
         
         boolean useWatrStops = getSettings().getBoolean(USE_WATR_STOPS, true);
@@ -520,13 +552,13 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         double targetMultiplier = getSettings().getDouble(TARGET_MULTIPLIER, 3.0);
         
         if (logger.isInfoEnabled()) {
-            logger.info("Risk Parameters:");
-            logger.info("  - Base Quantity: {} contracts", baseQuantity);
-            logger.info("  - Max Risk Per Trade: ${}", maxRisk);
-            logger.info("  - Point Value: ${}/point", pointValue);
-            logger.info("  - Use WATR Stops: {}", useWatrStops);
-            logger.info("  - Stop Multiplier: {}x", stopMultiplier);
-            logger.info("  - Target Multiplier: {}x", targetMultiplier);
+            logger.info("💰 Risk Management Parameters:");
+            logger.info("  ├─ Position Size Factor: {} (× Trade Lots)", baseQuantity);
+            logger.info("  ├─ Max Risk Per Trade: ${}", String.format("%.2f", maxRisk));
+            logger.info("  ├─ Point Value: ${}/point (from SDK)", String.format("%.2f", pointValue));
+            logger.info("  ├─ Use WATR Stops: {}", useWatrStops);
+            logger.info("  ├─ Stop Multiplier: {}x", stopMultiplier);
+            logger.info("  └─ Target Multiplier: {}x", targetMultiplier);
         }
         
         double stopPrice, targetPrice;
@@ -611,8 +643,17 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         double riskInPoints = Math.abs(entryPrice - stopPrice);
         double riskPerUnit = riskInPoints * pointValue; // Apply point value multiplier
         
+        if (logger.isInfoEnabled()) {
+            logger.info("📐 Risk Calculation Details:");
+            logger.info("  ├─ Entry Price: ${}", String.format("%.2f", entryPrice));
+            logger.info("  ├─ Stop Price: ${}", String.format("%.2f", stopPrice));
+            logger.info("  ├─ Risk in Points: {} points", String.format("%.2f", riskInPoints));
+            logger.info("  ├─ Point Value: ${}/point", String.format("%.2f", pointValue));
+            logger.info("  └─ Risk Per Unit: ${}/contract", String.format("%.2f", riskPerUnit));
+        }
+        
         if (riskPerUnit <= 0) {
-            logger.warn("Invalid risk calculation: riskInPoints={}, pointValue={}, riskPerUnit={}", 
+            logger.error("❌ Invalid risk calculation: riskInPoints={}, pointValue={}, riskPerUnit={}", 
                        riskInPoints, pointValue, riskPerUnit);
             return null;
         }
@@ -623,23 +664,42 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         finalQuantity = Math.max(1, finalQuantity); // Minimum 1 unit
         
         if (logger.isInfoEnabled()) {
-            logger.info("Risk Calculation:");
-            logger.info("  - Risk in Points: {} points", String.format("%.2f", riskInPoints));
-            logger.info("  - Point Value: ${}/point", String.format("%.2f", pointValue));
-            logger.info("  - Risk Per Unit: ${}/contract", String.format("%.2f", riskPerUnit));
-            logger.info("  - Max Contracts by Risk: {} (${} / ${})", 
-                       maxQuantityByRisk, maxRisk, String.format("%.2f", riskPerUnit));
-            logger.info("  - Base Quantity: {} contracts", baseQuantity);
-            logger.info("  - FINAL QUANTITY: {} contracts", finalQuantity);
+            logger.info("🧮 Quantity Calculation:");
+            logger.info("  ├─ Max Risk Allowed: ${}", String.format("%.2f", maxRisk));
+            logger.info("  ├─ Risk Per Unit: ${}", String.format("%.2f", riskPerUnit));
+            logger.info("  ├─ Max Qty by Risk: {} (${} ÷ ${})", 
+                       maxQuantityByRisk, 
+                       String.format("%.2f", maxRisk), 
+                       String.format("%.2f", riskPerUnit));
+            logger.info("  ├─ Position Size Factor: {}", baseQuantity);
+            logger.info("  └─ Final Quantity: {} {}", 
+                       finalQuantity,
+                       finalQuantity < baseQuantity ? "(LIMITED BY RISK)" : "(USING FACTOR)");
         }
         
         if (finalQuantity < baseQuantity) {
-            logger.warn("  ⚠️  Position size reduced from {} to {} due to risk limit", 
+            logger.warn("⚠️  POSITION SIZE REDUCED: {} → {} (risk limit exceeded)", 
                        baseQuantity, finalQuantity);
+            logger.warn("    Original risk would be: ${}", 
+                       String.format("%.2f", baseQuantity * riskPerUnit));
         }
         
+        // Calculate total position metrics
+        double totalRisk = finalQuantity * riskPerUnit;
+        double totalReward = finalQuantity * Math.abs(targetPrice - entryPrice) * pointValue;
+        double riskRewardRatio = totalReward / totalRisk;
+        
         if (logger.isInfoEnabled()) {
-            logger.info("==================================================");
+            logger.info("📈 Final Position Metrics:");
+            logger.info("  ├─ Final Quantity: {} contracts", finalQuantity);
+            logger.info("  ├─ Total Dollar Risk: ${}", String.format("%.2f", totalRisk));
+            logger.info("  ├─ Total Dollar Reward: ${}", String.format("%.2f", totalReward));
+            logger.info("  ├─ Risk/Reward Ratio: 1:{}", String.format("%.2f", riskRewardRatio));
+            logger.info("  └─ Target Price: ${}", String.format("%.2f", targetPrice));
+            logger.info("╔══════════════════════════════════════════════════════════╗");
+            logger.info("║ ⚠️  IMPORTANT: Final quantity will be multiplied by       ║");
+            logger.info("║     Trade Lots setting from Trading Options panel        ║");
+            logger.info("╚══════════════════════════════════════════════════════════╝");
         }
         
         return new PositionSize(finalQuantity, stopPrice, targetPrice);
