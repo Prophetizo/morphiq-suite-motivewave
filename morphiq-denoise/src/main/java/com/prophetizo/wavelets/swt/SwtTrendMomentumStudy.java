@@ -155,7 +155,7 @@ public class SwtTrendMomentumStudy extends Study {
      * Note: This value is entered as a percentage in the UI (0.001 = 0.001%)
      *       and converted to decimal (0.00001) during calculation.
      */
-    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.001; // 0.001% as entered in UI
+    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.001; // Percentage value as entered in UI (0.001 = 0.001%), stored as decimal; converted to true decimal (0.00001) during calculation
     
     @Override
     public void onLoad(Defaults defaults) {
