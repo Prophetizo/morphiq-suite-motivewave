@@ -246,12 +246,14 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         
         String status = unrealizedPnL >= 0 ? "PROFIT" : "LOSS";
         
-        logger.debug("Position Status [{}]: Price={}, P&L=${}, Stop Distance={}, Target Distance={}",
-                    status, 
-                    String.format("%.2f", currentPrice), 
-                    String.format("%.2f", unrealizedPnL), 
-                    String.format("%.2f", stopDistance), 
-                    String.format("%.2f", targetDistance));
+        if (logger.isDebugEnabled()) {
+            logger.debug("Position Status [{}]: Price={}, P&L=${}, Stop Distance={}, Target Distance={}",
+                        status, 
+                        String.format("%.2f", currentPrice), 
+                        String.format("%.2f", unrealizedPnL), 
+                        String.format("%.2f", stopDistance), 
+                        String.format("%.2f", targetDistance));
+        }
         
         // Warn if getting close to stop
         if (stopDistance < Math.abs(entryPrice - stopPrice) * 0.2) {
@@ -409,9 +411,11 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             // Use WATR-based stops
             Double watr = series.getDouble(index, Values.WATR);
             
-            logger.debug("WATR Stop Calculation: raw WATR={}, stopMultiplier={}, targetMultiplier={}", 
-                        watr != null ? String.format("%.4f", watr) : "null", 
-                        stopMultiplier, targetMultiplier);
+            if (logger.isDebugEnabled()) {
+                logger.debug("WATR Stop Calculation: raw WATR={}, stopMultiplier={}, targetMultiplier={}", 
+                            watr != null ? String.format("%.4f", watr) : "null", 
+                            stopMultiplier, targetMultiplier);
+            }
             
             if (watr == null || watr <= 0) {
                 // Fallback to simple percentage
@@ -443,10 +447,12 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                 targetPrice = isLongTrade ? entryPrice + watrDistance * targetMultiplier : 
                                           entryPrice - watrDistance * targetMultiplier;
                 
-                logger.debug("WATR Stop Details: watrDistance={}, stopPrice={}, targetPrice={}", 
-                            String.format("%.2f", watrDistance),
-                            String.format("%.2f", stopPrice),
-                            String.format("%.2f", targetPrice));
+                if (logger.isDebugEnabled()) {
+                    logger.debug("WATR Stop Details: watrDistance={}, stopPrice={}, targetPrice={}", 
+                                String.format("%.2f", watrDistance),
+                                String.format("%.2f", stopPrice),
+                                String.format("%.2f", targetPrice));
+                }
             }
         } else {
             // Use fixed percentage stops
@@ -469,12 +475,14 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         int finalQuantity = Math.min(baseQuantity, maxQuantityByRisk);
         finalQuantity = Math.max(1, finalQuantity); // Minimum 1 unit
         
-        logger.debug("Position sizing: entry={}, stop={}, target={}, riskPerUnit={}, qty={}",
-                    String.format("%.2f", entryPrice), 
-                    String.format("%.2f", stopPrice), 
-                    String.format("%.2f", targetPrice), 
-                    String.format("%.2f", riskPerUnit), 
-                    finalQuantity);
+        if (logger.isDebugEnabled()) {
+            logger.debug("Position sizing: entry={}, stop={}, target={}, riskPerUnit={}, qty={}",
+                        String.format("%.2f", entryPrice), 
+                        String.format("%.2f", stopPrice), 
+                        String.format("%.2f", targetPrice), 
+                        String.format("%.2f", riskPerUnit), 
+                        finalQuantity);
+        }
         
         return new PositionSize(finalQuantity, stopPrice, targetPrice);
     }
@@ -487,6 +495,13 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         targetPrice = 0.0;
     }
     
+    /* DEAD CODE - These methods don't match any MotiveWave SDK interface and are never called
+     * The SDK's onPositionClosed(OrderContext) doesn't provide trade details
+     * All position tracking is handled in onOrderFilled() which has access to Order object
+     * 
+     * Keeping commented for reference of the P&L tracking logic that could be integrated
+     * into onOrderFilled() if needed in the future.
+     
     public void onPositionOpened(OrderContext ctx, Instrument instrument, boolean isLong, float quantity, double avgPrice) {
         logger.info("Position opened: {} {} shares/contracts at {:.2f}", 
                    isLong ? "Long" : "Short", quantity, avgPrice);
@@ -545,6 +560,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         // Reset tracking
         resetPositionTracking();
     }
+    */
     
     /**
      * Helper class for position sizing calculations

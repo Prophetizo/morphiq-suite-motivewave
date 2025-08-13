@@ -24,21 +24,21 @@ public class WaveletAtr {
      * Coarser scales represent longer-term trends and should have less influence
      * on the immediate volatility estimate.
      * 
-     * Weight formula: weight = 1.0 / (1.0 + level * LEVEL_WEIGHT_DECAY)
-     * where level is 0-based in the calculation loop
+     * Weight formula: weight = 1.0 / (1.0 + levelIndex * LEVEL_WEIGHT_DECAY)
+     * where levelIndex is the 0-based array index used in the calculation loop
      * 
      * Examples with LEVEL_WEIGHT_DECAY = 0.5:
-     * - Level 1 (index 0): weight = 1.0 / (1.0 + 0 * 0.5) = 1.00 (100% contribution)
-     * - Level 2 (index 1): weight = 1.0 / (1.0 + 1 * 0.5) = 0.67 (67% contribution)  
-     * - Level 3 (index 2): weight = 1.0 / (1.0 + 2 * 0.5) = 0.50 (50% contribution)
-     * - Level 4 (index 3): weight = 1.0 / (1.0 + 3 * 0.5) = 0.40 (40% contribution)
+     * - Detail Level D₁ (array index 0): weight = 1.0 / (1.0 + 0 * 0.5) = 1.00 (100% contribution)
+     * - Detail Level D₂ (array index 1): weight = 1.0 / (1.0 + 1 * 0.5) = 0.67 (67% contribution)  
+     * - Detail Level D₃ (array index 2): weight = 1.0 / (1.0 + 2 * 0.5) = 0.50 (50% contribution)
+     * - Detail Level D₄ (array index 3): weight = 1.0 / (1.0 + 3 * 0.5) = 0.40 (40% contribution)
      */
     private static final double LEVEL_WEIGHT_DECAY = 0.5;
     
     /**
      * Calculate weight for a given wavelet level.
      * 
-     * @param level 0-based level index
+     * @param level 0-based array index (0 for D₁, 1 for D₂, etc.)
      * @return weight value between 0 and 1
      */
     private static double calculateLevelWeight(int level) {
@@ -133,8 +133,9 @@ public class WaveletAtr {
                 totalSamples += detail.length;
                 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Level {} energy: {}, weight: {}", 
-                                level + 1, 
+                    logger.trace("Detail D{} (index {}): energy={}, weight={}", 
+                                level + 1,
+                                level,
                                 String.format("%.4f", levelEnergy), 
                                 String.format("%.2f", weight));
                 }

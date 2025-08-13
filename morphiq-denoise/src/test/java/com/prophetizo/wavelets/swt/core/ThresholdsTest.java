@@ -12,12 +12,8 @@ import java.util.Random;
 public class ThresholdsTest {
     
     /**
-     * Shared Random instance for test data generation.
-     * Using a fixed seed (42) ensures reproducible test results.
-     * Reusing the same instance avoids repeated instantiation overhead
-     * Using a fixed seed (42) ensures reproducible test results, which is essential for
-     * Shared Random instance with fixed seed (42) to ensure reproducible test results
-     * and avoid repeated instantiation overhead during test data generation.
+     * Shared Random instance with fixed seed (42) for test data generation.
+     * Ensures reproducible test results and avoids repeated instantiation overhead.
      */
     private static final Random RANDOM = new Random(42);
     

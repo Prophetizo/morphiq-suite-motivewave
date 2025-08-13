@@ -177,7 +177,8 @@ public class SwtTrendMomentumStudy extends Study {
         // Clear state to force re-initialization of all components
         clearState();
         
-        // Clear figures when settings change (this is appropriate)
+        // Clear figures when settings change - this IS appropriate here
+        // Unlike clearState(), onSettingsUpdated() requires clearFigures() to redraw with new settings
         clearFigures();
         
         // Update minimum bars requirement
@@ -216,7 +217,9 @@ public class SwtTrendMomentumStudy extends Study {
         // Reset momentum smoothing
         smoothedMomentum = 0.0;
         
-        // Note: Do NOT call clearFigures() here - let the framework manage figures
+        // Note: Do NOT call clearFigures() in clearState() - only call it in onSettingsUpdated()
+        // clearState() is for internal state reset during normal calculation cycles
+        // clearFigures() should only be called when settings change to force redraw
     }
     
     // The SDK pattern is to NOT override calculateValues() when using
