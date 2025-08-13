@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Arrays;
+import java.util.Random;
 
 /**
  * Unit tests for VectorWaveSwtAdapter fallback implementation.
@@ -12,11 +13,14 @@ import java.util.Arrays;
  */
 public class VectorWaveSwtAdapterTest {
     
+    private static final long TEST_SEED = 42L;
     private VectorWaveSwtAdapter adapter;
+    private Random random;
     
     @BeforeEach
     void setUp() {
         adapter = new VectorWaveSwtAdapter("db4");
+        random = new Random(TEST_SEED);
     }
     
     @Test
@@ -88,10 +92,11 @@ public class VectorWaveSwtAdapterTest {
     
     @Test
     void testHardThresholding() {
-        // Create a simple test signal
+        // Create a simple test signal with deterministic noise
+        Random localRandom = new Random(TEST_SEED);
         double[] testSignal = new double[32];
         for (int i = 0; i < testSignal.length; i++) {
-            testSignal[i] = Math.sin(2 * Math.PI * i / 32) + 0.1 * Math.random();
+            testSignal[i] = Math.sin(2 * Math.PI * i / 32) + 0.1 * localRandom.nextDouble();
         }
         
         // Perform SWT transform
@@ -120,10 +125,11 @@ public class VectorWaveSwtAdapterTest {
     
     @Test
     void testSoftThresholding() {
-        // Create a simple test signal
+        // Create a simple test signal with deterministic noise
+        Random localRandom = new Random(TEST_SEED);
         double[] testSignal = new double[32];
         for (int i = 0; i < testSignal.length; i++) {
-            testSignal[i] = Math.sin(2 * Math.PI * i / 32) + 0.1 * Math.random();
+            testSignal[i] = Math.sin(2 * Math.PI * i / 32) + 0.1 * localRandom.nextDouble();
         }
         
         // Perform SWT transform
@@ -210,7 +216,7 @@ public class VectorWaveSwtAdapterTest {
     private double[] generateNoisySignal(int length) {
         double[] signal = generateTestSignal(length);
         for (int i = 0; i < length; i++) {
-            signal[i] += 0.1 * (Math.random() - 0.5);
+            signal[i] += 0.1 * (random.nextDouble() - 0.5);
         }
         return signal;
     }
