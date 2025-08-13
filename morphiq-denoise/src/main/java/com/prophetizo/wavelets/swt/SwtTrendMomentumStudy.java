@@ -576,11 +576,20 @@ public class SwtTrendMomentumStudy extends Study {
             boolean shortFilter = slope < -minSlope && momentumSum < -momentumThreshold;
             
             // Debug logging to understand why signals aren't generating
-            if (logger.isDebugEnabled() && index % 50 == 0) { // Log every 50 bars to avoid spam
-                logger.debug("Signal check at {}: slope={:.6f}, minSlope={:.6f}, momentum={:.2f}, threshold={:.2f}, long={}, short={}", 
-                            index, slope, minSlope, momentumSum, momentumThreshold, longFilter, shortFilter);
-                logger.debug("  Trend: current={:.2f}, previous={:.2f}, diff={:.4f}", 
-                            currentTrend, previousTrend, currentTrend - previousTrend);
+            if (logger.isDebugEnabled()) {
+                if (index % 50 == 0) { // Log every 50 bars to avoid spam
+                    logger.debug("Signal check at {}: slope={}, minSlope={}, momentum={}, threshold={}, long={}, short={}", 
+                                index, 
+                                String.format("%.6f", slope), 
+                                String.format("%.6f", minSlope), 
+                                String.format("%.2f", momentumSum), 
+                                String.format("%.2f", momentumThreshold), 
+                                longFilter, shortFilter);
+                    logger.debug("  Trend: current={}, previous={}, diff={}", 
+                                String.format("%.2f", currentTrend), 
+                                String.format("%.2f", previousTrend), 
+                                String.format("%.4f", currentTrend - previousTrend));
+                }
             }
             
             series.setDouble(index, Values.LONG_FILTER, longFilter ? 1.0 : 0.0);
@@ -932,14 +941,16 @@ public class SwtTrendMomentumStudy extends Study {
         
         double watr = rawWatr * priceScaleFactor;
         
-        if (logger.isDebugEnabled() && index % 50 == 0) {
-            logger.debug("WATR Calculation: method={}, rawWatr={}, scaleFactor={}, priceScale={}, scaledWatr={}, centerPrice={}", 
-                        scaleMethod,
-                        String.format("%.6f", rawWatr),
-                        String.format("%.2f", scaleFactor),
-                        String.format("%.2f", priceScaleFactor),
-                        String.format("%.2f", watr),
-                        String.format("%.2f", centerPrice));
+        if (logger.isDebugEnabled()) {
+            if (index % 50 == 0) {
+                logger.debug("WATR Calculation: method={}, rawWatr={}, scaleFactor={}, priceScale={}, scaledWatr={}, centerPrice={}", 
+                            scaleMethod,
+                            String.format("%.6f", rawWatr),
+                            String.format("%.2f", scaleFactor),
+                            String.format("%.2f", priceScaleFactor),
+                            String.format("%.2f", watr),
+                            String.format("%.2f", centerPrice));
+            }
         }
         
         // Always store WATR value (needed by Strategy for stops)

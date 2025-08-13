@@ -257,7 +257,12 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     private void logPositionStatus(OrderContext ctx, DataSeries series, int index) {
-        if (!hasPosition || index % 100 != 0) { // Log every 100 bars
+        if (!hasPosition) {
+            return;
+        }
+        
+        // Only log every 100 bars to avoid spam
+        if (index % 100 != 0) {
             return;
         }
         
