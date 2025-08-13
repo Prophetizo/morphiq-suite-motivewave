@@ -150,20 +150,33 @@ Entry signals require BOTH conditions:
    - Rule: Window ≥ 2^(levels+3)
    - Example: 4 levels needs minimum 128 bars
 
-2. **Momentum Threshold × Detail Confirmation**
+2. **Window Length × Min Slope Threshold** ⚠️ **CRITICAL**
+   - **Longer windows = Smoother trend = Lower slope threshold needed**
+   - **Shorter windows = More responsive = Higher slope threshold needed**
+   
+   | Window Length | Trend Smoothness | Recommended Slope Threshold |
+   |---------------|------------------|----------------------------|
+   | 256 bars | Responsive | 0.03-0.05% |
+   | 512 bars | Balanced | 0.02-0.03% |
+   | 1024 bars | Smooth | 0.015-0.02% |
+   | 2048 bars | Very Smooth | 0.01-0.015% |
+   | 4096 bars | Ultra Smooth | 0.008-0.012% |
+
+3. **Momentum Threshold × Detail Confirmation**
    - More detail levels (k) = higher momentum values
    - Adjust threshold when changing k
    - k=1: Threshold ~0.5-2.0
    - k=2: Threshold ~1.0-5.0
    - k=3: Threshold ~2.0-10.0
+   - **Note**: Momentum is scaled 100x for visibility
 
-3. **Slope Threshold × Wavelet Type**
+4. **Slope Threshold × Wavelet Type**
    - Smoother wavelets need lower thresholds
-   - Haar: 0.05-0.10%
-   - Daubechies: 0.03-0.07%
-   - Symlets: 0.04-0.08%
+   - Haar: Higher threshold (sharp transitions)
+   - Daubechies: Medium threshold (balanced)
+   - Symlets: Lower threshold (very smooth)
 
-4. **Thresholding × Signal Quality**
+5. **Thresholding × Signal Quality**
    - Hard thresholding: More signals, some noise
    - Soft thresholding: Fewer signals, cleaner
    - Universal: Most conservative
@@ -173,20 +186,55 @@ Entry signals require BOTH conditions:
 
 ### ES (E-mini S&P 500) - 1 Minute
 
+#### Quick Setup (Recommended)
 ```yaml
 Wavelet Type: Daubechies 4
-Decomposition Levels: 4
-Window Length: 256
+Decomposition Levels: 5
+Window Length: 512-1024
 Threshold Method: Universal
 Shrinkage Type: Hard
-Use Denoised: Yes
-Detail Confirmation: 1
+Use Denoised: No
+Detail Confirmation: 2
 Momentum Threshold: 1.0
-Min Slope Threshold: 0.05%
+Min Slope Threshold: 0.02-0.03%
 Stop Multiplier: 2.0
 Target Multiplier: 3.0
 Min Stop: 5 points
 Max Stop: 20 points
+```
+
+#### Smooth Trend Setup (Long Window)
+```yaml
+Wavelet Type: Daubechies 4
+Decomposition Levels: 5
+Window Length: 4096
+Threshold Method: Universal
+Shrinkage Type: Hard
+Use Denoised: No
+Detail Confirmation: 2
+Momentum Threshold: 1.0
+Min Slope Threshold: 0.01%  # Lower due to smoother trend
+Stop Multiplier: 2.0
+Target Multiplier: 3.0
+Min Stop: 5 points
+Max Stop: 20 points
+```
+
+#### Scalping Setup (Fast Response)
+```yaml
+Wavelet Type: Haar or db2
+Decomposition Levels: 4
+Window Length: 256
+Threshold Method: Universal
+Shrinkage Type: Hard
+Use Denoised: No
+Detail Confirmation: 1
+Momentum Threshold: 0.5-1.0
+Min Slope Threshold: 0.03-0.05%  # Higher for shorter window
+Stop Multiplier: 1.5
+Target Multiplier: 2.0
+Min Stop: 3 points
+Max Stop: 10 points
 ```
 
 ### NQ (E-mini NASDAQ) - 1 Minute
@@ -340,12 +388,16 @@ Short Target = Entry - targetDistance
 ### Issue: Momentum Oscillator Too Quiet/Flat
 
 **Symptoms**: Flat line or barely visible momentum
+**Root Cause**: Prior to v1.0.0, momentum wasn't scaled properly
 **Solutions**:
-1. Check Momentum Threshold - should be 1.0 or higher (not 0.01)
-2. Increase Detail Confirmation (k) to 2 or 3
-3. Check if thresholding is too aggressive (try Hard instead of Soft)
-4. Switch Threshold Method to SURE for less aggressive filtering
-5. Verify Window Length is appropriate for timeframe
+1. **Verify version**: Ensure you have the latest build with 100x scaling
+2. **Check Momentum Threshold**: Should be 1.0-10.0 range (not 0.01)
+3. **Increase Detail Confirmation (k)**: Try 2 or 3 for stronger signals
+4. **Adjust thresholding**: Use Hard instead of Soft for more detail preservation
+5. **Expected ranges after scaling**:
+   - Quiet market: ±5-10
+   - Normal market: ±10-20
+   - Volatile market: ±20-40
 
 ### Issue: Too Many False Signals
 
@@ -427,49 +479,131 @@ The strategy is fully thread-safe with:
 
 ## Best Practices
 
-### 1. Start Conservative
-- Begin with default settings
-- Use paper trading for at least 100 trades
-- Gradually adjust one parameter at a time
+### 1. Understanding Your Trading Style
 
-### 2. Match Settings to Timeframe
+#### For Scalpers (Quick In/Out)
+- **Window**: 256-512 bars (responsive to price changes)
+- **Wavelet**: Haar or db2 (captures sharp moves)
+- **Levels**: 3-4 (focus on high-frequency details)
+- **Slope Threshold**: 0.03-0.05% (filter noise but catch moves)
+- **Momentum Threshold**: 0.5-1.0 (quick signals)
 
-| Timeframe | Window | Levels | Momentum Threshold |
-|-----------|--------|--------|--------------------|
-| 1-min | 256 | 3-4 | 0.5-1.0 |
-| 5-min | 512 | 4-5 | 1.0-2.0 |
-| 15-min | 512 | 5 | 2.0-3.0 |
-| 1-hour | 1024 | 5-6 | 3.0-5.0 |
-| 4-hour | 2048 | 6-7 | 5.0-10.0 |
-| Daily | 2048 | 7-8 | 10.0-20.0 |
+#### For Day Traders (Intraday Swings)
+- **Window**: 512-1024 bars (balanced smoothing)
+- **Wavelet**: db4 or db6 (good trend extraction)
+- **Levels**: 4-5 (multi-scale analysis)
+- **Slope Threshold**: 0.02-0.03% (moderate filtering)
+- **Momentum Threshold**: 1.0-3.0 (confirmed moves)
 
-### 3. Validate with Metrics
-- **Win Rate**: Target 45-55%
-- **Risk/Reward**: Minimum 1:1.5
-- **Profit Factor**: Above 1.3
-- **Max Drawdown**: Under 20%
-- **Sharpe Ratio**: Above 0.8
+#### For Swing Traders (Multi-Day Holds)
+- **Window**: 2048-4096 bars (smooth trends)
+- **Wavelet**: sym8 or coif3 (maximum smoothing)
+- **Levels**: 5-6 (capture larger structures)
+- **Slope Threshold**: 0.01-0.015% (patient entries)
+- **Momentum Threshold**: 3.0-5.0 (strong confirmation)
 
-### 4. Market Session Adjustments
+### 2. Optimal Settings by Market Condition
 
-**Asian Session**: Increase thresholds by 50%
-**London Open**: Reduce thresholds by 20%
-**US Open**: Normal settings
-**US Close**: Increase thresholds by 30%
+#### Trending Markets (VIX < 20)
+```yaml
+Use Denoised: Yes
+Shrinkage Type: Soft
+Threshold Method: SURE
+Detail Confirmation: 1-2
+Lower all thresholds by 20%
+```
 
-### 5. Volatility Adjustments
+#### Choppy/Range Markets (VIX 20-30)
+```yaml
+Use Denoised: No
+Shrinkage Type: Hard
+Threshold Method: Universal
+Detail Confirmation: 2-3
+Use standard thresholds
+```
 
-Monitor VIX and adjust:
-- **VIX < 15**: Reduce all thresholds by 20%
-- **VIX 15-25**: Use normal settings
-- **VIX 25-35**: Increase thresholds by 30%
-- **VIX > 35**: Increase thresholds by 50%
+#### Volatile Markets (VIX > 30)
+```yaml
+Use Denoised: No
+Shrinkage Type: Hard
+Threshold Method: Universal
+Detail Confirmation: 3
+Increase all thresholds by 50%
+```
 
-### 6. Position Sizing Rules
-- Never risk more than 2% per trade
-- Reduce size by 50% after 3 consecutive losses
-- Increase size by 25% after 5 consecutive wins
-- Always respect the Trade Lots setting
+### 3. The Golden Rules
+
+1. **Window Length Determines Slope Threshold**
+   - Long window → Lower slope threshold
+   - Short window → Higher slope threshold
+
+2. **Match Wavelet to Market Character**
+   - Trending: Daubechies (db4-db8)
+   - Volatile: Haar or db2
+   - Smooth: Symlets or Coiflets
+
+3. **Momentum Scaling is Critical**
+   - Always use 1.0+ thresholds (post v1.0.0)
+   - Adjust based on visual feedback
+   - Target ±10-20 range for normal markets
+
+4. **Never Override These Relationships**
+   - Window ≥ 2^(levels+3)
+   - Slope threshold inversely proportional to window
+   - Detail confirmation affects momentum magnitude
+
+### 4. Settings Validation Checklist
+
+Before going live, verify:
+- [ ] Momentum oscillator shows ±10-20 range in normal conditions
+- [ ] 5-15 signals per day on 1-min chart (not too many/few)
+- [ ] Trend line smoothly follows price without excessive lag
+- [ ] Signals align with obvious visual trends
+- [ ] Stop distances are reasonable for the instrument
+- [ ] Win rate > 40% in backtesting
+
+### 5. Quick Start Guide
+
+#### Step 1: Choose Your Profile
+Pick ONE based on your style:
+
+**Conservative (Recommended for Beginners)**
+```yaml
+Window: 1024, Levels: 5, Wavelet: db4
+Slope: 0.02%, Momentum: 2.0, Detail K: 2
+```
+
+**Balanced (Most Popular)**
+```yaml
+Window: 512, Levels: 4, Wavelet: db4
+Slope: 0.025%, Momentum: 1.5, Detail K: 2
+```
+
+**Aggressive (Experienced Only)**
+```yaml
+Window: 256, Levels: 4, Wavelet: haar
+Slope: 0.04%, Momentum: 1.0, Detail K: 1
+```
+
+#### Step 2: Fine-Tune Based on Results
+- Too many signals? → Increase thresholds by 20%
+- Missing trends? → Decrease thresholds by 20%
+- Momentum flat? → Check scaling (should see ±10-20)
+- Choppy signals? → Increase window length
+
+#### Step 3: Validate Performance
+Run for 100+ trades and check:
+- Win Rate > 45%
+- Average Win > Average Loss
+- Maximum Drawdown < 15%
+- Profit Factor > 1.3
+
+### 6. Position Sizing & Risk Rules
+- **Never risk more than 2% per trade**
+- **Reduce size by 50% after 3 consecutive losses**
+- **Scale up by 25% after 5 consecutive wins**
+- **Always respect the Trade Lots setting**
+- **Use bracket orders for automatic stop/target**
 
 ## Advanced Features
 

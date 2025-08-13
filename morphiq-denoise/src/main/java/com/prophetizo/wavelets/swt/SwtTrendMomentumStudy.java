@@ -519,7 +519,12 @@ public class SwtTrendMomentumStudy extends Study {
             // Perform SWT
             VectorWaveSwtAdapter.SwtResult swtResult = swtAdapter.transform(prices, levels);
             
-            // Apply thresholding to remove noise from detail coefficients
+            // CRITICAL: Calculate momentum from RAW detail coefficients BEFORE thresholding
+            // This preserves the actual market momentum information
+            double momentumSum = calculateMomentumSum(swtResult, detailConfirmK);
+            series.setDouble(index, Values.MOMENTUM_SUM, momentumSum);
+            
+            // NOW apply thresholding for denoising (only affects reconstruction, not momentum)
             applyThresholding(swtResult);
             
             // Choose between denoised signal or just approximation
@@ -548,10 +553,6 @@ public class SwtTrendMomentumStudy extends Study {
             // Calculate trend slope
             double slope = currentTrend - previousTrend;
             series.setDouble(index, Values.SLOPE, slope);
-            
-            // Calculate cross-scale momentum (sum of low-scale details)
-            double momentumSum = calculateMomentumSum(swtResult, detailConfirmK);
-            series.setDouble(index, Values.MOMENTUM_SUM, momentumSum);
             
             // Store detail signs
             storeDetailSigns(series, index, swtResult, detailConfirmK);
