@@ -103,8 +103,8 @@ public class SwtTrendMomentumStudy extends Study {
     
     // Momentum smoothing - volatile for thread safety in MotiveWave's multi-threaded calculation engine
     private volatile double smoothedMomentum = 0.0;
-    private static final double MOMENTUM_ALPHA = 0.3; // EMA smoothing factor (increased for faster response)
-    private static final int MOMENTUM_WINDOW = 5; // Window for RMS calculation (reduced for faster response)
+    private static final double MOMENTUM_ALPHA = 0.5; // EMA smoothing factor (higher = more responsive)
+    private static final int MOMENTUM_WINDOW = 10; // Window for RMS calculation
     
     /**
      * WATR Scaling Methods for different market conditions and instruments.
@@ -295,7 +295,7 @@ public class SwtTrendMomentumStudy extends Study {
                         new NVP("SUM", "Sum of Details (D₁ + D₂ + ...)"),
                         new NVP("SIGN", "Sign Count (±1 per level)")
                 )));
-        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 0.01, 0.0, 1.0, 0.001));
+        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
         signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (%)", 0.001, 0.0, 0.1, 0.0001));
         // Note: Min Slope Threshold is percentage of trend value (0.001 = 0.001% of trend)
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
@@ -559,7 +559,7 @@ public class SwtTrendMomentumStudy extends Study {
             // Determine filter states based on slope and detail sum with threshold
             // Long: positive slope AND momentum above threshold
             // Short: negative slope AND momentum below negative threshold
-            double momentumThreshold = getSettings().getDouble(MOMENTUM_THRESHOLD, 0.01);
+            double momentumThreshold = getSettings().getDouble(MOMENTUM_THRESHOLD, 1.0);
             
             // Require minimum slope to avoid signals in choppy/flat markets
             double slopeThresholdPercent = getSettings().getDouble(MIN_SLOPE_THRESHOLD, 0.001) / 100.0; // Convert % to decimal
@@ -570,8 +570,10 @@ public class SwtTrendMomentumStudy extends Study {
             
             // Debug logging to understand why signals aren't generating
             if (logger.isDebugEnabled() && index % 50 == 0) { // Log every 50 bars to avoid spam
-                logger.debug("Signal check at {}: slope={:.6f}, minSlope={:.6f}, momentum={:.4f}, threshold={:.4f}, long={}, short={}", 
+                logger.debug("Signal check at {}: slope={:.6f}, minSlope={:.6f}, momentum={:.2f}, threshold={:.2f}, long={}, short={}", 
                             index, slope, minSlope, momentumSum, momentumThreshold, longFilter, shortFilter);
+                logger.debug("  Trend: current={:.2f}, previous={:.2f}, diff={:.4f}", 
+                            currentTrend, previousTrend, currentTrend - previousTrend);
             }
             
             series.setDouble(index, Values.LONG_FILTER, longFilter ? 1.0 : 0.0);
@@ -744,6 +746,9 @@ public class SwtTrendMomentumStudy extends Study {
                 }
             }
         }
+        
+        // Scale the momentum to make it more visible (multiply by 100 for better visibility)
+        rawMomentum *= 100.0;
         
         // Apply exponential smoothing to filter noise
         if (smoothedMomentum == 0.0) {

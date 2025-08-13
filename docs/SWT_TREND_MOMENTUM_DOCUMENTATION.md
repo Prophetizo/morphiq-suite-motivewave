@@ -2,727 +2,575 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Mathematical Foundation](#mathematical-foundation)
-3. [Implementation Details](#implementation-details)
-4. [Configuration Parameters](#configuration-parameters)
-5. [Signal Generation Logic](#signal-generation-logic)
-6. [Performance Optimizations](#performance-optimizations)
-7. [Usage Guide](#usage-guide)
+2. [How It Works](#how-it-works)
+3. [Settings Guide](#settings-guide)
+4. [Settings Interactions](#settings-interactions)
+5. [Market-Specific Configuration](#market-specific-configuration)
+6. [Signal Generation Logic](#signal-generation-logic)
+7. [Risk Management](#risk-management)
 8. [Troubleshooting](#troubleshooting)
-9. [Technical References](#technical-references)
-
----
+9. [Performance Optimization](#performance-optimization)
+10. [Best Practices](#best-practices)
 
 ## Overview
 
-The **SWT Trend + Momentum Strategy** is an advanced wavelet-based trading system that combines the Stationary Wavelet Transform (SWT/MODWT) with cross-scale momentum confirmation to generate high-probability trading signals. Unlike traditional indicators that operate in either time or frequency domain, this strategy leverages the time-frequency localization properties of wavelets to simultaneously capture trend and momentum characteristics across multiple timescales.
+The SWT Trend + Momentum Strategy is a sophisticated trading system that combines Stationary Wavelet Transform (SWT/MODWT) trend extraction with cross-scale momentum analysis. It provides both visual indicators and automated trading signals.
 
 ### Key Features
-- **Undecimated Wavelet Transform**: Maintains shift-invariance for consistent signal generation
-- **Multi-Scale Analysis**: Decomposes price into trend (approximation) and momentum (details) components
-- **Cross-Scale Momentum**: Validates signals using energy from multiple frequency bands
-- **Adaptive Thresholding**: Removes noise while preserving important market structure
-- **Wavelet-ATR Risk Management**: Dynamic position sizing based on wavelet volatility
+- **Undecimated Wavelet Transform**: Shift-invariant decomposition for consistent signals
+- **Cross-Scale Momentum**: Combines multiple wavelet detail levels for confirmation
+- **Adaptive Noise Reduction**: Three thresholding methods to filter market noise
+- **WATR-Based Stops**: Wavelet Average True Range for dynamic risk management
+- **Trade Lots Integration**: Properly respects MotiveWave's Trade Lots setting
 
-### Design Philosophy
-The strategy is built on three core principles:
-1. **Trend Following**: Trade in the direction of the dominant wavelet approximation
-2. **Momentum Confirmation**: Require agreement from low-scale detail coefficients
-3. **Noise Reduction**: Apply wavelet denoising to filter market microstructure noise
+### Components
+1. **Study (Indicator)**: Visual overlay with trend line and momentum oscillator
+2. **Strategy**: Automated trading with position management and risk controls
 
----
+## How It Works
 
-## Mathematical Foundation
-
-### 1. Stationary Wavelet Transform (SWT/MODWT)
-
-The SWT is an undecimated variant of the Discrete Wavelet Transform that maintains the same data length at each decomposition level, providing shift-invariance crucial for financial applications.
-
-#### Forward Transform
-For a signal x[n] of length N, the SWT decomposition at level j is:
-
+### 1. Wavelet Decomposition
+The strategy performs a Stationary Wavelet Transform on price data:
 ```
-W_j[n] = Σ h_j[k] * x[n - 2^j * k]    (Detail coefficients)
-V_j[n] = Σ g_j[k] * x[n - 2^j * k]    (Approximation coefficients)
+Price → SWT → Approximation (smooth trend) + Details (D₁, D₂, D₃, ...)
 ```
 
-Where:
-- `h_j[k]` = High-pass filter coefficients at level j
-- `g_j[k]` = Low-pass filter coefficients at level j
-- `2^j` = Dilation factor (no decimation)
+### 2. Trend Extraction
+- **Approximation**: Provides the smooth underlying trend
+- **Denoised Signal**: Optional reconstruction with thresholded details
 
-#### Multi-Resolution Decomposition
-The price signal P(t) is decomposed into:
+### 3. Momentum Calculation
+Cross-scale momentum combines detail coefficients from multiple levels:
 ```
-P(t) = A_J(t) + Σ(j=1 to J) D_j(t)
+Momentum = Σ(weight[i] × detail[i]) × 100
+```
+- Level 1 (D₁): 100% weight (high-frequency)
+- Level 2 (D₂): 67% weight
+- Level 3 (D₃): 50% weight
+
+**Note**: As of v1.0.0, momentum values are scaled by 100x for better visibility
+
+### 4. Signal Generation
+Entry signals require BOTH conditions:
+- **Long**: Positive slope AND momentum > threshold
+- **Short**: Negative slope AND momentum < -threshold
+
+## Settings Guide
+
+### General Tab
+
+#### Wavelet Configuration
+
+| Setting | Default | Range | Description |
+|---------|---------|-------|-------------|
+| **Wavelet Type** | Haar | Multiple | Wavelet family for decomposition |
+| **Decomposition Levels** | 4 | 2-8 | Number of decomposition scales |
+| **Window Length** | 256 | 256-4096 | Bars analyzed per calculation |
+
+**Wavelet Type Selection**:
+- **Haar**: Sharp, good for breakouts and sudden moves
+- **Daubechies (db4-db20)**: Smooth, excellent for trend following
+- **Symlets (sym4-sym20)**: Balanced, good general purpose
+- **Coiflets (coif1-coif5)**: Compact, good for range-bound markets
+
+#### Thresholding
+
+| Setting | Default | Range | Description |
+|---------|---------|-------|-------------|
+| **Threshold Method** | Universal | 3 options | Noise reduction algorithm |
+| **Shrinkage Type** | Hard | Soft/Hard | How coefficients are thresholded |
+| **Use Denoised Signal** | ✓ | On/Off | Use denoised vs raw approximation |
+
+**Threshold Methods**:
+- **Universal**: Conservative, robust (best for volatile markets)
+- **BayesShrink**: Adaptive, balanced (good general purpose)
+- **SURE**: Optimal MSE (best for trending markets)
+
+#### Signal Configuration
+
+| Setting | Default | Range | Description |
+|---------|---------|-------|-------------|
+| **Detail Confirmation (k)** | 1 | 1-3 | Detail levels for momentum |
+| **Momentum Calculation** | SUM | SUM/SIGN | How to combine details |
+| **Momentum Threshold** | 1.0 | 0-100 | Minimum momentum for signals (scaled) |
+| **Min Slope Threshold (%)** | 0.05 | 0-0.1 | Minimum trend slope |
+| **Enable Trading Signals** | ✓ | On/Off | Generate trading signals |
+
+### Display Tab
+
+#### Plot Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Trend Color** | Blue | Color of denoised trend line |
+| **Trend Width** | 2.0 | Line thickness |
+| **Show WATR Bands** | Off | Display volatility bands |
+| **WATR Color** | Gray | Color of WATR bands |
+| **WATR Levels (k)** | 2 | Detail levels for WATR calculation |
+| **WATR Multiplier** | 2.0 | Band distance from trend |
+| **WATR Scale Method** | LINEAR | Scaling approach (LINEAR/SQRT/LOG/ADAPTIVE) |
+| **WATR Scale Factor** | 100.0 | Scaling multiplier |
+
+### Markers Tab
+
+| Marker | Default | Description |
+|--------|---------|-------------|
+| **Long Entry** | Green Triangle | Buy signal marker |
+| **Short Entry** | Red Triangle | Sell signal marker |
+| **Flat Exit** | Gray Square | Exit signal marker |
+
+### Strategy Tab (Strategy Version Only)
+
+#### Position Management
+
+| Setting | Default | Range | Description |
+|---------|---------|-------|-------------|
+| **Position Size Factor** | 1 | 1-100 | Base position size multiplier |
+| **Max Risk Per Trade ($)** | 500 | 50-5000 | Maximum dollar risk per trade |
+
+**Important**: Final position = Position Size Factor × Trade Lots (from Trading Options panel)
+
+#### Risk Management
+
+| Setting | Default | Range | Description |
+|---------|---------|-------|-------------|
+| **Use WATR-based Stops** | ✓ | On/Off | Dynamic vs fixed stops |
+| **Stop Loss Multiplier** | 2.0 | 1-5 | WATR multiplier for stops |
+| **Target Multiplier** | 3.0 | 1.5-10 | Risk/reward ratio |
+| **Min Stop Distance** | 5 | 2-20 | Minimum points for stop |
+| **Max Stop Distance** | 25 | 10-100 | Maximum points for stop |
+| **Enable Bracket Orders** | ✓ | On/Off | Use bracket vs market orders |
+
+## Settings Interactions
+
+### Critical Relationships
+
+1. **Window Length × Decomposition Levels**
+   - More levels require longer windows
+   - Rule: Window ≥ 2^(levels+3)
+   - Example: 4 levels needs minimum 128 bars
+
+2. **Momentum Threshold × Detail Confirmation**
+   - More detail levels (k) = higher momentum values
+   - Adjust threshold when changing k
+   - k=1: Threshold ~0.5-2.0
+   - k=2: Threshold ~1.0-5.0
+   - k=3: Threshold ~2.0-10.0
+
+3. **Slope Threshold × Wavelet Type**
+   - Smoother wavelets need lower thresholds
+   - Haar: 0.05-0.10%
+   - Daubechies: 0.03-0.07%
+   - Symlets: 0.04-0.08%
+
+4. **Thresholding × Signal Quality**
+   - Hard thresholding: More signals, some noise
+   - Soft thresholding: Fewer signals, cleaner
+   - Universal: Most conservative
+   - SURE: Most aggressive
+
+## Market-Specific Configuration
+
+### ES (E-mini S&P 500) - 1 Minute
+
+```yaml
+Wavelet Type: Daubechies 4
+Decomposition Levels: 4
+Window Length: 256
+Threshold Method: Universal
+Shrinkage Type: Hard
+Use Denoised: Yes
+Detail Confirmation: 1
+Momentum Threshold: 1.0
+Min Slope Threshold: 0.05%
+Stop Multiplier: 2.0
+Target Multiplier: 3.0
+Min Stop: 5 points
+Max Stop: 20 points
 ```
 
-Where:
-- `A_J(t)` = Smooth trend (approximation at level J)
-- `D_j(t)` = Detail at scale j (frequency band information)
-- `J` = Maximum decomposition level
+### NQ (E-mini NASDAQ) - 1 Minute
 
-### 2. Cross-Scale Momentum Calculation
-
-The momentum is computed using RMS energy from multiple detail levels with weighted contribution:
-
-#### RMS Energy for Level j
-```
-E_j = sqrt(1/W * Σ(i=0 to W-1) D_j[n-i]²)
-```
-
-Where W is the momentum window (default: 10 bars)
-
-#### Weighted Momentum Sum
-```
-M(t) = Σ(j=1 to k) w_j * sign(D̄_j) * E_j
+```yaml
+Wavelet Type: Daubechies 6
+Decomposition Levels: 4
+Window Length: 512
+Threshold Method: BayesShrink
+Shrinkage Type: Soft
+Use Denoised: Yes
+Detail Confirmation: 2
+Momentum Threshold: 2.0
+Min Slope Threshold: 0.07%
+Stop Multiplier: 2.5
+Target Multiplier: 3.0
+Min Stop: 10 points
+Max Stop: 40 points
 ```
 
-Where:
-- `w_j = 1/(1 + 0.5*(j-1))` = Level weight (decreasing with scale)
-- `D̄_j` = Average of detail coefficients in window
-- `k` = Number of detail levels to use (parameter)
+### Forex (EUR/USD) - 5 Minute
 
-#### Smoothed Momentum
-Exponential smoothing is applied to reduce noise:
-```
-M_smooth(t) = α * M(t) + (1-α) * M_smooth(t-1)
-```
-Where α = 0.2 (smoothing factor)
-
-### 3. Wavelet Thresholding for Denoising
-
-Three thresholding methods are available:
-
-#### Universal Threshold
-```
-λ_universal = σ * sqrt(2 * log(N))
+```yaml
+Wavelet Type: Symlet 8
+Decomposition Levels: 5
+Window Length: 512
+Threshold Method: Universal
+Shrinkage Type: Soft
+Use Denoised: Yes
+Detail Confirmation: 2
+Momentum Threshold: 1.5
+Min Slope Threshold: 0.01%
+Stop Multiplier: 2.0
+Target Multiplier: 2.5
+Min Stop: 10 pips
+Max Stop: 30 pips
 ```
 
-#### BayesShrink
-```
-λ_bayes = σ² / σ_signal
-```
+### Stocks - 15 Minute
 
-#### SURE (Stein's Unbiased Risk Estimate)
-Minimizes the expected squared error between the true and estimated signal.
-
-#### Shrinkage Functions
-
-**Soft Thresholding:**
-```
-η_soft(x, λ) = sign(x) * max(|x| - λ, 0)
-```
-
-**Hard Thresholding:**
-```
-η_hard(x, λ) = x * I(|x| > λ)
+```yaml
+Wavelet Type: Coiflet 3
+Decomposition Levels: 5
+Window Length: 1024
+Threshold Method: SURE
+Shrinkage Type: Soft
+Use Denoised: Yes
+Detail Confirmation: 3
+Momentum Threshold: 3.0
+Min Slope Threshold: 0.02%
+Stop Multiplier: 1.5
+Target Multiplier: 2.0
+Min Stop: 0.20
+Max Stop: 1.00
 ```
 
-### 4. Wavelet-ATR (WATR) Calculation
+### Crypto (BTC/USD) - 1 Hour
 
-The Wavelet Average True Range uses RMS energy from detail coefficients:
-
+```yaml
+Wavelet Type: Symlet 10
+Decomposition Levels: 6
+Window Length: 1024
+Threshold Method: BayesShrink
+Shrinkage Type: Soft
+Use Denoised: Yes
+Detail Confirmation: 2
+Momentum Threshold: 5.0
+Min Slope Threshold: 0.10%
+Stop Multiplier: 3.0
+Target Multiplier: 2.5
+Min Stop: 100 points
+Max Stop: 500 points
 ```
-WATR(t) = Σ(j=1 to k) w_j * sqrt(1/N * Σ D_j[i]²)
-```
-
-With exponential smoothing:
-```
-WATR_smooth(t) = α * WATR(t) + (1-α) * WATR_smooth(t-1)
-```
-
----
-
-## Implementation Details
-
-### Architecture Components
-
-#### 1. VectorWaveSwtAdapter
-- Interfaces with VectorWave library for native SWT implementation
-- Handles forward/inverse transforms
-- Manages boundary conditions (periodic, symmetric, zero-padding)
-
-#### 2. Thresholds Module
-- Implements Universal, BayesShrink, and SURE thresholding
-- Provides soft and hard shrinkage functions
-- Per-level adaptive threshold calculation
-
-#### 3. WaveletAtr Component
-- Calculates multi-scale volatility estimates
-- Implements RMS energy computation
-- Provides smoothed WATR values for risk management
-
-#### 4. Signal Generation Engine
-- Combines trend slope and momentum for entry signals
-- Implements exit logic based on condition loss
-- Manages signal state transitions
-
-### Data Flow Pipeline
-
-```
-Price Data → Sliding Window Buffer → SWT Transform → Thresholding
-    ↓                                                      ↓
-Signal Generation ← Momentum Calculation ← Detail Analysis
-    ↓
-Trade Execution
-```
-
-### Memory Management
-
-#### Sliding Window Buffer
-Efficiently manages price data using a circular buffer:
-```java
-// Only fetch new bars on update
-if (shift > 0 && shift < windowLength) {
-    System.arraycopy(priceBuffer, shift, priceBuffer, 0, windowLength - shift);
-    // Fetch only new data points
-}
-```
-
-#### Streaming Optimization
-- Incremental updates for real-time processing
-- Reuses wavelet coefficients where possible
-- Minimal memory allocation during updates
-
----
-
-## Configuration Parameters
-
-### Wavelet Configuration
-
-| Parameter | Type | Default | Range | Description |
-|-----------|------|---------|-------|-------------|
-| `WAVELET_TYPE` | String | "db4" | db2-db20, sym2-sym20, coif1-coif5, haar | Wavelet family and order |
-| `LEVELS` | Integer | 5 | 2-8 | Decomposition depth |
-| `WINDOW_LENGTH` | Integer | 512 | 256-4096 | Analysis window size (must be power of 2 for efficiency) |
-
-### Thresholding Parameters
-
-| Parameter | Type | Default | Options | Description |
-|-----------|------|---------|---------|-------------|
-| `THRESHOLD_METHOD` | String | "Universal" | Universal, Bayes, SURE | Threshold calculation method |
-| `SHRINKAGE_TYPE` | String | "Soft" | Soft, Hard | Shrinkage function type |
-| `USE_DENOISED` | Boolean | false | true/false | Use denoised signal vs approximation only |
-
-### Signal Configuration
-
-| Parameter | Type | Default | Range | Description |
-|-----------|------|---------|-------|-------------|
-| `DETAIL_CONFIRM_K` | Integer | 2 | 1-3 | Number of detail levels for momentum |
-| `MOMENTUM_TYPE` | String | "SUM" | SUM, SIGN | Momentum calculation method |
-| `MOMENTUM_THRESHOLD` | Double | 0.1 | 0.0-1.0 | Minimum momentum for signal generation |
-| `ENABLE_SIGNALS` | Boolean | true | true/false | Enable trading signal generation |
-
-### Risk Management (WATR)
-
-| Parameter | Type | Default | Range | Description |
-|-----------|------|---------|-------|-------------|
-| `SHOW_WATR` | Boolean | false | true/false | Display WATR bands |
-| `WATR_K` | Integer | 2 | 1-3 | Detail levels for WATR calculation |
-| `WATR_MULTIPLIER` | Double | 2.0 | 1.0-5.0 | Band distance multiplier |
-
-### Strategy-Specific (Trading)
-
-| Parameter | Type | Default | Range | Description |
-|-----------|------|---------|-------|-------------|
-| `POSITION_SIZE` | Integer | 100 | 1-10000 | Base position size |
-| `MAX_RISK_PER_TRADE` | Double | 500.0 | 50-5000 | Maximum dollar risk per trade |
-| `USE_WATR_STOPS` | Boolean | true | true/false | Use WATR-based stop losses |
-| `STOP_MULTIPLIER` | Double | 2.0 | 1.0-5.0 | Stop loss distance multiplier |
-| `TARGET_MULTIPLIER` | Double | 3.0 | 1.5-10.0 | Profit target multiplier |
-| `ENABLE_BRACKET_ORDERS` | Boolean | true | true/false | Use bracket orders |
-
----
 
 ## Signal Generation Logic
 
 ### Entry Conditions
 
-#### Long Entry
-All conditions must be met:
-1. **Trend Slope**: `slope(A_J) > minSlope`
-2. **Momentum Confirmation**: `M_smooth > momentumThreshold`
-3. **No Existing Position**: `!hasPosition`
-
-```
-LONG_SIGNAL = (slope > 0.0001 * trend) AND (momentum > 0.1)
+**Long Entry**:
+```java
+slope > (currentTrend × minSlopeThreshold) AND
+momentum > momentumThreshold AND
+NOT currently in position
 ```
 
-#### Short Entry
-All conditions must be met:
-1. **Trend Slope**: `slope(A_J) < -minSlope`
-2. **Momentum Confirmation**: `M_smooth < -momentumThreshold`
-3. **No Existing Position**: `!hasPosition`
-
-```
-SHORT_SIGNAL = (slope < -0.0001 * trend) AND (momentum < -0.1)
+**Short Entry**:
+```java
+slope < -(currentTrend × minSlopeThreshold) AND
+momentum < -momentumThreshold AND
+NOT currently in position
 ```
 
 ### Exit Conditions
 
-#### Exit Triggers
-Exit occurs when ANY condition is met:
-1. **Slope Loss**: Trend slope changes sign
-2. **Momentum Flip**: Momentum crosses zero
-3. **Stop Loss**: Price hits WATR-based stop
-4. **Profit Target**: Price reaches target (optional)
+**Exit Signal Generated When**:
+1. Slope reverses (loses minimum threshold)
+2. Momentum crosses zero
+3. Opposite entry signal appears
 
-### Signal State Machine
+### Position Sizing Formula
 
-```
-        ┌─────────┐
-        │  FLAT   │
-        └────┬────┘
-             │
-    ┌────────┴────────┐
-    │                 │
-    v                 v
-┌────────┐       ┌────────┐
-│  LONG  │←─────→│ SHORT  │
-└────────┘       └────────┘
-    │                 │
-    └────────┬────────┘
-             │
-             v
-        ┌─────────┐
-        │  EXIT   │
-        └─────────┘
+```java
+// Auto-detect point value from instrument
+pointValue = instrument.getPointValue()
+// ES = $50, NQ = $20, CL = $1000, etc.
+
+// Calculate risk in points
+riskInPoints = min(max(WATR × stopMultiplier, minStop), maxStop)
+
+// Calculate position size factor
+positionSizeFactor = maxRisk / (riskInPoints × pointValue)
+
+// Apply Trade Lots multiplier
+finalQuantity = positionSizeFactor × tradeLots
 ```
 
-### Reversal Handling
-When switching from long to short (or vice versa):
-1. Generate EXIT signal first
-2. Then generate new ENTRY signal
-3. Ensures balanced marker display
+## Risk Management
 
----
+### WATR (Wavelet ATR) Calculation
 
-## Performance Optimizations
-
-### 1. Parallel Processing
-- Automatic parallelization for data ≥ 512 points
-- Uses Java parallel streams for coefficient calculations
-- Thread pool sized to CPU cores
-
-### 2. Sliding Window Updates
-- Incremental buffer updates (O(1) for new bars)
-- Reuses previous calculations where possible
-- Minimal memory allocation
-
-### 3. Caching Strategy
-- Wavelet filter coefficients cached
-- Transform results buffered
-- Momentum values smoothed incrementally
-
-### 4. Memory Efficiency
-- Fixed-size circular buffers
-- In-place coefficient updates
-- Lazy evaluation of optional features
-
-### Computational Complexity
-
-| Operation | Complexity | Notes |
-|-----------|------------|-------|
-| SWT Forward | O(N*J) | N=data length, J=levels |
-| Thresholding | O(N*J) | Per-level operation |
-| Momentum Calc | O(W*k) | W=window, k=detail levels |
-| Signal Gen | O(1) | Simple threshold checks |
-| WATR Calc | O(N*k) | Can be optimized to O(k) |
-
----
-
-## Usage Guide
-
-### Installation
-
-1. **Build the project:**
-```bash
-mvn clean package
+WATR uses RMS energy from detail coefficients:
+```java
+WATR = sqrt(Σ(detail[i]² × weight[i]) / n) × scalingFactor
 ```
 
-2. **Install in MotiveWave:**
-   - Copy JAR to MotiveWave extensions folder
-   - Restart MotiveWave
-   - Find under "MorphIQ | Wavelet Analysis" menu
+Level weights:
+- Level 1: 100% (weight = 1.0)
+- Level 2: 67% (weight = 0.67)
+- Level 3: 50% (weight = 0.50)
 
-### Recommended Settings by Timeframe
+### Stop Loss Placement
 
-#### 1-Minute Charts (Scalping)
-**Best for**: ES, NQ, High-volume futures
+**Dynamic (WATR-based)**:
+- Long: Entry - (WATR × stopMultiplier)
+- Short: Entry + (WATR × stopMultiplier)
+
+**Constraints**:
+- Minimum: minStopPoints
+- Maximum: maxStopPoints
+
+### Target Placement
+
+```java
+targetDistance = stopDistance × targetMultiplier
+Long Target = Entry + targetDistance
+Short Target = Entry - targetDistance
 ```
-Wavelet Type: db4 (fast response, moderate smoothing)
-Levels: 4 (captures micro-movements)
-Window Length: 256 bars (~4 hours of data)
-Threshold Method: Universal (robust to market noise)
-Shrinkage Type: Hard (preserves sharp moves)
-Detail Confirm (k): 1 (fastest momentum response)
-Momentum Type: SUM
-Momentum Threshold: 0.005-0.01
-WATR Multiplier: 1.5 (tighter stops)
-```
-**Notes**: Expect more signals, requires active management, best during high-volume sessions
-
-#### 5-Minute Charts (Intraday)
-**Best for**: ES, NQ, Major forex pairs
-```
-Wavelet Type: db6 (balanced smoothing)
-Levels: 5
-Window Length: 512 bars (~2 trading days)
-Threshold Method: Universal
-Shrinkage Type: Soft
-Detail Confirm (k): 2
-Momentum Type: SUM
-Momentum Threshold: 0.01-0.02
-WATR Multiplier: 2.0
-```
-**Notes**: Good balance of signals and reliability, suitable for day trading
-
-#### 15-Minute Charts (Intraday Swing)
-**Best for**: Indices, forex, commodities
-```
-Wavelet Type: db8 or sym8 (smoother trends)
-Levels: 5
-Window Length: 512 bars (~5 days)
-Threshold Method: BayesShrink (adaptive)
-Shrinkage Type: Soft
-Detail Confirm (k): 2
-Momentum Type: SUM
-Momentum Threshold: 0.02-0.03
-WATR Multiplier: 2.5
-```
-**Notes**: Fewer but higher quality signals, good for part-time traders
-
-#### 30-Minute Charts (Day/Swing Trading)
-**Best for**: Stocks, ETFs, commodities
-```
-Wavelet Type: sym8 (symmetric, less lag)
-Levels: 6
-Window Length: 1024 bars (~10 days)
-Threshold Method: BayesShrink
-Shrinkage Type: Soft
-Detail Confirm (k): 2
-Momentum Type: SUM
-Momentum Threshold: 0.03-0.05
-WATR Multiplier: 2.5-3.0
-```
-**Notes**: Captures larger intraday moves, fewer false signals
-
-#### 1-Hour Charts (Swing Trading)
-**Best for**: Forex majors, index futures, crypto
-```
-Wavelet Type: sym10 or coif3
-Levels: 6
-Window Length: 1024 bars (~6 weeks)
-Threshold Method: SURE (optimal)
-Shrinkage Type: Soft
-Detail Confirm (k): 3
-Momentum Type: SUM
-Momentum Threshold: 0.05-0.08
-WATR Multiplier: 3.0
-```
-**Notes**: Excellent for multi-day positions, very reliable signals
-
-#### 4-Hour Charts (Position Trading)
-**Best for**: Forex, crypto, commodities
-```
-Wavelet Type: coif5 (maximum smoothing)
-Levels: 7
-Window Length: 2048 bars (~3 months)
-Threshold Method: SURE
-Shrinkage Type: Soft
-Detail Confirm (k): 3
-Momentum Type: SIGN (discrete signals)
-Momentum Threshold: 0.08-0.10
-WATR Multiplier: 3.5
-```
-**Notes**: Few but very high probability signals, suitable for longer-term trends
-
-#### Daily Charts (Long-term)
-**Best for**: Stocks, ETFs, macro trades
-```
-Wavelet Type: coif5 or db12
-Levels: 8
-Window Length: 2048 bars (~8 years)
-Threshold Method: SURE
-Shrinkage Type: Soft
-Detail Confirm (k): 3
-Momentum Type: SIGN
-Momentum Threshold: 0.10-0.15
-WATR Multiplier: 4.0
-```
-**Notes**: Strategic positions, major trend changes only
-
-### Market-Specific Adjustments
-
-#### ES (E-mini S&P 500)
-- **RTH (Regular Trading Hours)**: Use tighter thresholds (0.005-0.01)
-- **Overnight**: Increase threshold by 50% to filter noise
-- **FOMC Days**: Disable signals 30 min before/after
-- **Optimal Timeframes**: 1-min for scalping, 5-min for day trading
-
-#### NQ (E-mini Nasdaq)
-- **Higher Volatility**: Increase WATR multiplier by 0.5
-- **Tech Earnings Season**: Use BayesShrink for adaptability
-- **Optimal Timeframes**: 5-min, 15-min (more volatile than ES)
-
-#### Forex Majors (EUR/USD, GBP/USD)
-- **London Open**: Reduce momentum threshold by 30%
-- **NY-London Overlap**: Best signal quality
-- **Asian Session**: Increase thresholds by 50%
-- **Optimal Timeframes**: 15-min, 1-hour
-
-#### Crypto (BTC, ETH)
-- **24/7 Market**: Use longer windows (2x recommended)
-- **Weekend Trading**: Increase thresholds by 30%
-- **High Volatility**: Use SIGN momentum type for cleaner signals
-- **Optimal Timeframes**: 30-min, 1-hour, 4-hour
-
-### Performance Optimization by Timeframe
-
-| Timeframe | Data Points | CPU Usage | Update Frequency | Memory |
-|-----------|-------------|-----------|------------------|---------|
-| 1-min | 256-512 | High | Every tick | ~10MB |
-| 5-min | 512 | Medium | Every 5 sec | ~10MB |
-| 15-min | 512-1024 | Low | Every 15 sec | ~15MB |
-| 1-hour | 1024-2048 | Very Low | Every minute | ~20MB |
-| Daily | 2048-4096 | Minimal | Every hour | ~30MB |
-
-### Signal Quality Metrics
-
-| Timeframe | Signals/Day | Win Rate* | Avg R:R | Best Market Conditions |
-|-----------|-------------|-----------|---------|------------------------|
-| 1-min | 20-50 | 45-55% | 1.2:1 | High volume, trending |
-| 5-min | 10-20 | 50-60% | 1.5:1 | Active sessions |
-| 15-min | 5-10 | 55-65% | 1.8:1 | Clear trends |
-| 30-min | 3-5 | 60-65% | 2:1 | Sustained moves |
-| 1-hour | 1-3 | 65-70% | 2.5:1 | Strong trends |
-| 4-hour | 0.5-1 | 70-75% | 3:1 | Major trends |
-
-*Approximate ranges based on trending market conditions
-
-### Quick Setup Guide
-
-#### For Beginners
-Start with **15-minute charts** with these settings:
-- Wavelet: db6
-- Levels: 5
-- Window: 512
-- All other settings: defaults
-
-#### For Active Traders
-Use **5-minute charts** with:
-- Wavelet: db4
-- Levels: 4
-- Window: 512
-- Momentum Threshold: 0.01
-- Enable bracket orders
-
-#### For Investors
-Use **Daily or 4-hour charts** with:
-- Wavelet: coif5
-- Levels: 7-8
-- Window: 2048
-- Momentum Type: SIGN
-- Higher momentum thresholds
-
-### Signal Interpretation
-
-#### Strong Buy Signal
-- Blue trend line sloping up strongly
-- Green momentum above threshold
-- Multiple detail levels aligned
-- WATR bands expanding (volatility increasing)
-
-#### Strong Sell Signal
-- Blue trend line sloping down strongly
-- Red momentum below negative threshold
-- Multiple detail levels aligned
-- WATR bands expanding
-
-#### No Trade Zone
-- Flat trend (minimal slope)
-- Momentum oscillating around zero
-- Mixed detail coefficient signs
-- WATR bands contracting
-
----
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Issue: Momentum Oscillator Too Quiet/Flat
 
-#### 1. Too Many False Signals
+**Symptoms**: Flat line or barely visible momentum
+**Solutions**:
+1. Check Momentum Threshold - should be 1.0 or higher (not 0.01)
+2. Increase Detail Confirmation (k) to 2 or 3
+3. Check if thresholding is too aggressive (try Hard instead of Soft)
+4. Switch Threshold Method to SURE for less aggressive filtering
+5. Verify Window Length is appropriate for timeframe
 
-**Symptoms:** Excessive entry/exit markers, choppy trades
+### Issue: Too Many False Signals
 
-**Solutions:**
-- Increase `MOMENTUM_THRESHOLD` (try 0.15-0.2)
-- Increase `DETAIL_CONFIRM_K` to 3
-- Use longer `WINDOW_LENGTH` (1024+)
-- Switch to "SIGN" momentum type
-- Enable `USE_DENOISED` for smoother signals
+**Symptoms**: Excessive whipsaws, poor win rate
+**Solutions**:
+1. Increase Min Slope Threshold to 0.08-0.10%
+2. Increase Momentum Threshold to 2.0-3.0
+3. Use Soft thresholding instead of Hard
+4. Increase Window Length to 512 or 1024
+5. Enable Use Denoised Signal
 
-#### 2. Missing Obvious Trends
+### Issue: Missing Good Trends
 
-**Symptoms:** No signals during clear trends
+**Symptoms**: Strategy misses obvious trends
+**Solutions**:
+1. Decrease Min Slope Threshold to 0.02-0.03%
+2. Decrease Momentum Threshold to 0.5-1.0
+3. Reduce Decomposition Levels to 3
+4. Use Hard thresholding instead of Soft
+5. Check Detail Confirmation (k) - try 1 for faster response
 
-**Solutions:**
-- Decrease `MOMENTUM_THRESHOLD` (try 0.05)
-- Reduce `LEVELS` to 3-4
-- Use shorter `WINDOW_LENGTH` (256)
-- Check if thresholding is too aggressive
-- Switch to "SUM" momentum type
+### Issue: Stops Too Tight/Wide
 
-#### 3. Markers Disappearing
+**Symptoms**: Premature exits or excessive losses
+**Solutions**:
+1. Adjust Stop Multiplier (1.5-3.0 typical)
+2. Modify Min/Max Stop constraints
+3. Check WATR Scale Factor (default 100)
+4. Consider different WATR Scale Method
 
-**Symptoms:** Signal markers vanish on new bars
+### Issue: JavaFX UI Exceptions
 
-**Solutions:**
-- Ensure latest version is installed
-- Check `ENABLE_SIGNALS` is true
-- Verify marker settings in Display tab
-- Restart MotiveWave after changes
+**Symptoms**: NullPointerExceptions in console
+**Solution**: Fixed in latest version - markers are now properly managed
 
-#### 4. Momentum Plot Cut Off
+### Issue: Trade Lots Not Respected
 
-**Symptoms:** Bottom pane plot truncated
+**Symptoms**: Position size doesn't match Trade Lots setting
+**Solution**: Fixed in latest version - now properly multiplies by Trade Lots
 
-**Solutions:**
-- Auto-scaling enabled for "SUM" mode
-- Manual range adjustment for "SIGN" mode
-- Adjust pane height in chart settings
+## Performance Optimization
 
-#### 5. Poor Performance/Lag
+### CPU Usage Optimization
 
-**Symptoms:** Slow updates, delayed signals
+1. **Reduce Window Length**: 
+   - 256 bars: Fast updates, good for scalping
+   - 512 bars: Balanced
+   - 1024+ bars: Slower but more stable
 
-**Solutions:**
-- Reduce `WINDOW_LENGTH` to 256 or 512
-- Decrease `LEVELS` to 3-4
-- Disable `SHOW_WATR` if not needed
-- Close other indicators
-- Increase JVM heap size in MotiveWave
+2. **Optimize Decomposition Levels**:
+   - 3-4 levels: Fast, good for intraday
+   - 5-6 levels: Balanced
+   - 7-8 levels: Slow, position trading only
 
-### Debug Mode
+3. **Disable Unused Features**:
+   - Turn off WATR bands if not needed
+   - Disable markers you don't use
 
-Enable debug logging in `LoggerConfig`:
-```java
-logger.setLevel(Level.DEBUG);
+### Memory Usage
+
+- **256 bars, 4 levels**: ~10MB
+- **512 bars, 5 levels**: ~15MB
+- **1024 bars, 6 levels**: ~25MB
+- **2048 bars, 7 levels**: ~40MB
+
+### Calculation Speed
+
+- **Fast (< 10ms)**: 256 bars, 3-4 levels
+- **Medium (10-25ms)**: 512 bars, 5 levels
+- **Slow (25-50ms)**: 1024 bars, 6-7 levels
+
+### Threading
+
+The strategy is fully thread-safe with:
+- Synchronized buffer operations
+- Volatile momentum state
+- Thread-safe WATR calculations
+- Atomic marker management
+
+## Best Practices
+
+### 1. Start Conservative
+- Begin with default settings
+- Use paper trading for at least 100 trades
+- Gradually adjust one parameter at a time
+
+### 2. Match Settings to Timeframe
+
+| Timeframe | Window | Levels | Momentum Threshold |
+|-----------|--------|--------|--------------------|
+| 1-min | 256 | 3-4 | 0.5-1.0 |
+| 5-min | 512 | 4-5 | 1.0-2.0 |
+| 15-min | 512 | 5 | 2.0-3.0 |
+| 1-hour | 1024 | 5-6 | 3.0-5.0 |
+| 4-hour | 2048 | 6-7 | 5.0-10.0 |
+| Daily | 2048 | 7-8 | 10.0-20.0 |
+
+### 3. Validate with Metrics
+- **Win Rate**: Target 45-55%
+- **Risk/Reward**: Minimum 1:1.5
+- **Profit Factor**: Above 1.3
+- **Max Drawdown**: Under 20%
+- **Sharpe Ratio**: Above 0.8
+
+### 4. Market Session Adjustments
+
+**Asian Session**: Increase thresholds by 50%
+**London Open**: Reduce thresholds by 20%
+**US Open**: Normal settings
+**US Close**: Increase thresholds by 30%
+
+### 5. Volatility Adjustments
+
+Monitor VIX and adjust:
+- **VIX < 15**: Reduce all thresholds by 20%
+- **VIX 15-25**: Use normal settings
+- **VIX 25-35**: Increase thresholds by 30%
+- **VIX > 35**: Increase thresholds by 50%
+
+### 6. Position Sizing Rules
+- Never risk more than 2% per trade
+- Reduce size by 50% after 3 consecutive losses
+- Increase size by 25% after 5 consecutive wins
+- Always respect the Trade Lots setting
+
+## Advanced Features
+
+### Custom Wavelet Selection by Market
+
+**Futures (ES, NQ, CL)**:
+- Intraday: db4 or db6
+- Swing: sym8 or sym10
+- Position: coif3 or coif5
+
+**Forex Majors**:
+- Scalping: haar or db2
+- Day Trading: db4 or sym6
+- Swing: sym8 or db10
+
+**Stocks/ETFs**:
+- Day Trading: db6
+- Swing: sym8
+- Investment: coif5
+
+**Crypto**:
+- Scalping: haar
+- Day Trading: db4
+- Swing: sym8
+- HODL: coif5
+
+### Multi-Timeframe Confirmation
+
+Run on multiple timeframes:
+1. **Primary**: Entry signals
+2. **Higher**: Trend confirmation
+3. **Lower**: Fine-tune entries
+
+Example for ES:
+- 15-min: Primary signals
+- 1-hour: Trend direction
+- 5-min: Entry timing
+
+### Momentum Calculation Methods
+
+**SUM Mode** (Default):
+- Uses weighted average of coefficients
+- Preserves magnitude information
+- Better for trending markets
+- Values typically 0-10 after scaling
+
+**SIGN Mode**:
+- Counts positive/negative coefficients
+- Discrete signals (-k to +k)
+- Better for ranging markets
+- Cleaner but less nuanced
+
+## Technical Implementation Details
+
+### Sliding Window Buffer
+- Efficient O(1) updates for new bars
+- Circular buffer implementation
+- Minimal memory allocation
+- Thread-safe with synchronized blocks
+
+### Momentum Smoothing
+- EMA smoothing with α = 0.5
+- Window size = 10 bars
+- 100x scaling for visibility
+- Volatile state for thread safety
+
+### Signal State Machine
+```
+FLAT → LONG_ENTER → LONG → FLAT_EXIT → FLAT
+FLAT → SHORT_ENTER → SHORT → FLAT_EXIT → FLAT
 ```
 
-Check logs at:
-- Windows: `%USERPROFILE%\.motivewave\logs\`
-- Mac: `~/MotiveWave/logs/`
-- Linux: `~/.motivewave/logs/`
+### Recent Updates (August 2024)
+
+1. **Trade Lots Integration**: Properly multiplies position by Trade Lots
+2. **Momentum Scaling**: 100x scaling for better visibility
+3. **Thread Safety**: Enhanced synchronization
+4. **Point Value**: Auto-detection from instrument
+5. **JavaFX Fixes**: Resolved UI exceptions
+6. **Logging**: Comprehensive position sizing logs
+7. **Maven Shade**: Fixed overlapping class warnings
+
+## Version Information
+
+**Current Version**: 1.0.0-SNAPSHOT
+**Last Updated**: August 13, 2024
+**Java Version**: 21+
+**MotiveWave SDK**: 20230627
+**VectorWave**: 1.0-SNAPSHOT
+
+## Support Resources
+
+- **GitHub Issues**: Report bugs and request features
+- **CLAUDE.md**: Development guide for AI assistants
+- **API Reference**: Detailed class documentation
+- **Test Suite**: Comprehensive unit and integration tests
+
+## Legal Disclaimer
+
+Trading financial instruments involves substantial risk of loss and is not suitable for all investors. Past performance does not guarantee future results. This strategy is provided for educational purposes only. Always test thoroughly in a demo environment before live trading.
 
 ---
 
-## Technical References
-
-### Academic Papers
-
-1. **Stationary Wavelet Transform**
-   - Nason, G.P., & Silverman, B.W. (1995). "The stationary wavelet transform and some statistical applications"
-
-2. **Wavelet Thresholding**
-   - Donoho, D.L., & Johnstone, I.M. (1994). "Ideal spatial adaptation by wavelet shrinkage"
-
-3. **Financial Applications**
-   - Gençay, R., Selçuk, F., & Whitcher, B. (2001). "An Introduction to Wavelets and Other Filtering Methods in Finance and Economics"
-
-4. **MODWT Properties**
-   - Percival, D.B., & Walden, A.T. (2000). "Wavelet Methods for Time Series Analysis"
-
-### Implementation References
-
-1. **VectorWave Library**
-   - Native SIMD-optimized wavelet transforms
-   - Support for multiple boundary conditions
-   - Efficient memory management
-
-2. **MotiveWave SDK**
-   - Study development guide
-   - Strategy implementation patterns
-   - Market data access APIs
-
-### Wavelet Selection Guide
-
-| Wavelet | Properties | Best For |
-|---------|------------|----------|
-| **Haar** | Simplest, discontinuous | Sharp price changes, breakouts |
-| **db4** | 4 vanishing moments, smooth | General purpose, balanced |
-| **db6** | 6 vanishing moments, smoother | Trending markets |
-| **sym8** | Symmetric, 8 vanishing moments | Smoother trends, less lag |
-| **coif3** | Near-symmetric, compact | Scalping, fast signals |
-
-### Mathematical Notation
-
-| Symbol | Description |
-|--------|-------------|
-| `A_J` | Approximation coefficients at level J |
-| `D_j` | Detail coefficients at level j |
-| `W` | Momentum window size |
-| `λ` | Threshold value |
-| `σ` | Noise standard deviation |
-| `η` | Shrinkage function |
-| `α` | Smoothing factor |
-| `w_j` | Weight for level j |
-
----
-
-## Performance Metrics
-
-### Backtesting Results (Typical)
-
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Win Rate | 55-65% | Market dependent |
-| Profit Factor | 1.4-2.2 | With proper stops |
-| Sharpe Ratio | 0.8-1.5 | Risk-adjusted return |
-| Max Drawdown | 10-15% | With position sizing |
-| Avg Win/Loss | 1.5-2.0 | Risk-reward ratio |
-
-### Computational Performance
-
-| Operation | Time (ms) | Data Points |
-|-----------|-----------|-------------|
-| SWT Transform | 5-10 | 512 |
-| Momentum Calc | 1-2 | 10 levels |
-| Signal Check | <1 | Per bar |
-| Full Update | 10-20 | Complete cycle |
-
----
-
-## Version History
-
-### v1.0.0 (Current)
-- Initial release with SWT/MODWT implementation
-- Multi-scale momentum confirmation
-- Wavelet-ATR risk management
-- Three thresholding methods
-- Sliding window optimization
-
-### Planned Features (v2.0)
-- Machine learning coefficient optimization
-- Multi-timeframe analysis
-- Market regime adaptation
-- Custom wavelet design for ES/NQ
-- Portfolio-level risk management
-
----
-
-## Support and Contact
-
-For issues, questions, or contributions:
-- GitHub Issues: [morphiq-suite-motivewave/issues](https://github.com/prophetizo/morphiq-suite-motivewave)
-- Documentation: [This file]
-- MotiveWave Forum: [MorphIQ Wavelet Indicators]
-
----
-
-## License and Disclaimer
-
-This strategy is provided for educational and research purposes. Trading involves substantial risk of loss and is not suitable for all investors. Past performance does not guarantee future results. Always test thoroughly in a demo environment before live trading.
-
-Copyright © 2024 Prophetizo. All rights reserved.
+*Copyright © 2024 Prophetizo, LLC. All rights reserved.*

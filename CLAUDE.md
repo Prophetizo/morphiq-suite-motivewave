@@ -6,6 +6,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced wavelet-based trading indicators for the MotiveWave platform. The project uses Java 21 and leverages parallel processing for high-performance signal analysis.
 
+## Recent Updates (August 2024)
+
+### Trade Lots Integration
+- Fixed Trade Lots multiplication in `SwtTrendMomentumStrategy`
+- Final position = Position Size Factor × Trade Lots
+- Comprehensive logging of position calculations
+
+### Momentum Oscillator Enhancement
+- Added 100x scaling factor for better visibility
+- Updated default threshold from 0.01 to 1.0
+- Increased EMA smoothing alpha to 0.5
+- Expanded momentum window to 10 bars
+
+### Thread Safety Improvements
+- All buffer operations synchronized with `bufferLock`
+- Momentum state declared `volatile`
+- WATR calculations use `stateLock` synchronization
+
+### Bug Fixes
+- Resolved JavaFX NullPointerExceptions
+- Fixed Maven Shade overlapping class warnings
+- Removed Point Value Override (now auto-detected)
+- Fixed order fill validation
+
 ## Build Commands
 
 ```bash
@@ -105,4 +129,30 @@ The `CUSTOM_WAVELET_DESIGN.md` outlines advanced features including:
 ### Important Files
 - Parent POM: `/pom.xml` - manages all dependencies and plugin versions
 - Core utilities: `/morphiq-core/src/main/java/com/prophetizo/wavelets/`
-- Study implementations: `/morphiq-*/src/main/java/com/prophetizo/studies/`
+- SWT Strategy: `/morphiq-denoise/src/main/java/com/prophetizo/wavelets/swt/`
+- Documentation: `/docs/SWT_TREND_MOMENTUM_DOCUMENTATION.md`
+
+## Important Considerations
+
+### When Working with Settings
+- **Momentum Threshold**: Now scaled by 100x (use 1.0 instead of 0.01)
+- **Min Slope Threshold**: Expressed as percentage (0.05 = 0.05%)
+- **Trade Lots**: Properly multiplies position size
+- **Point Value**: Auto-detected from instrument (ES=$50, NQ=$20)
+
+### Thread Safety Requirements
+- Always synchronize buffer operations with `bufferLock`
+- Mark momentum-related fields as `volatile`
+- Use separate lock objects for different state groups
+- Never call `clearFigures()` outside `onSettingsUpdated()`
+
+### Maven Build Configuration
+- Use `shadedArtifactAttached=true` to avoid JAR conflicts
+- Classifier `motivewave` creates separate shaded JAR
+- Dependencies included: morphiq-core, vector-wave, slf4j
+
+### Testing Best Practices
+- Use instance-specific Random with fixed seeds
+- Test thread safety with parallel execution
+- Verify Trade Lots multiplication
+- Check momentum scaling (100x factor)
