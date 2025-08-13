@@ -8,126 +8,165 @@ import org.junit.jupiter.params.provider.CsvSource;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for slope threshold calculation to ensure correct percentage conversion.
- * Verifies the fix for slope threshold being too small (0.00001 instead of 0.0005).
+ * Tests for slope threshold calculation to ensure correct behavior.
+ * After the fix, slope threshold is now in absolute points, not percentage.
  */
 class SlopeThresholdTest {
     
-    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.05; // 0.05% as entered in UI
+    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.05; // 0.05 points (not percentage)
     
     @Test
-    @DisplayName("Default slope threshold should be 0.05%")
+    @DisplayName("Default slope threshold should be 0.05 points")
     void testDefaultSlopeThreshold() {
         assertEquals(0.05, DEFAULT_MIN_SLOPE_THRESHOLD, 0.0001);
         
-        // When converted to decimal for calculation
-        double decimalThreshold = DEFAULT_MIN_SLOPE_THRESHOLD / 100.0;
-        assertEquals(0.0005, decimalThreshold, 0.000001);
+        // No conversion needed - it's already in points
+        double minSlope = DEFAULT_MIN_SLOPE_THRESHOLD;
+        assertEquals(0.05, minSlope, 0.0001);
     }
     
     @ParameterizedTest
-    @DisplayName("Slope threshold conversion from percentage to decimal")
+    @DisplayName("Slope threshold values in absolute points")
     @CsvSource({
-        "0.01, 0.0001",   // 0.01% -> 0.0001
-        "0.05, 0.0005",   // 0.05% -> 0.0005 (default)
-        "0.10, 0.0010",   // 0.10% -> 0.001
-        "0.50, 0.0050",   // 0.50% -> 0.005
-        "1.00, 0.0100",   // 1.00% -> 0.01
+        "0.00, true",    // 0.00 points -> filter disabled
+        "0.01, false",   // 0.01 points -> very sensitive
+        "0.05, false",   // 0.05 points -> default
+        "0.10, false",   // 0.10 points -> moderate filtering
+        "0.50, false",   // 0.50 points -> aggressive filtering
+        "1.00, false",   // 1.00 points -> very aggressive
     })
-    void testSlopeThresholdConversion(double percentageValue, double expectedDecimal) {
-        // User enters percentage value in UI
-        double uiValue = percentageValue;
+    void testSlopeThresholdValues(double thresholdPoints, boolean isDisabled) {
+        // Threshold is now directly in points
+        double minSlope = thresholdPoints;
         
-        // Convert to decimal for calculation
-        double decimalValue = uiValue / 100.0;
-        
-        assertEquals(expectedDecimal, decimalValue, 0.000001,
-            String.format("%.2f%% should convert to %.6f", percentageValue, expectedDecimal));
+        if (isDisabled) {
+            assertEquals(0.0, minSlope, 0.0001, "Zero threshold disables filtering");
+        } else {
+            assertTrue(minSlope > 0, "Non-zero threshold enables filtering");
+        }
     }
     
     @Test
-    @DisplayName("Slope threshold applied to trend value")
+    @DisplayName("Slope threshold applied directly (no multiplication)")
     void testSlopeThresholdApplication() {
         // Example: ES at 6400
         double trendValue = 6400.0;
-        double slopeThresholdPercent = DEFAULT_MIN_SLOPE_THRESHOLD / 100.0; // 0.05% -> 0.0005
+        double previousTrend = 6399.5;
+        double currentTrend = 6400.0;
+        double slope = currentTrend - previousTrend; // 0.5 points
         
-        // Calculate minimum slope required
-        double minSlope = Math.abs(trendValue) * slopeThresholdPercent;
+        // New behavior: threshold is in absolute points
+        double minSlope = DEFAULT_MIN_SLOPE_THRESHOLD; // 0.05 points
         
-        // Should require 3.2 points/bar movement
-        assertEquals(3.2, minSlope, 0.01,
-            "For trend=6400 and threshold=0.05%, min slope should be 3.2 points/bar");
+        // Should generate signal (0.5 > 0.05)
+        boolean shouldSignal = slope > minSlope;
+        assertTrue(shouldSignal, 
+            "Slope of 0.5 points should exceed threshold of 0.05 points");
     }
     
     @ParameterizedTest
-    @DisplayName("Minimum slope calculation for different trend values")
+    @DisplayName("Signal generation with different slopes and thresholds")
     @CsvSource({
-        "1000.0, 0.05, 0.5",    // Trend=1000, threshold=0.05% -> 0.5 points
-        "4500.0, 0.05, 2.25",   // Trend=4500, threshold=0.05% -> 2.25 points
-        "6400.0, 0.05, 3.2",    // Trend=6400, threshold=0.05% -> 3.2 points (ES example)
-        "16000.0, 0.05, 8.0",   // Trend=16000, threshold=0.05% -> 8.0 points (NQ example)
-        "100.0, 0.10, 0.1",     // Trend=100, threshold=0.10% -> 0.1 points
+        "0.02, 0.05, false",   // Slope=0.02, threshold=0.05 -> no signal
+        "0.10, 0.05, true",    // Slope=0.10, threshold=0.05 -> signal
+        "0.50, 0.10, true",    // Slope=0.50, threshold=0.10 -> signal
+        "0.03, 0.05, false",   // Slope=0.03, threshold=0.05 -> no signal
+        "1.00, 0.50, true",    // Slope=1.00, threshold=0.50 -> signal
+        "0.00, 0.00, false",   // Zero slope with disabled filter -> no signal (need momentum too)
     })
-    void testMinSlopeCalculation(double trendValue, double thresholdPercent, double expectedMinSlope) {
-        double slopeThresholdDecimal = thresholdPercent / 100.0;
-        double minSlope = Math.abs(trendValue) * slopeThresholdDecimal;
+    void testSignalGeneration(double actualSlope, double thresholdPoints, boolean expectedSignal) {
+        double minSlope = thresholdPoints;
         
-        assertEquals(expectedMinSlope, minSlope, 0.01,
-            String.format("Trend=%.1f with %.2f%% threshold should require %.2f points minimum slope",
-                trendValue, thresholdPercent, expectedMinSlope));
+        // Check if slope exceeds threshold
+        boolean meetsThreshold = actualSlope > minSlope;
+        
+        assertEquals(expectedSignal, meetsThreshold,
+            String.format("Slope=%.2f with threshold=%.2f should%s generate signal",
+                actualSlope, thresholdPoints, expectedSignal ? "" : " not"));
     }
     
     @Test
-    @DisplayName("Old incorrect threshold would be too restrictive")
-    void testOldThresholdProblem() {
-        double oldThreshold = 0.001; // Old value that was too small
+    @DisplayName("Typical ES bar-to-bar movements")
+    void testTypicalESMovements() {
+        // Typical ES bar-to-bar trend changes
+        double[] typicalSlopes = {0.25, 0.5, 0.75, 1.0, 1.5, 2.0};
+        
+        double threshold = DEFAULT_MIN_SLOPE_THRESHOLD; // 0.05 points
+        
+        for (double slope : typicalSlopes) {
+            boolean shouldSignal = slope > threshold;
+            assertTrue(shouldSignal, 
+                String.format("Typical ES slope of %.2f points should exceed %.2f threshold",
+                    slope, threshold));
+        }
+        
+        // Very small movements that should be filtered
+        double[] smallSlopes = {0.01, 0.02, 0.03, 0.04};
+        
+        for (double slope : smallSlopes) {
+            boolean shouldSignal = slope > threshold;
+            assertFalse(shouldSignal,
+                String.format("Small slope of %.2f points should not exceed %.2f threshold",
+                    slope, threshold));
+        }
+    }
+    
+    @Test
+    @DisplayName("Old percentage-based calculation vs new point-based")
+    void testOldVsNewCalculation() {
         double trendValue = 6400.0;
+        double actualSlope = 0.5; // Typical bar-to-bar change
         
-        // Old calculation (incorrect - too small)
-        double oldDecimal = oldThreshold / 100.0; // 0.00001
-        double oldMinSlope = trendValue * oldDecimal;
+        // Old calculation (percentage-based) - would have been too restrictive
+        double oldPercentage = 0.05 / 100.0; // Convert to decimal
+        double oldMinSlope = trendValue * oldPercentage; // 3.2 points
+        boolean oldWouldSignal = actualSlope > oldMinSlope;
         
-        // New calculation (correct)
-        double newDecimal = DEFAULT_MIN_SLOPE_THRESHOLD / 100.0; // 0.0005
-        double newMinSlope = trendValue * newDecimal;
+        // New calculation (point-based) - more reasonable
+        double newMinSlope = DEFAULT_MIN_SLOPE_THRESHOLD; // 0.05 points
+        boolean newWouldSignal = actualSlope > newMinSlope;
         
-        assertEquals(0.064, oldMinSlope, 0.001, "Old threshold was too restrictive");
-        assertEquals(3.2, newMinSlope, 0.01, "New threshold is more reasonable");
+        assertFalse(oldWouldSignal, "Old calculation would filter out normal movements");
+        assertTrue(newWouldSignal, "New calculation allows normal movements through");
         
-        // The new threshold is 50x larger (more reasonable)
-        assertTrue(newMinSlope / oldMinSlope > 40,
-            "New threshold should be significantly larger than the old one");
+        // The old threshold was way too high
+        assertTrue(oldMinSlope > newMinSlope * 50,
+            "Old threshold was over 50x more restrictive");
     }
     
     @Test
-    @DisplayName("Signal generation with slope threshold")
-    void testSignalGenerationLogic() {
-        double trendValue = 5000.0;
-        double actualSlope = 2.5; // Actual slope in points/bar
+    @DisplayName("Signal filtering logic with momentum")
+    void testSignalFilteringWithMomentum() {
+        // Signal requires both slope and momentum conditions
+        double slope = 0.10; // Points
+        double minSlope = DEFAULT_MIN_SLOPE_THRESHOLD; // 0.05 points
+        double momentum = 1.5;
+        double momentumThreshold = 1.0;
         
-        // Test with default threshold
-        double thresholdPercent = DEFAULT_MIN_SLOPE_THRESHOLD / 100.0;
-        double minSlope = Math.abs(trendValue) * thresholdPercent;
+        // Long signal: slope > minSlope AND momentum > threshold
+        boolean longFilter = slope > minSlope && momentum > momentumThreshold;
+        assertTrue(longFilter, "Should generate long signal");
         
-        assertEquals(2.5, minSlope, 0.01); // 5000 * 0.0005 = 2.5
+        // Short signal: slope < -minSlope AND momentum < -threshold
+        double negativeSlope = -0.10;
+        double negativeMomentum = -1.5;
+        boolean shortFilter = negativeSlope < -minSlope && negativeMomentum < -momentumThreshold;
+        assertTrue(shortFilter, "Should generate short signal");
         
-        // Should generate signal (actual slope equals minimum)
-        boolean shouldSignal = Math.abs(actualSlope) >= minSlope;
-        assertTrue(shouldSignal, "Signal should be generated when slope meets threshold");
+        // No signal when only one condition is met
+        boolean noSignal1 = slope > minSlope && momentum < momentumThreshold;
+        assertFalse(noSignal1, "No signal without momentum confirmation");
         
-        // Test with slope below threshold
-        double smallSlope = 1.0;
-        boolean noSignal = Math.abs(smallSlope) >= minSlope;
-        assertFalse(noSignal, "No signal when slope is below threshold");
+        boolean noSignal2 = slope < minSlope && momentum > momentumThreshold;
+        assertFalse(noSignal2, "No signal without sufficient slope");
     }
     
     @Test
-    @DisplayName("UI descriptor range validation")
+    @DisplayName("UI descriptor range validation for points")
     void testUIDescriptorRange() {
-        // New range: 0.0 to 1.0% with 0.01 step
+        // New range: 0.0 to 5.0 points with 0.01 step
         double minValue = 0.0;
-        double maxValue = 1.0;
+        double maxValue = 5.0;
         double step = 0.01;
         
         // Verify default is within range
@@ -138,8 +177,7 @@ class SlopeThresholdTest {
         double stepsFromMin = (DEFAULT_MIN_SLOPE_THRESHOLD - minValue) / step;
         assertEquals(5.0, stepsFromMin, 0.01, "Default should be 5 steps from minimum");
         
-        // Old max was 0.1%, new max is 1.0% (10x larger range)
-        double oldMax = 0.1;
-        assertTrue(maxValue > oldMax, "New max should provide more flexibility");
+        // Range should cover typical to aggressive filtering
+        assertTrue(maxValue >= 1.0, "Max should allow aggressive filtering");
     }
 }

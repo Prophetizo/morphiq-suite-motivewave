@@ -300,8 +300,8 @@ public class SwtTrendMomentumStudy extends Study {
                         new NVP("SIGN", "Sign Count (±1 per level)")
                 )));
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
-        signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (%)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 1.0, 0.01));
-        // Note: Min Slope Threshold is percentage of trend value (0.05 = 0.05% of trend)
+        signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
+        // Note: Min Slope Threshold is in absolute price points (0.05 = 0.05 point minimum move)
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
         // Note: Momentum smoothing alpha - 0.1 = heavy smoothing, 0.5 = balanced, 0.9 = minimal smoothing
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
@@ -569,8 +569,10 @@ public class SwtTrendMomentumStudy extends Study {
             double momentumThreshold = getSettings().getDouble(MOMENTUM_THRESHOLD, 1.0);
             
             // Require minimum slope to avoid signals in choppy/flat markets
-            double slopeThresholdPercent = getSettings().getDouble(MIN_SLOPE_THRESHOLD, DEFAULT_MIN_SLOPE_THRESHOLD) / 100.0; // Convert % to decimal
-            double minSlope = Math.abs(currentTrend) * slopeThresholdPercent;
+            // The slope threshold is meant to filter out noise, not strong moves
+            // Setting it to 0 disables the filter, 0.05 means filter slopes < 0.05 points
+            // This is an absolute threshold in price points, not a percentage
+            double minSlope = getSettings().getDouble(MIN_SLOPE_THRESHOLD, DEFAULT_MIN_SLOPE_THRESHOLD);
             
             boolean longFilter = slope > minSlope && momentumSum > momentumThreshold;
             boolean shortFilter = slope < -minSlope && momentumSum < -momentumThreshold;
