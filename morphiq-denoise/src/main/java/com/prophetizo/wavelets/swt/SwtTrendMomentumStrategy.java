@@ -1,6 +1,7 @@
 package com.prophetizo.wavelets.swt;
 
 import com.motivewave.platform.sdk.common.*;
+import com.motivewave.platform.sdk.order_mgmt.Order;
 import com.prophetizo.wavelets.swt.core.PositionSizer;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.order_mgmt.OrderContext;
@@ -9,6 +10,7 @@ import com.prophetizo.LoggerConfig;
 import org.slf4j.Logger;
 
 import java.util.Arrays;
+import java.util.UUID;
 
 @StudyHeader(
         namespace = "com.prophetizo.wavelets.swt",
@@ -38,7 +40,6 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     public static final String MIN_STOP_POINTS = "MIN_STOP_POINTS";
     public static final String MAX_STOP_POINTS = "MAX_STOP_POINTS";
     public static final String MAX_RISK_PER_TRADE = "MAX_RISK_PER_TRADE";
-    public static final String ENABLE_BRACKET_ORDERS = "ENABLE_BRACKET_ORDERS";
     
     // Position tracking
     private double entryPrice = 0.0;
@@ -71,7 +72,6 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         riskGroup.addRow(new DoubleDescriptor(TARGET_MULTIPLIER, "Target Multiplier", 3.0, 1.5, 10.0, 0.5));
         riskGroup.addRow(new DoubleDescriptor(MIN_STOP_POINTS, "Min Stop Distance (points)", 5.0, 2.0, 20.0, 1.0));
         riskGroup.addRow(new DoubleDescriptor(MAX_STOP_POINTS, "Max Stop Distance (points)", 25.0, 10.0, 100.0, 5.0));
-        riskGroup.addRow(new BooleanDescriptor(ENABLE_BRACKET_ORDERS, "Enable Bracket Orders", true));
         
         // Strategy configuration is handled by @StudyHeader(strategy=true)
         // The runtime descriptor inherits all signal declarations from parent class
@@ -393,105 +393,97 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         if (logger.isDebugEnabled()) {
             logger.debug(">>> Entering handleLongEntry - Index: {}, HasPosition: {}", index, hasPosition(ctx));
         }
-        
+
         // If we have a short position, exit it first
         if (hasPosition(ctx) && isShort(ctx)) {
             logger.info("Long signal received while SHORT - exiting short position");
             handleFlatExit(ctx, index);
         }
-        
+
         // If we already have a long position, return
         if (hasPosition(ctx) && isLong(ctx)) {
             logger.info("Already have LONG position, ignoring long entry signal");
             return;
         }
-        
+
         DataSeries series = ctx.getDataContext().getDataSeries();
         double currentPrice = series.getClose(index);
-        
+
         if (logger.isDebugEnabled()) {
-            logger.debug("Long entry context - Price: {}, Bar: {}/{}", 
-                String.format("%.2f", currentPrice), index, series.size());
+            logger.debug("Long entry context - Price: {}, Bar: {}/{}",
+                    String.format("%.2f", currentPrice), index, series.size());
         }
-        
+
         if (currentPrice <= 0) {
             logger.error("Invalid price for long entry: {} at index {}", currentPrice, index);
             return;
         }
-        
+
         // Calculate position size and risk using new PositionSizer
         PositionSize positionInfo = calculatePositionSize(ctx, index, true, currentPrice);
         if (positionInfo == null || positionInfo.quantity <= 0) {
             logger.warn("Cannot calculate valid position size for long entry");
             return;
         }
-        
+
         try {
             // Get Trade Lots from strategy settings (Trading Options panel)
             int tradeLots = getSettings().getTradeLots();
             if (tradeLots <= 0) tradeLots = 1; // Default to 1 if not set
-            
+
             // Calculate final quantity including Trade Lots
             int finalQuantity = positionInfo.quantity * tradeLots;
-            
+
             if (logger.isInfoEnabled()) {
                 logger.info("📊 Trade Lots Calculation:");
                 logger.info("  ├─ Position Size Factor: {}", positionInfo.quantity);
                 logger.info("  ├─ Trade Lots Setting: {}", tradeLots);
                 logger.info("  └─ Final Order Quantity: {} ({}×{})", finalQuantity, positionInfo.quantity, tradeLots);
             }
-            
-            if (getSettings().getBoolean(ENABLE_BRACKET_ORDERS, true)) {
-                // Place bracket order (entry + stop + target) with Trade Lots multiplied
-                ctx.buy(finalQuantity);
-                
-                if (logger.isInfoEnabled()) {
-                    logger.info("✅ LONG BRACKET ORDER PLACED:");
-                    logger.info("  ├─ Order Quantity: {} ({} × {} Trade Lots)", finalQuantity, positionInfo.quantity, tradeLots);
-                    logger.info("  ├─ Entry Price: ${}", String.format("%.2f", currentPrice));
-                    logger.info("  ├─ Stop Loss: ${} ({} points risk)", 
-                               String.format("%.2f", positionInfo.stopPrice), 
-                               String.format("%.2f", currentPrice - positionInfo.stopPrice));
-                    logger.info("  └─ Target: ${} ({} points profit)", 
-                               String.format("%.2f", positionInfo.targetPrice), 
-                               String.format("%.2f", positionInfo.targetPrice - currentPrice));
-                    
-                    // Get actual point value from instrument
-                    com.motivewave.platform.sdk.common.Instrument instrument = ctx.getInstrument();
-                    double pointValue = 1.0;
-                    if (instrument != null) {
-                        pointValue = instrument.getPointValue();
-                        if (pointValue <= 0) pointValue = 1.0;
-                    }
-                    
-                    // Use finalQuantity (includes Trade Lots) for dollar calculations
-                    double dollarRisk = finalQuantity * Math.abs(currentPrice - positionInfo.stopPrice) * pointValue;
-                    double dollarReward = finalQuantity * (positionInfo.targetPrice - currentPrice) * pointValue;
-                    double riskReward = (positionInfo.targetPrice - currentPrice) / (currentPrice - positionInfo.stopPrice);
-                    
-                    logger.info("  - Dollar Risk: ${}", String.format("%.2f", Math.abs(dollarRisk)));
-                    logger.info("  - Dollar Reward: ${}", String.format("%.2f", dollarReward));
-                    logger.info("  - Risk/Reward Ratio: 1:{}", String.format("%.2f", riskReward));
-                    logger.info("🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢\n");
-                }
-            } else {
-                // Simple market order with Trade Lots multiplied
-                ctx.buy(finalQuantity);
-                if (logger.isInfoEnabled()) {
-                    logger.info("✅ LONG MARKET ORDER PLACED:");
-                    logger.info("  - Quantity: {} contracts at market price ({}×{} Trade Lots)", 
-                               finalQuantity, positionInfo.quantity, tradeLots);
-                    logger.info("  - Expected Entry: {}", String.format("%.2f", currentPrice));
-                    logger.info("  - Planned Stop: {}", String.format("%.2f", positionInfo.stopPrice));
-                    logger.info("  - Planned Target: {}", String.format("%.2f", positionInfo.targetPrice));
-                }
+
+            String marketOrderReferenceId = UUID.randomUUID().toString();
+            String stopLossOrderReferenceId = UUID.randomUUID().toString();
+            String takeProfitOrderReferenceId = UUID.randomUUID().toString();
+
+            Order marketOrder = ctx.createMarketOrder(
+                    ctx.getInstrument(),
+                    marketOrderReferenceId,
+                    Enums.OrderAction.BUY,
+                    finalQuantity);
+
+            Order stopLoss = ctx.createStopOrder(
+                    ctx.getInstrument(),
+                    stopLossOrderReferenceId,
+                    Enums.OrderAction.SELL,  // Inverse action
+                    Enums.TIF.DAY,
+                    marketOrder.getQuantity(),
+                    (float) positionInfo.stopPrice);
+
+            Order takeProfit = ctx.createLimitOrder(
+                    ctx.getInstrument(),
+                    takeProfitOrderReferenceId,
+                    Enums.OrderAction.SELL,  // Inverse action
+                    Enums.TIF.DAY,
+                    marketOrder.getQuantity(),
+                    (float) positionInfo.targetPrice);
+
+            ctx.submitOrders(marketOrder, stopLoss, takeProfit);
+
+            if (logger.isInfoEnabled()) {
+                logger.info("✅ LONG MARKET ORDER PLACED:");
+                logger.info("  - Quantity: {} contracts at market price ({}×{} Trade Lots)",
+                        finalQuantity, positionInfo.quantity, tradeLots);
+                logger.info("  - Expected Entry: {}", String.format("%.2f", currentPrice));
+                logger.info("  - Planned Stop: {}", String.format("%.2f", positionInfo.stopPrice));
+                logger.info("  - Planned Target: {}", String.format("%.2f", positionInfo.targetPrice));
             }
-            
+
+
             // Update position tracking
             entryPrice = currentPrice;
             stopPrice = positionInfo.stopPrice;
             targetPrice = positionInfo.targetPrice;
-            
+
         } catch (Exception e) {
             logger.error("Failed to place long order", e);
         }
@@ -549,45 +541,41 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                 logger.info("  └─ Final Order Quantity: {} ({}×{})", finalQuantity, positionInfo.quantity, tradeLots);
             }
             
-            if (getSettings().getBoolean(ENABLE_BRACKET_ORDERS, true)) {
-                // Place bracket order (entry + stop + target) with Trade Lots multiplied
-                ctx.sell(finalQuantity);
-                
-                if (logger.isInfoEnabled()) {
-                    logger.info("✅ SHORT BRACKET ORDER PLACED:");
-                    logger.info("  ├─ Order Quantity: {} ({} × {} Trade Lots)", finalQuantity, positionInfo.quantity, tradeLots);
-                    logger.info("  ├─ Entry Price: ${}", String.format("%.2f", currentPrice));
-                    logger.info("  ├─ Stop Loss: ${} ({} points risk)", 
-                               String.format("%.2f", positionInfo.stopPrice), 
-                               String.format("%.2f", positionInfo.stopPrice - currentPrice));
-                    logger.info("  └─ Target: ${} ({} points profit)", 
-                               String.format("%.2f", positionInfo.targetPrice), 
-                               String.format("%.2f", currentPrice - positionInfo.targetPrice));
-                    
-                    // Get actual point value from instrument
-                    com.motivewave.platform.sdk.common.Instrument instrument = ctx.getInstrument();
-                    double pointValue = 1.0;
-                    if (instrument != null) {
-                        pointValue = instrument.getPointValue();
-                        if (pointValue <= 0) pointValue = 1.0;
-                    }
-                    
-                    double dollarRisk = finalQuantity * Math.abs(positionInfo.stopPrice - currentPrice) * pointValue;
-                    double dollarReward = finalQuantity * (currentPrice - positionInfo.targetPrice) * pointValue;
-                    double riskReward = (currentPrice - positionInfo.targetPrice) / (positionInfo.stopPrice - currentPrice);
-                    
-                    logger.info("  - Dollar Risk: ${}", String.format("%.2f", Math.abs(dollarRisk)));
-                    logger.info("  - Dollar Reward: ${}", String.format("%.2f", dollarReward));
-                    logger.info("  - Risk/Reward Ratio: 1:{}", String.format("%.2f", riskReward));
-                    logger.info("🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴\n");
-                }
-            } else {
-                // Simple market order with Trade Lots multiplied
-                ctx.sell(finalQuantity);
-                if (logger.isInfoEnabled()) {
-                    logger.info("Short market order: qty={} ({}×{} Trade Lots), price={}", 
-                               finalQuantity, positionInfo.quantity, tradeLots, String.format("%.2f", currentPrice));
-                }
+            String marketOrderReferenceId = UUID.randomUUID().toString();
+            String stopLossOrderReferenceId = UUID.randomUUID().toString();
+            String takeProfitOrderReferenceId = UUID.randomUUID().toString();
+            
+            Order marketOrder = ctx.createMarketOrder(
+                    ctx.getInstrument(),
+                    marketOrderReferenceId,
+                    Enums.OrderAction.SELL,
+                    finalQuantity);
+            
+            Order stopLoss = ctx.createStopOrder(
+                    ctx.getInstrument(),
+                    stopLossOrderReferenceId,
+                    Enums.OrderAction.BUY,  // Inverse action for short
+                    Enums.TIF.DAY,
+                    marketOrder.getQuantity(),
+                    (float) positionInfo.stopPrice);
+            
+            Order takeProfit = ctx.createLimitOrder(
+                    ctx.getInstrument(),
+                    takeProfitOrderReferenceId,
+                    Enums.OrderAction.BUY,  // Inverse action for short
+                    Enums.TIF.DAY,
+                    marketOrder.getQuantity(),
+                    (float) positionInfo.targetPrice);
+            
+            ctx.submitOrders(marketOrder, stopLoss, takeProfit);
+            
+            if (logger.isInfoEnabled()) {
+                logger.info("✅ SHORT MARKET ORDER PLACED:");
+                logger.info("  - Quantity: {} contracts at market price ({}×{} Trade Lots)", 
+                           finalQuantity, positionInfo.quantity, tradeLots);
+                logger.info("  - Expected Entry: {}", String.format("%.2f", currentPrice));
+                logger.info("  - Planned Stop: {}", String.format("%.2f", positionInfo.stopPrice));
+                logger.info("  - Planned Target: {}", String.format("%.2f", positionInfo.targetPrice));
             }
             
             // Update position tracking

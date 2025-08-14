@@ -250,8 +250,6 @@ class SwtTrendMomentumFullIT {
     void testRiskManagementWithBrackets() {
         when(mockInstrument.getSymbol()).thenReturn("ES");
         when(mockInstrument.getPointValue()).thenReturn(50.0);
-        when(mockSettings.getBoolean(SwtTrendMomentumStrategy.ENABLE_BRACKET_ORDERS, true))
-            .thenReturn(true);
         
         // Calculate position with risk management
         PositionSizer sizer = new PositionSizer(mockInstrument);
