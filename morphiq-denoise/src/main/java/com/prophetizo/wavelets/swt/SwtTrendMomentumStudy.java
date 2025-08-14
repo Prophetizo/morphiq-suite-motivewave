@@ -109,8 +109,19 @@ public class SwtTrendMomentumStudy extends Study {
     private static final int DEFAULT_MOMENTUM_WINDOW = 10; // Default window for RMS calculation
     private static final double DEFAULT_MOMENTUM_SCALING_FACTOR = 100.0; // Default momentum scaling factor
     
+    // Momentum type enum for efficient comparison
+    private enum MomentumType {
+        SUM,  // Sum of Details (D₁ + D₂ + ...)
+        SIGN; // Sign Count (±1 per level)
+        
+        static MomentumType fromString(String value) {
+            if ("SIGN".equals(value)) return SIGN;
+            return SUM; // Default to SUM
+        }
+    }
+    
     // Cached momentum settings to avoid repeated getSettings() calls
-    private volatile String cachedMomentumType = "SUM";
+    private volatile MomentumType cachedMomentumType = MomentumType.SUM;
     private volatile int cachedMomentumWindow = DEFAULT_MOMENTUM_WINDOW;
     private volatile double cachedLevelWeightDecay = 0.5;
     private volatile double cachedMomentumScalingFactor = DEFAULT_MOMENTUM_SCALING_FACTOR;
@@ -180,10 +191,24 @@ public class SwtTrendMomentumStudy extends Study {
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
         
         // Cache momentum settings on initialization
-        cachedMomentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
+        updateCachedSettings();
+    }
+    
+    /**
+     * Updates cached settings to avoid repeated getSettings() calls during calculation.
+     * This method should be called during initialization and when settings are updated.
+     */
+    private void updateCachedSettings() {
+        cachedMomentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
         cachedMomentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
         cachedLevelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
         cachedMomentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
+        
+        if (logger.isDebugEnabled()) {
+            logger.debug("Cached settings updated: type={}, window={}, decay={}, scaling={}", 
+                        cachedMomentumType.name(), cachedMomentumWindow, 
+                        cachedLevelWeightDecay, cachedMomentumScalingFactor);
+        }
     }
     
     @Override
@@ -191,10 +216,7 @@ public class SwtTrendMomentumStudy extends Study {
         logger.info("Settings updated - triggering recalculation");
         
         // Cache momentum settings to avoid repeated getSettings() calls during calculation
-        cachedMomentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
-        cachedMomentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
-        cachedLevelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
-        cachedMomentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
+        updateCachedSettings();
         
         // Log which settings might have changed (for debugging)
         if (logger.isDebugEnabled()) {
@@ -206,8 +228,6 @@ public class SwtTrendMomentumStudy extends Study {
                         getSettings().getString(SHRINKAGE_TYPE, "Soft"),
                         getSettings().getInteger(DETAIL_CONFIRM_K, 2),
                         getSettings().getBoolean(SHOW_WATR, false));
-            logger.debug("Momentum settings cached: type={}, window={}, decay={}, scaling={}", 
-                        cachedMomentumType, cachedMomentumWindow, cachedLevelWeightDecay, cachedMomentumScalingFactor);
         }
         
         // Clear state to force re-initialization of all components
@@ -268,9 +288,9 @@ public class SwtTrendMomentumStudy extends Study {
         if (desc != null) {
             var momentumPlot = desc.getPlot(MOMENTUM_PLOT);
             if (momentumPlot != null) {
-                String momentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
+                MomentumType momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
                 
-                if ("SIGN".equals(momentumType)) {
+                if (momentumType == MomentumType.SIGN) {
                     // For SIGN mode: range is -k to +k
                     int k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
                     int range = Math.max(k + 1, 3);
@@ -747,7 +767,7 @@ public class SwtTrendMomentumStudy extends Study {
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
         // Use cached settings instead of fetching them on every call
-        String momentumType = cachedMomentumType;
+        MomentumType momentumType = cachedMomentumType;
         int momentumWindow = cachedMomentumWindow;
         double levelWeightDecay = cachedLevelWeightDecay;
         double momentumScalingFactor = cachedMomentumScalingFactor;
@@ -775,7 +795,7 @@ public class SwtTrendMomentumStudy extends Study {
                 double weight = 1.0 / (1.0 + (level - 1) * levelWeightDecay);
                 
                 double contribution = 0.0;
-                if ("SUM".equals(momentumType)) {
+                if (momentumType == MomentumType.SUM) {
                     // Use weighted average of coefficients (preserves sign)
                     double avgCoeff = levelSum / windowSize;
                     contribution = avgCoeff * weight;
