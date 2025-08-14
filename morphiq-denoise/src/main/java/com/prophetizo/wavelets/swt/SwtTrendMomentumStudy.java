@@ -173,7 +173,7 @@ public class SwtTrendMomentumStudy extends Study {
             for (MomentumType type : values()) {
                 map.put(type.name(), type);
             }
-            STRING_TO_ENUM_MAP = Collections.unmodifiableMap(map);
+            STRING_TO_ENUM_MAP = Map.copyOf(map);
         }
         
         /**
