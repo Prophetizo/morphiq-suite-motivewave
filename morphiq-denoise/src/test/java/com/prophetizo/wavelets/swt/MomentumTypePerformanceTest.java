@@ -17,7 +17,24 @@ import static org.junit.jupiter.api.Assertions.*;
 class MomentumTypePerformanceTest {
     
     // Default to 100,000 iterations for fast CI builds
-    // Can be overridden via -Dmomentum.perf.iterations=10000000 for detailed performance testing
+    /**
+     * Number of iterations to use for performance tests.
+     * <p>
+     * <b>Performance implications:</b>
+     * - Higher values (e.g., 1,000,000+) provide more stable and reliable performance measurements,
+     *   but significantly increase test runtime, which may not be suitable for CI environments.
+     * - Lower values (e.g., 10,000–100,000) run quickly and are suitable for CI, but may be more
+     *   susceptible to noise and JIT warmup effects, especially on shared or virtualized hardware.
+     * <p>
+     * <b>Default value:</b>
+     * 100,000 iterations is chosen for CI builds as a compromise between test speed and measurement
+     * reliability. This typically results in test runtimes under a few seconds, minimizing CI delays
+     * while still providing meaningful performance comparisons.
+     * <p>
+     * <b>Customization:</b>
+     * You can override the default via the system property {@code -Dmomentum.perf.iterations}.
+     * For example, use {@code -Dmomentum.perf.iterations=1000000} for more detailed local testing.
+     */
     private static final int ITERATIONS = Integer.getInteger("momentum.perf.iterations", 100_000);
     
     private enum MomentumType {
