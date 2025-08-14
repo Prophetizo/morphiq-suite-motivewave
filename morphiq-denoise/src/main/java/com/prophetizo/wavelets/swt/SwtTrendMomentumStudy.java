@@ -253,11 +253,9 @@ public class SwtTrendMomentumStudy extends Study {
     }
     
     // Single volatile reference ensures all settings are updated atomically
-    // Uses a safe default to avoid NPE, will be replaced with actual settings in onLoad()
-    private volatile CachedSettings cachedSettings = CachedSettings.createDefault();
-    
-    // Flag to track if settings have been initialized from framework
-    private volatile boolean settingsInitialized = false;
+    // Initialized to null to track framework initialization state
+    // Will be set to proper values in onLoad() after framework initialization
+    private volatile CachedSettings cachedSettings = null;
     
     /**
      * WATR Scaling Methods for different market conditions and instruments.
@@ -324,9 +322,9 @@ public class SwtTrendMomentumStudy extends Study {
         // Update minimum bars requirement based on window length after framework initialization
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
         
-        // Cache momentum settings on initialization and mark as initialized
+        // Cache momentum settings on initialization
+        // This also serves as the initialization flag (non-null = initialized)
         updateCachedSettings();
-        settingsInitialized = true;
     }
     
     /**
@@ -344,7 +342,7 @@ public class SwtTrendMomentumStudy extends Study {
      * @throws IllegalStateException if settings have not been initialized by onLoad()
      */
     private void validateSettingsInitialized() {
-        if (!settingsInitialized) {
+        if (cachedSettings == null) {
             // This should never happen in production - onLoad() should always be called first
             String errorMsg = "Settings not initialized before calculation. This indicates a framework " +
                              "lifecycle violation. onLoad() must be called before any calculations.";
@@ -681,6 +679,10 @@ public class SwtTrendMomentumStudy extends Study {
             
             // Use cached settings for thread-safe access
             CachedSettings settings = this.cachedSettings;
+            if (settings == null) {
+                // Double-check in case of race condition
+                throw new IllegalStateException("CachedSettings became null after validation");
+            }
             this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
             logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
         } else if (waveletChanged || levelsChanged || windowChanged) {
@@ -957,6 +959,10 @@ public class SwtTrendMomentumStudy extends Study {
         
         // Get cached settings atomically - all values are consistent with each other
         CachedSettings settings = this.cachedSettings;
+        if (settings == null) {
+            // Double-check in case of race condition
+            throw new IllegalStateException("CachedSettings became null after validation");
+        }
         MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
         double levelWeightDecay = settings.levelWeightDecay;
