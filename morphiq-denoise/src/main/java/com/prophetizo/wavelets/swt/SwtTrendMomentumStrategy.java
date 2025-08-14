@@ -627,7 +627,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         
         try {
             // Close all positions
-            ctx.cancelOrders();
+            ctx.closeAtMarket();
             
             logger.info("Exit order placed - Closing {} position at market", 
                 wasLong ? "LONG" : "SHORT");
