@@ -68,15 +68,19 @@ class MomentumTypePerformanceTest {
         System.out.printf("Enum comparison: %d ms%n", enumMs);
         System.out.printf("Enum is %.1f%% faster%n", improvement);
         
-        // Enum should be at least 20% faster (relaxed from "must be faster")
-        // This accounts for JIT variability in CI environments
+        // Enum should typically be faster, but allow some tolerance for CI variability
         if (enumTime < stringTime) {
             System.out.println("✓ Enum comparison is faster as expected");
-        } else if (Math.abs(enumTime - stringTime) < stringTime * 0.1) {
-            System.out.println("⚠ Performance difference is within 10% margin - acceptable in CI");
         } else {
-            fail(String.format("Enum comparison should be faster than String comparison. " +
-                             "String: %dms, Enum: %dms", stringMs, enumMs));
+            // Enum is slower or equal - check if difference is acceptable
+            double percentSlower = ((double)(enumTime - stringTime) / stringTime) * 100;
+            if (percentSlower <= 10.0) {
+                System.out.println("⚠ Performance difference is within 10% margin - acceptable in CI");
+            } else {
+                fail(String.format("Enum comparison should be faster than String comparison. " +
+                                 "String: %dms, Enum: %dms (%.1f%% slower)", 
+                                 stringMs, enumMs, percentSlower));
+            }
         }
     }
     

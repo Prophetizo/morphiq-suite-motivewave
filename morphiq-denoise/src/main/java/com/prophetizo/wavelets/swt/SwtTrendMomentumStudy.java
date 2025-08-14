@@ -14,7 +14,10 @@ import org.slf4j.Logger;
 
 import java.awt.*;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @StudyHeader(
         namespace = "com.prophetizo.wavelets.swt",
@@ -160,32 +163,49 @@ public class SwtTrendMomentumStudy extends Study {
         SUM,  // Sum of Details (D₁ + D₂ + ...)
         SIGN; // Sign Count (±1 per level)
         
+        // Static map for O(1) string-to-enum lookup
+        // Initialized once when class is loaded, thread-safe by JVM guarantees
+        private static final Map<String, MomentumType> STRING_TO_ENUM_MAP;
+        
+        static {
+            // Build lookup map with uppercase keys for case-insensitive matching
+            Map<String, MomentumType> map = new HashMap<>();
+            for (MomentumType type : values()) {
+                map.put(type.name(), type);
+            }
+            STRING_TO_ENUM_MAP = Collections.unmodifiableMap(map);
+        }
+        
         /**
-         * Converts a string value to a MomentumType enum.
+         * Converts a string value to a MomentumType enum using O(1) HashMap lookup.
          * 
-         * @param value the string value to convert (case-insensitive)
-         * @return the corresponding MomentumType, or SUM as default
+         * <p>This implementation uses a pre-built HashMap for constant-time lookup
+         * regardless of the number of enum values, making it more scalable than
+         * a switch statement if additional momentum types are added in the future.
+         * 
+         * @param value the string value to convert (case-insensitive, trimmed)
+         * @return the corresponding MomentumType, or SUM as default for null/unknown values
          */
         static MomentumType fromString(String value) {
             if (value == null) {
                 return SUM; // Default to SUM for null input
             }
             
-            // Use switch for clarity and extensibility
-            String upperValue = value.toUpperCase().trim();
-            switch (upperValue) {
-                case "SIGN":
-                    return SIGN;
-                case "SUM":
-                    return SUM;
-                default:
-                    if (logger.isWarnEnabled()) {
-                        // Log warning for unexpected value using the main class logger
-                        logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
-                    }
-                    // Default to SUM for unknown values
-                    return SUM;
+            // Normalize input for case-insensitive lookup
+            String normalizedValue = value.toUpperCase().trim();
+            
+            // O(1) HashMap lookup
+            MomentumType type = STRING_TO_ENUM_MAP.get(normalizedValue);
+            
+            if (type == null) {
+                if (logger.isWarnEnabled()) {
+                    // Log warning for unexpected value using the main class logger
+                    logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
+                }
+                return SUM; // Default to SUM for unknown values
             }
+            
+            return type;
         }
     }
     
