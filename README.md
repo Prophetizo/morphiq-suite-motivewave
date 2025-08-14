@@ -6,18 +6,20 @@ Professional wavelet-based trading indicators and strategies for the MotiveWave 
 
 Morphiq Suite provides advanced wavelet analysis tools for systematic trading:
 - **SWT/MODWT Implementation** - Undecimated transforms for shift-invariant analysis
-- **Cross-Scale Momentum** - Multi-resolution signal confirmation
+- **Cross-Scale Momentum** - Multi-resolution signal confirmation with 100x scaled oscillator
 - **Adaptive Denoising** - Three thresholding methods (Universal, BayesShrink, SURE)
-- **Wavelet-ATR** - Volatility estimation from detail coefficients
+- **Wavelet-ATR (WATR)** - RMS energy-based volatility estimation from detail coefficients
 - **Real-time Performance** - Optimized sliding window buffers and parallel processing
+- **Position Management** - OrderContext-based state tracking with bracket orders
 
 ## Indicators & Strategies
 
-### 📈 SWT Trend + Momentum (NEW)
+### 📈 SWT Trend + Momentum
 Complete trading system using Stationary Wavelet Transform:
-- **Study**: Overlay indicator with trend line and momentum plot
-- **Strategy**: Automated trading with risk management
-- **Features**: RMS energy-based momentum, balanced signal generation, WATR stops
+- **Study**: Overlay indicator with trend line and momentum oscillator
+- **Strategy**: Automated trading with bracket orders and position sizing
+- **Features**: State-based signals (LONG/SHORT), RMS energy momentum, WATR-based stops
+- **Enhancements**: 100x momentum scaling, Trade Lots integration, thread-safe buffers
 - [Full Documentation](docs/SWT_TREND_MOMENTUM_DOCUMENTATION.md)
 
 ### 📊 AutoWavelets
@@ -35,22 +37,24 @@ Classic wavelet denoising for cleaner price action:
 ## Technical Features
 
 ### Wavelet Families
-- **Daubechies** (db2-db20): Smooth, good for trends
-- **Symlets** (sym2-sym20): Near-symmetric, balanced
-- **Coiflets** (coif1-coif5): Compact support
+- **Daubechies** (db4, db6): Smooth, good for trends
+- **Symlets** (sym4, sym6): Near-symmetric, balanced
+- **Coiflets** (coif2, coif4): Compact support
 - **Haar**: Simple, good for breakouts
 
 ### Advanced Algorithms
 - **Thresholding Methods**: Universal, BayesShrink, SURE
 - **Shrinkage Types**: Soft and hard thresholding
-- **Sliding Window**: Efficient streaming updates
+- **Sliding Window**: Efficient streaming updates with 512-bar buffer
 - **Cross-Scale Analysis**: Multi-resolution momentum confirmation
+- **Position Sizing**: Factor-based with Trade Lots multiplication
+- **Risk Management**: Automated bracket orders with stop loss and take profit
 
 ## Quick Start
 
 ### Prerequisites
-- Java 21+
-- Maven 3.6+
+- Java 23+
+- Maven 3.6+ (3.9+ recommended)
 - MotiveWave Platform (latest version)
 
 ### Installation
@@ -77,9 +81,11 @@ cp morphiq-bundle-premium/target/morphiq-premium-*.jar ~/Documents/MotiveWave/st
 ## Documentation
 
 - **[SWT Strategy Documentation](docs/SWT_TREND_MOMENTUM_DOCUMENTATION.md)** - Complete guide to the SWT/MODWT trading system
+- **[SWT White Paper](docs/white_papers/SWT_TREND_MOMENTUM_WHITEPAPER.md)** - Technical white paper on the trading methodology
 - **[API Reference](API_REFERENCE.md)** - Class and method reference
 - **[CLAUDE.md](CLAUDE.md)** - Development guide for AI assistants
 - **[Architecture Docs](docs/architecture/)** - System design and specifications
+- **[Blog Posts](docs/blog/)** - Educational articles on wavelet trading
 
 ## Project Structure
 
@@ -93,6 +99,10 @@ morphiq-suite-motivewave/
 └── docs/                   # All documentation
     ├── SWT_TREND_MOMENTUM_DOCUMENTATION.md
     ├── architecture/       # System design docs
+    ├── blog/              # Educational articles
+    ├── guides/            # Integration and migration guides
+    ├── reference/         # Technical specifications
+    ├── white_papers/      # Research papers
     └── archive/           # Historical migration docs
 ```
 
@@ -123,10 +133,20 @@ See the [API Reference](API_REFERENCE.md) for detailed class documentation and t
 - **RMS Energy Calculation** - Efficient multi-scale momentum
 - **Logging Guards** - Zero overhead when debug disabled
 - **Native SIMD** - VectorWave uses CPU vector instructions
+- **Optimized Reconstruction** - Direct coefficient manipulation without deep copying
+- **Thread-Safe Operations** - Defensive copying in WATR calculations
 
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## Key Settings & Configuration
+
+### Important Parameters
+- **Min Slope Threshold**: Absolute price points (e.g., 0.05 = 0.05 point minimum move)
+- **Momentum Threshold**: Now scaled by 100x (use 1.0 instead of old 0.01)
+- **Trade Lots**: Multiplies the final position size
+- **Point Value**: Auto-detected from instrument (ES=$50, NQ=$20, etc.)
 
 ## License
 

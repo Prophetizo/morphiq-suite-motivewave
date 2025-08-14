@@ -483,7 +483,7 @@ where σ is estimated using the median absolute deviation (MAD) of the finest sc
 #### B.1 Source Code Repository
 - **GitHub**: [https://github.com/morphiqlabs/morphiq-suite-motivewave](https://github.com/morphiqlabs/morphiq-suite-motivewave)
 - **License**: Proprietary (contact MorphIQ Labs for licensing)
-- **Language**: Java 21
+- **Language**: Java 23
 - **Platform**: MotiveWave 6.0+
 
 #### B.2 Key Implementation Files

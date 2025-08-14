@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-Morphiq Suite MotiveWave is a multi-module Maven project providing advanced wavelet-based trading indicators for the MotiveWave platform. It uses Java 21+ and leverages parallel processing for high-performance signal analysis.
+Morphiq Suite MotiveWave is a multi-module Maven project providing advanced wavelet-based trading indicators for the MotiveWave platform. It uses Java 23 and leverages parallel processing for high-performance signal analysis.
 
 **⚠️ CRITICAL LIMITATION**: This project requires external authentication to build due to dependencies on:
 - VectorWave library (private GitHub/GitLab packages)
@@ -15,10 +15,10 @@ Morphiq Suite MotiveWave is a multi-module Maven project providing advanced wave
 ## Working Effectively
 
 ### Prerequisites and Setup
-- Install Java 21+ (required - the project enforces Java 21 minimum):
+- Install Java 23+ (required - the project enforces Java 23):
   ```bash
-  sudo apt update && sudo apt install -y openjdk-21-jdk
-  export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+  sudo apt update && sudo apt install -y openjdk-23-jdk
+  export JAVA_HOME=/usr/lib/jvm/java-23-openjdk-amd64
   export PATH=$JAVA_HOME/bin:$PATH
   ```
 - Maven 3.6+ is required (usually pre-installed)
@@ -79,9 +79,9 @@ The build requires access to external Maven repositories. If credentials are not
 
 ### Known Build Issues and Workarounds
 
-1. **Java Version Mismatch**: 
-   - Project requires Java 21+ but may show Java 23 in some POMs
-   - Always use Java 21 - it works correctly
+1. **Java Version Requirement**: 
+   - Project requires Java 23
+   - Ensure Java 23 is installed and configured
    - Ignore warnings about Java version differences
 
 2. **Maven Unsafe Warnings**:
@@ -217,7 +217,7 @@ After successful build, artifacts are located at:
 
 The GitHub Actions workflow (`.github/workflows/maven.yml`):
 - **Two-stage pipeline**: build and test (runs separately)
-- **Java 23 in CI** (but Java 21+ works locally)
+- **Java 23 in CI and locally**
 - **Authentication required**: GITLAB_TOKEN and GITHUB_TOKEN secrets
 - **Artifact upload**: Individual modules and premium bundle
 - **Expected build time**: 15-25 minutes total
@@ -235,9 +235,9 @@ The GitHub Actions workflow (`.github/workflows/maven.yml`):
 - **Solution**: Harmless, can be filtered with grep
 - **Status**: Will resolve when Maven updates Guava
 
-### Java version conflicts
-- **Cause**: POM shows Java 23 requirement but Java 21 works
-- **Solution**: Use Java 21, ignore version mismatch warnings
+### Java version requirement
+- **Requirement**: Java 23 is required for the project
+- **Solution**: Install and use Java 23
 - **Update**: Modify maven.compiler.release to 21 if needed
 
 ### Long build times

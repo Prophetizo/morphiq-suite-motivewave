@@ -96,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added inverse MODWT support (via JWave 1.0.7-SNAPSHOT)
 
 ### Technical Details
-- Java 21 requirement
+- Java 23 requirement
 - Maven multi-module project structure
 - MotiveWave SDK v20230627 integration
 - JWave 1.2.0-SNAPSHOT for wavelet transforms

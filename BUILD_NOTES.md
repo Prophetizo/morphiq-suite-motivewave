@@ -4,7 +4,7 @@
 
 ### Unsafe Warning from Maven's Guava Dependency
 
-When building with Java 21+ and Maven 3.9.x, you may see warnings like:
+When building with Java 23+ and Maven 3.9.x, you may see warnings like:
 ```
 WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
 WARNING: sun.misc.Unsafe::objectFieldOffset has been called by com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper
