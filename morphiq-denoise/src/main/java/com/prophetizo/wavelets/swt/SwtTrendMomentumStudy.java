@@ -338,7 +338,7 @@ public class SwtTrendMomentumStudy extends Study {
      */
     private void updateCachedSettings() {
         // Read all settings into local variables first
-        MomentumType momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
+        MomentumType momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, MomentumType.SUM.name()));
         int momentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
         double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, DEFAULT_LEVEL_WEIGHT_DECAY);
         double momentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
