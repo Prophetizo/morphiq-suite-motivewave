@@ -3,6 +3,8 @@ package com.prophetizo.wavelets.swt;
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.order_mgmt.Order;
 import com.prophetizo.wavelets.swt.core.PositionSizer;
+import com.prophetizo.wavelets.swt.core.PositionManager;
+import com.prophetizo.wavelets.swt.core.PositionTracker;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.order_mgmt.OrderContext;
 import com.motivewave.platform.sdk.study.StudyHeader;
@@ -41,10 +43,8 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     public static final String MAX_STOP_POINTS = "MAX_STOP_POINTS";
     public static final String MAX_RISK_PER_TRADE = "MAX_RISK_PER_TRADE";
     
-    // Position tracking
-    private double entryPrice = 0.0;
-    private double stopPrice = 0.0;
-    private double targetPrice = 0.0;
+    // Position management components
+    private PositionManager positionManager;
     
     @Override
     public void initialize(Defaults defaults) {
@@ -87,19 +87,24 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     public void onActivate(OrderContext ctx) {
         logger.info("SWT Strategy activated");
         
-        // Reset state
-        entryPrice = 0.0;
-        stopPrice = 0.0;
-        targetPrice = 0.0;
+        // Initialize position manager
+        com.motivewave.platform.sdk.common.Instrument instrument = ctx.getInstrument();
+        PositionSizer positionSizer = PositionSizer.createValidated(instrument);
+        if (positionSizer == null) {
+            logger.error("Failed to create position sizer for instrument: {}", instrument.getSymbol());
+            return;
+        }
+        
+        positionManager = new PositionManager(ctx, positionSizer);
         
         // Check if we already have a position
-        int posSize = getPosition(ctx);
-        if (posSize != 0) {
-            logger.info("Existing position detected: size={}", posSize);
-            // Try to get entry price from average entry
-            entryPrice = ctx.getAvgEntryPrice();
-            if (entryPrice > 0) {
-                logger.info("Average entry price: {}", String.format("%.2f", entryPrice));
+        if (positionManager.hasPosition()) {
+            logger.info("Existing position detected: {}", positionManager.getCurrentPositionSide());
+            // Get entry price from average entry if available
+            double avgEntry = ctx.getAvgEntryPrice();
+            if (avgEntry > 0) {
+                logger.info("Average entry price: {}", String.format("%.2f", avgEntry));
+                positionManager.getPositionTracker().updateEntryPrice(avgEntry);
             }
         }
     }
@@ -113,10 +118,9 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         logger.info("SWT Strategy deactivated");
         
         // Optionally close any open positions
-        int posSize = getPosition(ctx);
-        if (hasPosition(ctx) && posSize != 0) {
-            logger.info("Closing position on deactivation: size={}", posSize);
-            ctx.closeAtMarket();
+        if (positionManager != null && positionManager.hasPosition()) {
+            logger.info("Closing position on deactivation: {}", positionManager.getCurrentPositionSide());
+            positionManager.exitPosition();
         }
     }
     
@@ -126,90 +130,10 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
      */
     @Override
     public void onOrderFilled(OrderContext ctx, com.motivewave.platform.sdk.order_mgmt.Order order) {
-        // Validate order object
-        if (order == null) {
-            logger.error("onOrderFilled called with null order");
-            return;
-        }
-        
-        double fillPrice = order.getAvgFillPrice();
-        
-        // Validate fill price
-        if (fillPrice <= 0 || Double.isNaN(fillPrice) || Double.isInfinite(fillPrice)) {
-            logger.error("Invalid fill price received: {}", fillPrice);
-            return;
-        }
-        
-        boolean isBuy = order.isBuy();
-        int quantity = order.getQuantity();
-        
-        // Validate quantity
-        if (quantity <= 0) {
-            logger.error("Invalid order quantity: {}", quantity);
-            return;
-        }
-        
-        if (logger.isInfoEnabled()) {
-            logger.info("📊 ORDER FILL RECEIVED:");
-            logger.info("  ├─ Actual Filled Quantity: {} (includes Trade Lots multiplier)", quantity);
-            logger.info("  ├─ Direction: {}", isBuy ? "BUY" : "SELL");
-            logger.info("  └─ Fill Price: ${}", String.format("%.2f", fillPrice));
-        }
-        
-        // Check if this is a stop order being filled
-        boolean isStopHit = false;
-        String orderType = "MARKET";
-        
-        // Detect stop hit: opposite direction order when we have a position
-        if (hasPosition(ctx)) {
-            boolean currentlyLong = isLong(ctx);
-            if ((currentlyLong && !isBuy) || (!currentlyLong && isBuy)) {
-                // Check if fill price is near our stop price
-                if (stopPrice > 0) {
-                    double stopDistance = Math.abs(fillPrice - stopPrice);
-                    double priceRange = Math.abs(entryPrice - stopPrice);
-                    if (stopDistance < priceRange * 0.1) { // Within 10% of stop
-                        isStopHit = true;
-                        orderType = "STOP";
-                    }
-                }
-            }
-        }
-        
-        if (isStopHit) {
-            logger.warn("⛔ STOP HIT: {} {} @ {} (stop was at {})", 
-                       quantity, isBuy ? "BUY" : "SELL", 
-                       String.format("%.2f", fillPrice), 
-                       String.format("%.2f", stopPrice));
-            
-            // Calculate loss
-            if (entryPrice > 0) {
-                boolean wasLong = isLong(ctx);
-                double loss = wasLong ? 
-                    (fillPrice - entryPrice) * quantity : 
-                    (entryPrice - fillPrice) * quantity;
-                double lossPerUnit = wasLong ? fillPrice - entryPrice : entryPrice - fillPrice;
-                logger.warn("Stop loss realized: ${} per unit, Total: ${}", 
-                           String.format("%.2f", lossPerUnit), 
-                           String.format("%.2f", loss));
-            }
+        if (positionManager != null) {
+            positionManager.onOrderFilled(order);
         } else {
-            logger.info("Order filled: {} {} @ {} [{}]", 
-                       quantity, isBuy ? "BUY" : "SELL", 
-                       String.format("%.2f", fillPrice), orderType);
-        }
-        
-        // Update position state
-        int posSize = getPosition(ctx);
-        if (posSize != 0) {
-            if (!isStopHit) { // Only update entry if not a stop
-                entryPrice = fillPrice;
-            }
-        } else {
-            // Position closed - reset tracking
-            entryPrice = 0.0;
-            stopPrice = 0.0;
-            targetPrice = 0.0;
+            logger.warn("Position manager not initialized, cannot handle order fill");
         }
     }
     
@@ -220,15 +144,28 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     @Override
     public void onPositionClosed(OrderContext ctx) {
         logger.info("Position closed");
-        entryPrice = 0.0;
-        stopPrice = 0.0;
+        if (positionManager != null) {
+            positionManager.getPositionTracker().reset();
+        }
     }
     
     // Test helper methods - package private for testing
-    double getEntryPrice() { return entryPrice; }
-    void setEntryPrice(double entryPrice) { this.entryPrice = entryPrice; }
-    double getStopPriceValue() { return stopPrice; } // Renamed to avoid conflict
-    void setStopPrice(double stopPrice) { this.stopPrice = stopPrice; }
+    double getEntryPrice() { 
+        return positionManager != null ? positionManager.getPositionTracker().getEntryPrice() : 0.0; 
+    }
+    void setEntryPrice(double entryPrice) { 
+        if (positionManager != null) {
+            positionManager.getPositionTracker().updateEntryPrice(entryPrice);
+        }
+    }
+    double getStopPriceValue() { 
+        return positionManager != null ? positionManager.getPositionTracker().getStopPrice() : 0.0; 
+    }
+    void setStopPrice(double stopPrice) { 
+        // Note: Cannot directly set stop price in new architecture
+        // This would require updating the entire position
+        logger.warn("setStopPrice is deprecated - use position manager instead");
+    }
     public Object getBufferLock() { 
         // Return the actual bufferLock from parent class for thread-safe test access
         return bufferLock;
@@ -344,7 +281,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     private void logPositionStatus(OrderContext ctx, DataSeries series, int index) {
-        if (!hasPosition(ctx)) {
+        if (!hasPosition(ctx) || positionManager == null) {
             return;
         }
         
@@ -354,20 +291,20 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         }
         
         double currentPrice = series.getClose(index);
-        if (currentPrice <= 0 || entryPrice <= 0) {
+        if (currentPrice <= 0) {
             return;
         }
         
-        boolean currentlyLong = isLong(ctx);
-        double unrealizedPnL = currentlyLong ? 
-            (currentPrice - entryPrice) * getPosition(ctx) :
-            (entryPrice - currentPrice) * Math.abs(getPosition(ctx));
+        PositionTracker tracker = positionManager.getPositionTracker();
+        double entryPrice = tracker.getEntryPrice();
+        if (entryPrice <= 0) {
+            return;
+        }
         
-        double stopDistance = currentlyLong ? 
-            currentPrice - stopPrice : stopPrice - currentPrice;
-        
-        double targetDistance = currentlyLong ? 
-            targetPrice - currentPrice : currentPrice - targetPrice;
+        int positionSize = positionManager.getCurrentPosition();
+        double unrealizedPnL = tracker.calculateUnrealizedPnL(currentPrice, positionSize);
+        double stopDistance = tracker.getStopDistance(currentPrice);
+        double targetDistance = tracker.getTargetDistance(currentPrice);
         
         String status = unrealizedPnL >= 0 ? "PROFIT" : "LOSS";
         
@@ -380,11 +317,11 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                         String.format("%.2f", targetDistance));
         }
         
-        // Warn if getting close to stop
-        if (stopDistance < Math.abs(entryPrice - stopPrice) * 0.2) {
+        // Warn if getting close to stop (within 20% of total risk)
+        if (tracker.isNearStop(currentPrice, 0.2)) {
             logger.warn("⚠️ WARNING: Position near stop! Current: {}, Stop: {}, Distance: {}",
                        String.format("%.2f", currentPrice), 
-                       String.format("%.2f", stopPrice), 
+                       String.format("%.2f", tracker.getStopPrice()), 
                        String.format("%.2f", stopDistance));
         }
     }
@@ -394,10 +331,26 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             logger.debug(">>> Entering handleLongEntry - Index: {}, HasPosition: {}", index, hasPosition(ctx));
         }
 
-        // If we have a short position, exit it first
+        if (positionManager == null) {
+            logger.error("Position manager not initialized");
+            return;
+        }
+
+        // If we have a short position, reverse to long
         if (hasPosition(ctx) && isShort(ctx)) {
-            logger.info("Long signal received while SHORT - exiting short position");
-            handleFlatExit(ctx, index);
+            logger.info("Long signal received while SHORT - reversing to long position");
+            DataSeries series = ctx.getDataContext().getDataSeries();
+            double currentPrice = series.getClose(index);
+            
+            PositionSize positionInfo = calculatePositionSize(ctx, index, true, currentPrice);
+            if (positionInfo != null && positionInfo.quantity > 0) {
+                int tradeLots = getSettings().getTradeLots();
+                if (tradeLots <= 0) tradeLots = 1;
+                int finalQuantity = positionInfo.quantity * tradeLots;
+                
+                positionManager.reversePosition(currentPrice, positionInfo.stopPrice, positionInfo.targetPrice, finalQuantity);
+            }
+            return;
         }
 
         // If we already have a long position, return
@@ -419,7 +372,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             return;
         }
 
-        // Calculate position size and risk using new PositionSizer
+        // Calculate position size and risk using PositionSizer
         PositionSize positionInfo = calculatePositionSize(ctx, index, true, currentPrice);
         if (positionInfo == null || positionInfo.quantity <= 0) {
             logger.warn("Cannot calculate valid position size for long entry");
@@ -441,48 +394,15 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                 logger.info("  └─ Final Order Quantity: {} ({}×{})", finalQuantity, positionInfo.quantity, tradeLots);
             }
 
-            String marketOrderReferenceId = UUID.randomUUID().toString();
-            String stopLossOrderReferenceId = UUID.randomUUID().toString();
-            String takeProfitOrderReferenceId = UUID.randomUUID().toString();
-
-            Order marketOrder = ctx.createMarketOrder(
-                    ctx.getInstrument(),
-                    marketOrderReferenceId,
-                    Enums.OrderAction.BUY,
-                    finalQuantity);
-
-            Order stopLoss = ctx.createStopOrder(
-                    ctx.getInstrument(),
-                    stopLossOrderReferenceId,
-                    Enums.OrderAction.SELL,  // Inverse action
-                    Enums.TIF.DAY,
-                    marketOrder.getQuantity(),
-                    (float) positionInfo.stopPrice);
-
-            Order takeProfit = ctx.createLimitOrder(
-                    ctx.getInstrument(),
-                    takeProfitOrderReferenceId,
-                    Enums.OrderAction.SELL,  // Inverse action
-                    Enums.TIF.DAY,
-                    marketOrder.getQuantity(),
-                    (float) positionInfo.targetPrice);
-
-            ctx.submitOrders(marketOrder, stopLoss, takeProfit);
-
-            if (logger.isInfoEnabled()) {
-                logger.info("✅ LONG MARKET ORDER PLACED:");
-                logger.info("  - Quantity: {} contracts at market price ({}×{} Trade Lots)",
-                        finalQuantity, positionInfo.quantity, tradeLots);
-                logger.info("  - Expected Entry: {}", String.format("%.2f", currentPrice));
-                logger.info("  - Planned Stop: {}", String.format("%.2f", positionInfo.stopPrice));
-                logger.info("  - Planned Target: {}", String.format("%.2f", positionInfo.targetPrice));
+            // Use PositionManager to enter long position
+            PositionManager.PositionInfo result = positionManager.enterLong(
+                currentPrice, positionInfo.stopPrice, positionInfo.targetPrice, finalQuantity);
+            
+            if (result != null) {
+                logger.info("✅ LONG POSITION ENTERED via PositionManager");
+            } else {
+                logger.error("Failed to enter long position via PositionManager");
             }
-
-
-            // Update position tracking
-            entryPrice = currentPrice;
-            stopPrice = positionInfo.stopPrice;
-            targetPrice = positionInfo.targetPrice;
 
         } catch (Exception e) {
             logger.error("Failed to place long order", e);
@@ -493,11 +413,27 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         if (logger.isDebugEnabled()) {
             logger.debug(">>> Entering handleShortEntry - Index: {}, HasPosition: {}", index, hasPosition(ctx));
         }
+
+        if (positionManager == null) {
+            logger.error("Position manager not initialized");
+            return;
+        }
         
-        // If we have a long position, exit it first
+        // If we have a long position, reverse to short
         if (hasPosition(ctx) && isLong(ctx)) {
-            logger.info("Short signal received while LONG - exiting long position");
-            handleFlatExit(ctx, index);
+            logger.info("Short signal received while LONG - reversing to short position");
+            DataSeries series = ctx.getDataContext().getDataSeries();
+            double currentPrice = series.getClose(index);
+            
+            PositionSize positionInfo = calculatePositionSize(ctx, index, false, currentPrice);
+            if (positionInfo != null && positionInfo.quantity > 0) {
+                int tradeLots = getSettings().getTradeLots();
+                if (tradeLots <= 0) tradeLots = 1;
+                int finalQuantity = positionInfo.quantity * tradeLots;
+                
+                positionManager.reversePosition(currentPrice, positionInfo.stopPrice, positionInfo.targetPrice, finalQuantity);
+            }
+            return;
         }
         
         // If we already have a short position, return
@@ -541,47 +477,15 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                 logger.info("  └─ Final Order Quantity: {} ({}×{})", finalQuantity, positionInfo.quantity, tradeLots);
             }
             
-            String marketOrderReferenceId = UUID.randomUUID().toString();
-            String stopLossOrderReferenceId = UUID.randomUUID().toString();
-            String takeProfitOrderReferenceId = UUID.randomUUID().toString();
+            // Use PositionManager to enter short position
+            PositionManager.PositionInfo result = positionManager.enterShort(
+                currentPrice, positionInfo.stopPrice, positionInfo.targetPrice, finalQuantity);
             
-            Order marketOrder = ctx.createMarketOrder(
-                    ctx.getInstrument(),
-                    marketOrderReferenceId,
-                    Enums.OrderAction.SELL,
-                    finalQuantity);
-            
-            Order stopLoss = ctx.createStopOrder(
-                    ctx.getInstrument(),
-                    stopLossOrderReferenceId,
-                    Enums.OrderAction.BUY,  // Inverse action for short
-                    Enums.TIF.DAY,
-                    marketOrder.getQuantity(),
-                    (float) positionInfo.stopPrice);
-            
-            Order takeProfit = ctx.createLimitOrder(
-                    ctx.getInstrument(),
-                    takeProfitOrderReferenceId,
-                    Enums.OrderAction.BUY,  // Inverse action for short
-                    Enums.TIF.DAY,
-                    marketOrder.getQuantity(),
-                    (float) positionInfo.targetPrice);
-            
-            ctx.submitOrders(marketOrder, stopLoss, takeProfit);
-            
-            if (logger.isInfoEnabled()) {
-                logger.info("✅ SHORT MARKET ORDER PLACED:");
-                logger.info("  - Quantity: {} contracts at market price ({}×{} Trade Lots)", 
-                           finalQuantity, positionInfo.quantity, tradeLots);
-                logger.info("  - Expected Entry: {}", String.format("%.2f", currentPrice));
-                logger.info("  - Planned Stop: {}", String.format("%.2f", positionInfo.stopPrice));
-                logger.info("  - Planned Target: {}", String.format("%.2f", positionInfo.targetPrice));
+            if (result != null) {
+                logger.info("✅ SHORT POSITION ENTERED via PositionManager");
+            } else {
+                logger.error("Failed to enter short position via PositionManager");
             }
-            
-            // Update position tracking
-            entryPrice = currentPrice;
-            stopPrice = positionInfo.stopPrice;
-            targetPrice = positionInfo.targetPrice;
             
         } catch (Exception e) {
             logger.error("Failed to place short order", e);
@@ -593,65 +497,23 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             logger.debug(">>> Entering handleFlatExit - Index: {}, HasPosition: {}", index, hasPosition(ctx));
         }
         
+        if (positionManager == null) {
+            logger.error("Position manager not initialized");
+            return;
+        }
+        
         if (!hasPosition(ctx)) {
             logger.info("No position to exit - already flat");
             return;
         }
         
-        DataSeries series = ctx.getDataContext().getDataSeries();
-        double exitPrice = series.getClose(index);
+        // Use PositionManager to exit position
+        boolean success = positionManager.exitPosition();
         
-        // Calculate P&L before exit
-        double pnl = 0.0;
-        String exitReason = "Flat Exit Signal";
-        boolean wasLong = isLong(ctx);
-        if (entryPrice > 0 && exitPrice > 0) {
-            pnl = wasLong ? (exitPrice - entryPrice) : (entryPrice - exitPrice);
-            double pnlPercent = (pnl / entryPrice) * 100;
-            
-            logger.info("🔴 POSITION EXIT - {}", exitReason);
-            logger.info("  Position: {} from {} to {}", 
-                wasLong ? "LONG" : "SHORT",
-                String.format("%.2f", entryPrice),
-                String.format("%.2f", exitPrice));
-            logger.info("  P&L: {} points ({:.2f}%)", 
-                String.format("%.2f", pnl),
-                pnlPercent);
-            
-            if (pnl >= 0) {
-                logger.info("  Result: ✅ PROFIT");
-            } else {
-                logger.info("  Result: ❌ LOSS");
-            }
-        }
-        
-        try {
-            // Close all positions
-            ctx.closeAtMarket();
-            
-            logger.info("Exit order placed - Closing {} position at market", 
-                wasLong ? "LONG" : "SHORT");
-            
-            // Log final position summary
-            if (logger.isInfoEnabled()) {
-                logger.info("═══ POSITION SUMMARY ═══");
-                logger.info("  Entry: {}", String.format("%.2f", entryPrice));
-                logger.info("  Exit: {}", String.format("%.2f", exitPrice));
-                logger.info("  Stop was at: {}", String.format("%.2f", stopPrice));
-                logger.info("  Target was at: {}", String.format("%.2f", targetPrice));
-                logger.info("  Final P&L: {} points", String.format("%.2f", pnl));
-                logger.info("═══════════════════════");
-            }
-            
-            // Reset position tracking
-            resetPositionTracking();
-            
-            if (logger.isDebugEnabled()) {
-                logger.debug("Position tracking reset - Now FLAT");
-            }
-            
-        } catch (Exception e) {
-            logger.error("Failed to close positions on flat exit: {}", e.getMessage(), e);
+        if (success) {
+            logger.info("Position successfully exited via PositionManager");
+        } else {
+            logger.error("Failed to exit position via PositionManager");
         }
     }
     
@@ -896,39 +758,33 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         return new PositionSize(finalQuantity, stopPrice, targetPrice);
     }
     
-    private void resetPositionTracking() {
-        entryPrice = 0.0;
-        stopPrice = 0.0;
-        targetPrice = 0.0;
-    }
-    
     /**
      * Get current position from OrderContext
      * @return positive for long, negative for short, 0 for flat
      */
     int getPosition(OrderContext ctx) {
-        return ctx.getPosition();
+        return positionManager != null ? positionManager.getCurrentPosition() : ctx.getPosition();
     }
     
     /**
      * Check if we have any position
      */
     boolean hasPosition(OrderContext ctx) {
-        return getPosition(ctx) != 0;
+        return positionManager != null ? positionManager.hasPosition() : ctx.getPosition() != 0;
     }
     
     /**
      * Check if current position is long
      */
     boolean isLong(OrderContext ctx) {
-        return getPosition(ctx) > 0;
+        return positionManager != null ? positionManager.isLong() : ctx.getPosition() > 0;
     }
     
     /**
      * Check if current position is short
      */
     boolean isShort(OrderContext ctx) {
-        return getPosition(ctx) < 0;
+        return positionManager != null ? positionManager.isShort() : ctx.getPosition() < 0;
     }
     
     // P&L tracking logic preserved in docs/REFERENCE_PNL_TRACKING.md
