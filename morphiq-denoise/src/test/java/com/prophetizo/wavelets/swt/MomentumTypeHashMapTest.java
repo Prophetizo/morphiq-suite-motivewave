@@ -10,6 +10,13 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MomentumTypeHashMapTest {
     
+    // Performance test constants
+    private static final int LOOKUP_ITERATIONS = 100_000; // Number of test iterations
+    private static final int LOOKUPS_PER_ITERATION = 4; // Number of lookups per iteration (SUM, SIGN, INVALID, null)
+    private static final int TOTAL_LOOKUPS = LOOKUP_ITERATIONS * LOOKUPS_PER_ITERATION; // 400,000 total
+    private static final int MAX_LOOKUP_TIME_NANOS = 2500; // 2.5 microseconds per lookup
+    private static final int MAX_TOTAL_TIME_MS = 1000; // 1 second for all lookups in CI
+    
     @Test
     @DisplayName("HashMap lookup should handle all valid enum values")
     void testHashMapLookupForAllValues() {
@@ -37,29 +44,53 @@ class MomentumTypeHashMapTest {
         for (int i = 0; i < 100; i++) {
             SwtTrendMomentumStudy.MomentumType.fromString("SUM");
             SwtTrendMomentumStudy.MomentumType.fromString("SIGN");
-            SwtTrendMomentumStudy.MomentumType.fromString("INVALID");
+            SwtTrendMomentumStudy.MomentumType.fromString("sum");  // Test case variation
+            SwtTrendMomentumStudy.MomentumType.fromString("sign"); // Test case variation
         }
+        
+        // Test once with invalid to ensure error path works
+        SwtTrendMomentumStudy.MomentumType.fromString("INVALID");
         
         // Test that lookups are fast (HashMap should be O(1))
         long start = System.nanoTime();
-        for (int i = 0; i < 100000; i++) {
+        for (int i = 0; i < LOOKUP_ITERATIONS; i++) {
             SwtTrendMomentumStudy.MomentumType.fromString("SUM");
             SwtTrendMomentumStudy.MomentumType.fromString("SIGN");
-            SwtTrendMomentumStudy.MomentumType.fromString("INVALID");
+            SwtTrendMomentumStudy.MomentumType.fromString("sum");  // Lower case
             SwtTrendMomentumStudy.MomentumType.fromString(null);
         }
         long elapsed = System.nanoTime() - start;
         
-        // 400,000 lookups should complete reasonably quickly with HashMap
-        // Allow up to 1 second for CI environments (typically < 50ms locally)
+        // TOTAL_LOOKUPS should complete reasonably quickly with HashMap
+        // Allow up to MAX_TOTAL_TIME_MS for CI environments (typically < 50ms locally)
         long elapsedMs = elapsed / 1_000_000;
-        assertTrue(elapsedMs < 1000, 
-            String.format("400,000 lookups took %d ms - HashMap may not be working correctly", elapsedMs));
+        assertTrue(elapsedMs < MAX_TOTAL_TIME_MS, 
+            String.format("%d lookups took %d ms (limit: %d ms) - HashMap may not be working correctly", 
+                         TOTAL_LOOKUPS, elapsedMs, MAX_TOTAL_TIME_MS));
         
-        // Also verify it's actually fast enough to be useful (< 2.5 microseconds per lookup)
-        double timePerLookup = (double)elapsed / 400_000;
-        assertTrue(timePerLookup < 2500, 
-            String.format("Average time per lookup was %.1f ns - too slow for production use", timePerLookup));
+        // Also verify it's actually fast enough to be useful
+        double timePerLookup = (double)elapsed / TOTAL_LOOKUPS;
+        assertTrue(timePerLookup < MAX_LOOKUP_TIME_NANOS, 
+            String.format("Average time per lookup was %.1f ns (limit: %d ns) - too slow for production use", 
+                         timePerLookup, MAX_LOOKUP_TIME_NANOS));
+    }
+    
+    @Test
+    @DisplayName("HashMap handles invalid values correctly")
+    void testInvalidValueHandling() {
+        // Test that invalid values return default (SUM) and don't break the HashMap
+        String[] invalidValues = {"INVALID", "UNKNOWN", "BAD", "", "123", "sum_of_squares"};
+        
+        for (String invalid : invalidValues) {
+            SwtTrendMomentumStudy.MomentumType result = SwtTrendMomentumStudy.MomentumType.fromString(invalid);
+            assertEquals(SwtTrendMomentumStudy.MomentumType.SUM, result, 
+                        "Invalid value '" + invalid + "' should default to SUM");
+        }
+        
+        // Null should also default to SUM
+        assertEquals(SwtTrendMomentumStudy.MomentumType.SUM, 
+                    SwtTrendMomentumStudy.MomentumType.fromString(null),
+                    "Null should default to SUM");
     }
     
     @Test
