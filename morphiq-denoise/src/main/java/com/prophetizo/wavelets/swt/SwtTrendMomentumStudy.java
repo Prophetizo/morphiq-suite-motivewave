@@ -122,9 +122,11 @@ public class SwtTrendMomentumStudy extends Study {
     private static final double DEFAULT_MOMENTUM_SMOOTHING = 0.5; // Default EMA smoothing factor (0.1-0.9, higher = more responsive)
     private static final int DEFAULT_MOMENTUM_WINDOW = 10; // Default window for RMS calculation
     private static final double DEFAULT_MOMENTUM_SCALING_FACTOR = 100.0; // Default momentum scaling factor
+    private static final double DEFAULT_LEVEL_WEIGHT_DECAY = 0.5; // Default WATR level weight decay factor
     
     // Momentum type enum for efficient comparison
-    private enum MomentumType {
+    // Package-private to allow testing without reflection
+    enum MomentumType {
         SUM,  // Sum of Details (D₁ + D₂ + ...)
         SIGN; // Sign Count (±1 per level)
         
@@ -160,7 +162,8 @@ public class SwtTrendMomentumStudy extends Study {
     
     // Thread-safe cached settings using immutable object pattern
     // All related settings are updated atomically to prevent inconsistent state
-    private static class CachedSettings {
+    // Package-private to allow testing without reflection
+    static class CachedSettings {
         final MomentumType momentumType;
         final int momentumWindow;
         final double levelWeightDecay;
@@ -173,16 +176,26 @@ public class SwtTrendMomentumStudy extends Study {
             this.levelWeightDecay = levelWeightDecay;
             this.momentumScalingFactor = momentumScalingFactor;
         }
+        
+        /**
+         * Creates a CachedSettings instance with default values.
+         * This centralizes default value management and avoids duplication.
+         * 
+         * @return a new CachedSettings with default values
+         */
+        static CachedSettings createDefault() {
+            return new CachedSettings(
+                MomentumType.SUM,
+                DEFAULT_MOMENTUM_WINDOW,
+                DEFAULT_LEVEL_WEIGHT_DECAY,
+                DEFAULT_MOMENTUM_SCALING_FACTOR
+            );
+        }
     }
     
     // Single volatile reference ensures all settings are updated atomically
     // Uses a safe default to avoid NPE, will be replaced with actual settings in onLoad()
-    private volatile CachedSettings cachedSettings = new CachedSettings(
-        MomentumType.SUM, 
-        DEFAULT_MOMENTUM_WINDOW, 
-        0.5, 
-        DEFAULT_MOMENTUM_SCALING_FACTOR
-    );
+    private volatile CachedSettings cachedSettings = CachedSettings.createDefault();
     
     // Flag to track if settings have been initialized from framework
     private volatile boolean settingsInitialized = false;
@@ -258,17 +271,23 @@ public class SwtTrendMomentumStudy extends Study {
     
     /**
      * Ensures settings have been initialized from the framework.
-     * Thread-safe: Uses double-checked locking to avoid race conditions.
+     * 
+     * This method should never need to initialize settings in normal operation,
+     * as onLoad() is always called by the framework before any calculations.
+     * If we reach the initialization code here, it indicates a serious problem
+     * with the framework lifecycle or our understanding of it.
+     * 
+     * @throws IllegalStateException if settings have not been initialized
      */
     private void ensureSettingsInitialized() {
         if (!settingsInitialized) {
-            synchronized (this) {
-                if (!settingsInitialized) {
-                    updateCachedSettings();
-                    settingsInitialized = true;
-                    logger.warn("Settings were not initialized, forcing initialization. This should not happen in normal operation.");
-                }
-            }
+            // This should never happen in production - onLoad() should always be called first
+            String errorMsg = "Settings not initialized before calculation. This indicates a framework " +
+                             "lifecycle violation. onLoad() must be called before any calculations.";
+            logger.error(errorMsg);
+            
+            // Fail fast in development/testing to catch initialization issues
+            throw new IllegalStateException(errorMsg);
         }
     }
     
@@ -286,7 +305,7 @@ public class SwtTrendMomentumStudy extends Study {
         // Read all settings into local variables first
         MomentumType momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
         int momentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
-        double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
+        double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, DEFAULT_LEVEL_WEIGHT_DECAY);
         double momentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
         
         // Create new immutable settings object
@@ -592,7 +611,8 @@ public class SwtTrendMomentumStudy extends Study {
         }
         
         if (waveletAtr == null) {
-            // Ensure settings are initialized from framework (defensive check)
+            // Verify settings initialization - should never fail in production
+            // This check catches framework lifecycle violations during development
             ensureSettingsInitialized();
             
             // Use cached settings for thread-safe access
@@ -867,7 +887,8 @@ public class SwtTrendMomentumStudy extends Study {
     
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
-        // Ensure settings are initialized from framework (defensive check)
+        // Verify settings initialization - should never fail in production
+        // This check catches framework lifecycle violations during development
         ensureSettingsInitialized();
         
         // Get cached settings atomically - all values are consistent with each other
