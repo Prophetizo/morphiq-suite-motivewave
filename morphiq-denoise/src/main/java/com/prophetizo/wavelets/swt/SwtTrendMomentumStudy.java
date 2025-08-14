@@ -128,9 +128,33 @@ public class SwtTrendMomentumStudy extends Study {
         SUM,  // Sum of Details (D₁ + D₂ + ...)
         SIGN; // Sign Count (±1 per level)
         
+        private static final Logger enumLogger = LoggerConfig.getLogger(MomentumType.class);
+        
+        /**
+         * Converts a string value to a MomentumType enum.
+         * 
+         * @param value the string value to convert (case-insensitive)
+         * @return the corresponding MomentumType, or SUM as default
+         */
         static MomentumType fromString(String value) {
-            if ("SIGN".equals(value)) return SIGN;
-            return SUM; // Default to SUM
+            if (value == null) {
+                return SUM; // Default to SUM for null input
+            }
+            
+            // Use switch for clarity and extensibility
+            String upperValue = value.toUpperCase().trim();
+            switch (upperValue) {
+                case "SIGN":
+                    return SIGN;
+                case "SUM":
+                    return SUM;
+                default:
+                    // Log warning for unexpected value and default to SUM
+                    if (enumLogger.isWarnEnabled()) {
+                        enumLogger.warn("Unknown momentum type '{}', defaulting to SUM", value);
+                    }
+                    return SUM;
+            }
         }
     }
     
@@ -152,8 +176,16 @@ public class SwtTrendMomentumStudy extends Study {
     }
     
     // Single volatile reference ensures all settings are updated atomically
-    // Initialized to null to ensure updateCachedSettings() is called before first use
-    private volatile CachedSettings cachedSettings = null;
+    // Uses a safe default to avoid NPE, will be replaced with actual settings in onLoad()
+    private volatile CachedSettings cachedSettings = new CachedSettings(
+        MomentumType.SUM, 
+        DEFAULT_MOMENTUM_WINDOW, 
+        0.5, 
+        DEFAULT_MOMENTUM_SCALING_FACTOR
+    );
+    
+    // Flag to track if settings have been initialized from framework
+    private volatile boolean settingsInitialized = false;
     
     /**
      * WATR Scaling Methods for different market conditions and instruments.
@@ -219,8 +251,25 @@ public class SwtTrendMomentumStudy extends Study {
         // Update minimum bars requirement based on window length after framework initialization
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
         
-        // Cache momentum settings on initialization
+        // Cache momentum settings on initialization and mark as initialized
         updateCachedSettings();
+        settingsInitialized = true;
+    }
+    
+    /**
+     * Ensures settings have been initialized from the framework.
+     * Thread-safe: Uses double-checked locking to avoid race conditions.
+     */
+    private void ensureSettingsInitialized() {
+        if (!settingsInitialized) {
+            synchronized (this) {
+                if (!settingsInitialized) {
+                    updateCachedSettings();
+                    settingsInitialized = true;
+                    logger.warn("Settings were not initialized, forcing initialization. This should not happen in normal operation.");
+                }
+            }
+        }
     }
     
     /**
@@ -231,7 +280,6 @@ public class SwtTrendMomentumStudy extends Study {
      * This ensures all related settings are always consistent with each other.
      * Safe to call multiple times - will always create a fresh settings object from current values.
      * 
-     * Must be called before any code attempts to use cachedSettings to avoid NPE.
      * Called automatically by onLoad() and onSettingsUpdated().
      */
     private void updateCachedSettings() {
@@ -544,13 +592,11 @@ public class SwtTrendMomentumStudy extends Study {
         }
         
         if (waveletAtr == null) {
+            // Ensure settings are initialized from framework (defensive check)
+            ensureSettingsInitialized();
+            
             // Use cached settings for thread-safe access
             CachedSettings settings = this.cachedSettings;
-            if (settings == null) {
-                // Defensive initialization if somehow called before settings are cached
-                updateCachedSettings();
-                settings = this.cachedSettings;
-            }
             this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
             logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
         } else if (waveletChanged || levelsChanged || windowChanged) {
@@ -821,13 +867,11 @@ public class SwtTrendMomentumStudy extends Study {
     
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
+        // Ensure settings are initialized from framework (defensive check)
+        ensureSettingsInitialized();
+        
         // Get cached settings atomically - all values are consistent with each other
         CachedSettings settings = this.cachedSettings;
-        if (settings == null) {
-            // Defensive initialization if somehow called before settings are cached
-            updateCachedSettings();
-            settings = this.cachedSettings;
-        }
         MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
         double levelWeightDecay = settings.levelWeightDecay;
