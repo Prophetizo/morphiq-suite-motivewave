@@ -21,6 +21,11 @@
             <artifactId>morphiq-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- VectorWave for SWT functionality -->
+        <dependency>
+            <groupId>ai.prophetizo</groupId>
+            <artifactId>vector-wave</artifactId>
+        </dependency>
         <!-- MotiveWave Common Utilities -->
         <dependency>
             <groupId>ai.prophetizo</groupId>
@@ -38,6 +43,11 @@
             <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -45,6 +55,25 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.13</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -57,7 +86,8 @@
                         </goals>
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
-                            <shadedArtifactAttached>false</shadedArtifactAttached>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>motivewave</shadedClassifierName>
                             <minimizeJar>false</minimizeJar>
                             <artifactSet>
                                 <includes>
@@ -100,6 +130,13 @@
                                 </relocation>
                             </relocations>
                             <transformers>
+                                <!-- DontIncludeResourceTransformer to handle duplicates -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.DontIncludeResourceTransformer">
+                                    <resources>
+                                        <resource>.git</resource>
+                                        <resource>.gitignore</resource>
+                                    </resources>
+                                </transformer>
                                 <!-- Handle META-INF/services files -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                                 <!-- Handle manifest -->

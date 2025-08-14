@@ -1,34 +1,50 @@
 # Morphiq Suite for MotiveWave
 
-Advanced wavelet-based trading indicators powered by VectorWave's high-performance wavelet transforms.
+Professional wavelet-based trading indicators and strategies for the MotiveWave platform, powered by VectorWave's high-performance wavelet transforms.
 
 ## Overview
 
-Morphiq Suite provides professional-grade wavelet analysis tools for the MotiveWave trading platform, delivering:
-- **Real-time wavelet decomposition** for trend/noise separation
-- **Market-aware denoising** optimized for different asset classes
-- **Multi-timeframe analysis** in a single indicator
-- **Sub-microsecond performance** with SIMD optimizations
+Morphiq Suite provides advanced wavelet analysis tools for systematic trading:
+- **SWT/MODWT Implementation** - Undecimated transforms for shift-invariant analysis
+- **Cross-Scale Momentum** - Multi-resolution signal confirmation
+- **Adaptive Denoising** - Three thresholding methods (Universal, BayesShrink, SURE)
+- **Wavelet-ATR** - Volatility estimation from detail coefficients
+- **Real-time Performance** - Optimized sliding window buffers and parallel processing
 
-## Features
+## Indicators & Strategies
 
-### 🚀 Performance
-- **4x faster** than traditional wavelet libraries
-- **Zero-copy operations** with MotiveWave DataSeries
-- **Incremental updates** for real-time tick processing
-- **Parallel processing** for historical data
+### 📈 SWT Trend + Momentum (NEW)
+Complete trading system using Stationary Wavelet Transform:
+- **Study**: Overlay indicator with trend line and momentum plot
+- **Strategy**: Automated trading with risk management
+- **Features**: RMS energy-based momentum, balanced signal generation, WATR stops
+- [Full Documentation](docs/SWT_TREND_MOMENTUM_DOCUMENTATION.md)
 
-### 📊 Trading Indicators
-- **AutoWavelets**: Multi-level wavelet decomposition display
-- **DenoisedTrendFollowing**: Adaptive noise reduction for cleaner signals
-- **WaveletVolatility**: High-frequency component analysis
-- **MultiTimeframeWavelets**: Simultaneous multi-TF decomposition
+### 📊 AutoWavelets
+Multi-level wavelet decomposition visualization:
+- Real-time decomposition across multiple scales
+- Dynamic level adjustment based on timeframe
+- Visual representation of market structure
 
-### 🔧 Technical Features
-- Multiple wavelet families (Haar, Daubechies, Symlets, Coiflets)
-- Automatic wavelet selection based on market conditions
-- Volume-weighted transforms
-- Market microstructure preservation
+### 🔇 Denoised Trend Following
+Classic wavelet denoising for cleaner price action:
+- Adaptive noise reduction
+- Preserves important market moves
+- Reduced false signals in choppy markets
+
+## Technical Features
+
+### Wavelet Families
+- **Daubechies** (db2-db20): Smooth, good for trends
+- **Symlets** (sym2-sym20): Near-symmetric, balanced
+- **Coiflets** (coif1-coif5): Compact support
+- **Haar**: Simple, good for breakouts
+
+### Advanced Algorithms
+- **Thresholding Methods**: Universal, BayesShrink, SURE
+- **Shrinkage Types**: Soft and hard thresholding
+- **Sliding Window**: Efficient streaming updates
+- **Cross-Scale Analysis**: Multi-resolution momentum confirmation
 
 ## Quick Start
 
@@ -60,22 +76,24 @@ cp morphiq-bundle-premium/target/morphiq-premium-*.jar ~/Documents/MotiveWave/st
 
 ## Documentation
 
-See the [docs/](docs/) directory for comprehensive documentation:
-- [Integration Guide](docs/guides/INTEGRATION_GUIDE.md) - Complete development guide
-- [Migration Guide](docs/guides/MIGRATION_GUIDE.md) - Migrating from JWave to VectorWave
-- [Architecture](docs/architecture/) - System design and specifications
-- [Trading Strategies](docs/guides/STRATEGIES.md) - Using wavelets in trading
+- **[SWT Strategy Documentation](docs/SWT_TREND_MOMENTUM_DOCUMENTATION.md)** - Complete guide to the SWT/MODWT trading system
+- **[API Reference](API_REFERENCE.md)** - Class and method reference
+- **[CLAUDE.md](CLAUDE.md)** - Development guide for AI assistants
+- **[Architecture Docs](docs/architecture/)** - System design and specifications
 
 ## Project Structure
 
 ```
 morphiq-suite-motivewave/
-├── morphiq-core/          # Core wavelet processing library
-├── morphiq-autowave/      # AutoWavelets indicator
-├── morphiq-denoise/       # Denoised trend following indicator
+├── morphiq-core/           # Core wavelet processing library
+├── morphiq-common/         # Shared MotiveWave utilities
+├── morphiq-autowave/       # AutoWavelets indicator
+├── morphiq-denoise/        # SWT/MODWT trend following system
 ├── morphiq-bundle-premium/ # Bundle of all indicators
-├── vectorwave-review/     # VectorWave library documentation
-└── docs/                  # Project documentation
+└── docs/                   # All documentation
+    ├── SWT_TREND_MOMENTUM_DOCUMENTATION.md
+    ├── architecture/       # System design docs
+    └── archive/           # Historical migration docs
 ```
 
 ## Development
@@ -96,31 +114,15 @@ mvn clean package
 
 ### Creating Custom Indicators
 
-```java
-import com.prophetizo.vectorwave.motivewave.studies.VectorWaveStudy;
+See the [API Reference](API_REFERENCE.md) for detailed class documentation and the [SWT implementation](morphiq-denoise/src/main/java/com/prophetizo/wavelets/swt/) for complete examples.
 
-@StudyHeader(
-    namespace = "com.mycompany",
-    id = "MY_WAVELET",
-    name = "My Wavelet Indicator"
-)
-public class MyWaveletIndicator extends VectorWaveStudy {
-    @Override
-    protected void storeResults(DataSeries series, int index, 
-                              TransformResult result) {
-        // Your custom logic here
-    }
-}
-```
+## Performance Features
 
-## Performance Benchmarks
-
-| Operation | JWave | VectorWave | Improvement |
-|-----------|-------|------------|-------------|
-| Haar (64 samples) | ~500 ns | ~107 ns | 4.7x |
-| DB4 (64 samples) | ~1200 ns | ~294 ns | 4.1x |
-| Denoising (1K samples) | ~50 µs | ~12 µs | 4.2x |
-| Real-time update | ~5 µs | ~100 ns | 50x |
+- **Sliding Window Buffers** - O(1) updates for new bars
+- **Parallel Processing** - Automatic for data ≥ 512 points  
+- **RMS Energy Calculation** - Efficient multi-scale momentum
+- **Logging Guards** - Zero overhead when debug disabled
+- **Native SIMD** - VectorWave uses CPU vector instructions
 
 ## Contributing
 
@@ -132,9 +134,8 @@ Proprietary - See [LICENSE](LICENSE) file.
 
 ## Support
 
-- Documentation: [docs/](docs/)
 - Issues: [GitHub Issues](https://github.com/Prophetizo/morphiq-suite-motivewave/issues)
-- VectorWave: [vectorwave-review/](vectorwave-review/)
+- Documentation: See links above
 
 ---
 

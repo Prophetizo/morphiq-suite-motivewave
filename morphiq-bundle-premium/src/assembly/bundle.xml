@@ -8,16 +8,14 @@
     <includeBaseDirectory>false</includeBaseDirectory>
     
     <dependencySets>
-        <!-- Include all study JARs and their dependencies -->
+        <!-- Include shaded study JARs with classifier -->
         <dependencySet>
             <outputDirectory>/</outputDirectory>
             <unpack>true</unpack>
             <useProjectArtifact>false</useProjectArtifact>
             <includes>
-                <include>ai.prophetizo:morphiq-autowave</include>
-                <include>ai.prophetizo:morphiq-denoise</include>
-                <include>ai.prophetizo:morphiq-core</include>
-                <include>org.slf4j:*</include>
+                <include>ai.prophetizo:morphiq-autowave:jar:motivewave</include>
+                <include>ai.prophetizo:morphiq-denoise:jar:motivewave</include>
             </includes>
             <unpackOptions>
                 <excludes>

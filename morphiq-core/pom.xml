@@ -15,10 +15,11 @@
     <description>Core signal processing, math utilities, and licensing infrastructure</description>
 
     <dependencies>
-        <!-- VectorWave -->
+        <!-- VectorWave - external dependency, place JAR in MotiveWave/Extensions/ext if not available -->
         <dependency>
             <groupId>ai.prophetizo</groupId>
             <artifactId>vector-wave</artifactId>
+            <optional>true</optional>
         </dependency>
         <!-- Logging -->
         <dependency>
