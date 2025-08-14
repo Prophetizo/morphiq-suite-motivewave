@@ -152,12 +152,8 @@ public class SwtTrendMomentumStudy extends Study {
     }
     
     // Single volatile reference ensures all settings are updated atomically
-    private volatile CachedSettings cachedSettings = new CachedSettings(
-        MomentumType.SUM, 
-        DEFAULT_MOMENTUM_WINDOW, 
-        0.5, 
-        DEFAULT_MOMENTUM_SCALING_FACTOR
-    );
+    // Initialized to null to ensure updateCachedSettings() is called before first use
+    private volatile CachedSettings cachedSettings = null;
     
     /**
      * WATR Scaling Methods for different market conditions and instruments.
@@ -233,6 +229,10 @@ public class SwtTrendMomentumStudy extends Study {
      * 
      * Thread-safe: Creates a new immutable settings object and atomically swaps the reference.
      * This ensures all related settings are always consistent with each other.
+     * Safe to call multiple times - will always create a fresh settings object from current values.
+     * 
+     * Must be called before any code attempts to use cachedSettings to avoid NPE.
+     * Called automatically by onLoad() and onSettingsUpdated().
      */
     private void updateCachedSettings() {
         // Read all settings into local variables first
@@ -261,10 +261,11 @@ public class SwtTrendMomentumStudy extends Study {
     
     @Override
     public void onSettingsUpdated(DataContext ctx) {
-        logger.info("Settings updated - triggering recalculation");
-        
-        // Cache momentum settings to avoid repeated getSettings() calls during calculation
+        // CRITICAL: Update cached settings FIRST before any other operations
+        // This ensures any calculations triggered during settings update use the new values
         updateCachedSettings();
+        
+        logger.info("Settings updated - triggering recalculation");
         
         // Log which settings might have changed (for debugging)
         if (logger.isDebugEnabled()) {
@@ -545,6 +546,11 @@ public class SwtTrendMomentumStudy extends Study {
         if (waveletAtr == null) {
             // Use cached settings for thread-safe access
             CachedSettings settings = this.cachedSettings;
+            if (settings == null) {
+                // Defensive initialization if somehow called before settings are cached
+                updateCachedSettings();
+                settings = this.cachedSettings;
+            }
             this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
             logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
         } else if (waveletChanged || levelsChanged || windowChanged) {
@@ -817,6 +823,11 @@ public class SwtTrendMomentumStudy extends Study {
         int levelsToUse = Math.min(k, swtResult.getLevels());
         // Get cached settings atomically - all values are consistent with each other
         CachedSettings settings = this.cachedSettings;
+        if (settings == null) {
+            // Defensive initialization if somehow called before settings are cached
+            updateCachedSettings();
+            settings = this.cachedSettings;
+        }
         MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
         double levelWeightDecay = settings.levelWeightDecay;
