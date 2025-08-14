@@ -147,8 +147,14 @@ class PositionManagementIntegrationTest {
                                               any(), eq(2), anyFloat()))
             .thenReturn(mockTargetOrder);
         
-        // Mock position change to flat after exit, then to long
-        when(mockOrderContext.getPosition()).thenReturn(-1).thenReturn(0).thenReturn(2);
+        // Mock position state changes during reversal from short to long:
+        // 1st call: Initial state check - returns -1 (short position)
+        // 2nd call: After closeAtMarket() - returns 0 (flat)
+        // 3rd call: After new long entry - returns 2 (long position)
+        when(mockOrderContext.getPosition())
+            .thenReturn(-1)  // Initial short position
+            .thenReturn(0)   // Flat after exit
+            .thenReturn(2);  // Long after new entry
         
         // Reverse position from short to long
         PositionManager.PositionInfo reverseResult = 

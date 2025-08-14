@@ -168,19 +168,49 @@ public class PositionTracker {
     }
     
     /**
-     * Calculates unrealized P&L based on current price.
+     * Calculates unrealized P&L per unit based on current price.
      * 
      * @param currentPrice the current market price
-     * @param quantity the position quantity
-     * @return unrealized P&L, or 0.0 if no position
+     * @return unrealized P&L per unit, or 0.0 if no position
      */
-    public double calculateUnrealizedPnL(double currentPrice, int quantity) {
+    public double calculateUnrealizedPnLPerUnit(double currentPrice) {
         if (!hasPosition || entryPrice <= 0 || currentPrice <= 0) {
             return 0.0;
         }
         
-        double pnlPerUnit = isLong ? (currentPrice - entryPrice) : (entryPrice - currentPrice);
-        return pnlPerUnit * Math.abs(quantity);
+        // Calculate P&L per unit based on position direction
+        return isLong ? (currentPrice - entryPrice) : (entryPrice - currentPrice);
+    }
+    
+    /**
+     * Calculates total unrealized P&L based on current price and quantity.
+     * 
+     * <p>The quantity parameter should be:
+     * <ul>
+     *   <li>Positive for long positions</li>
+     *   <li>Negative for short positions</li>
+     *   <li>Or always positive (absolute value will be used)</li>
+     * </ul>
+     * 
+     * @param currentPrice the current market price
+     * @param quantity the position quantity (must not be zero)
+     * @return total unrealized P&L (P&L per unit × |quantity|), or 0.0 if no position
+     * @throws IllegalArgumentException if quantity is zero
+     */
+    public double calculateUnrealizedPnL(double currentPrice, int quantity) {
+        if (quantity == 0) {
+            throw new IllegalArgumentException("Quantity cannot be zero");
+        }
+        
+        // Get P&L per unit
+        double pnlPerUnit = calculateUnrealizedPnLPerUnit(currentPrice);
+        
+        // Always use absolute value of quantity for calculation
+        // The P&L direction is determined by the position type (long/short)
+        int absQuantity = Math.abs(quantity);
+        
+        // Return total P&L
+        return pnlPerUnit * absQuantity;
     }
     
     /**

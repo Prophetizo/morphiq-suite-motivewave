@@ -470,12 +470,66 @@ public class PositionManager {
     
     /**
      * Clears all tracked orders (typically called after position exit).
+     * Note: MotiveWave automatically cancels related orders when positions are closed.
      */
     private void clearOrders() {
-        activeOrders.clear();
-        orderIdsByType.clear();
-        orderBundle.clear();
-        logger.debug("Cleared all tracked orders");
+        clearOrders(false);
+    }
+    
+    /**
+     * Clears all tracked orders with optional cancellation.
+     * 
+     * @param cancelFirst if true, cancels orders before clearing; if false, just clears tracking
+     */
+    private void clearOrders(boolean cancelFirst) {
+        if (cancelFirst) {
+            cancelAllOrders();
+        } else {
+            activeOrders.clear();
+            orderIdsByType.clear();
+            orderBundle.clear();
+            logger.debug("Cleared all tracked orders");
+        }
+    }
+    
+    /**
+     * Cancels all active orders being tracked.
+     * Uses OrderContext.cancelOrders() to cancel orders through the platform.
+     * 
+     * @return the number of orders cancelled
+     */
+    public int cancelAllOrders() {
+        int cancelledCount = 0;
+        List<Order> ordersToCancel = new ArrayList<>();
+        
+        // Collect all active orders
+        for (Map.Entry<String, Order> entry : activeOrders.entrySet()) {
+            Order order = entry.getValue();
+            
+            // Check if order is still active
+            if (order != null && order.isActive() && !order.isCancelled() && !order.isFilled()) {
+                ordersToCancel.add(order);
+                cancelledCount++;
+            }
+        }
+        
+        // Cancel all orders at once if there are any to cancel
+        if (!ordersToCancel.isEmpty()) {
+            try {
+                // Use OrderContext to cancel all orders (synchronous call)
+                orderContext.cancelOrders(ordersToCancel);
+                logger.info("Cancelled {} active orders", cancelledCount);
+                
+                // Clear tracking after successful cancellation
+                activeOrders.clear();
+                orderIdsByType.clear();
+                orderBundle.clear();
+            } catch (Exception e) {
+                logger.error("Failed to cancel orders: {}", e.getMessage(), e);
+            }
+        }
+        
+        return cancelledCount;
     }
     
     /**
@@ -546,20 +600,20 @@ public class PositionManager {
             try {
                 // Check if order is still active before attempting to cancel
                 if (order.isActive() && !order.isCancelled() && !order.isFilled()) {
-                    // Note: The Order interface doesn't provide a direct cancel method
-                    // Cancellation typically happens through OrderContext or broker-specific methods
-                    // For now, we'll mark it as cancelled in our tracking
-                    logger.warn("Direct order cancellation not available in Order interface - removing from tracking");
+                    // Use OrderContext to cancel the order (pass as varargs)
+                    orderContext.cancelOrders(order);
+                    logger.info("Cancelled order: {}", orderId);
                 }
                 
                 // Remove from tracking regardless
                 activeOrders.remove(orderId);
                 orderIdsByType.entrySet().removeIf(entry -> orderId.equals(entry.getValue()));
+                orderBundle.removeOrder(order);
                 
-                logger.info("Removed order from tracking: {}", orderId);
+                logger.debug("Removed order from tracking: {}", orderId);
                 return true;
             } catch (Exception e) {
-                logger.error("Failed to process order removal {}: {}", orderId, e.getMessage(), e);
+                logger.error("Failed to cancel order {}: {}", orderId, e.getMessage(), e);
             }
         }
         return false;
@@ -851,7 +905,7 @@ public class PositionManager {
                 float newStop = currentStop + (float) trailAmount;
                 
                 // Validate trail direction
-                if (isLong() && trailAmount > 0 || !isLong() && trailAmount < 0) {
+                if ((isLong() && trailAmount > 0) || (!isLong() && trailAmount < 0)) {
                     stop.setAdjStopPrice(newStop);
                     trailed++;
                     logger.info("Trailed stop from {} to {}", currentStop, newStop);

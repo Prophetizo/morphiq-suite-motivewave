@@ -162,9 +162,45 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         return positionManager != null ? positionManager.getPositionTracker().getStopPrice() : 0.0; 
     }
     void setStopPrice(double stopPrice) { 
-        // Note: Cannot directly set stop price in new architecture
-        // This would require updating the entire position
-        logger.warn("setStopPrice is deprecated - use position manager instead");
+        if (positionManager != null && positionManager.hasPosition()) {
+            // Use PositionManager to modify the stop price
+            boolean modified = positionManager.modifyStopPrice(stopPrice);
+            if (modified) {
+                logger.debug("Stop price modified to: {}", String.format("%.2f", stopPrice));
+            } else {
+                logger.warn("Failed to modify stop price to: {}", String.format("%.2f", stopPrice));
+            }
+        } else {
+            // Update position tracker directly if no active position
+            if (positionManager != null) {
+                positionManager.getPositionTracker().updateStopPrice(stopPrice);
+                logger.debug("Stop price updated in tracker to: {}", String.format("%.2f", stopPrice));
+            } else {
+                logger.warn("Cannot set stop price - position manager not initialized");
+            }
+        }
+    }
+    double getTargetPriceValue() {
+        return positionManager != null ? positionManager.getPositionTracker().getTargetPrice() : 0.0;
+    }
+    void setTargetPriceValue(double targetPrice) {
+        if (positionManager != null && positionManager.hasPosition()) {
+            // Use PositionManager to modify the target price
+            boolean modified = positionManager.modifyTargetPrice(targetPrice);
+            if (modified) {
+                logger.debug("Target price modified to: {}", String.format("%.2f", targetPrice));
+            } else {
+                logger.warn("Failed to modify target price to: {}", String.format("%.2f", targetPrice));
+            }
+        } else {
+            // Update position tracker directly if no active position
+            if (positionManager != null) {
+                positionManager.getPositionTracker().updateTargetPrice(targetPrice);
+                logger.debug("Target price updated in tracker to: {}", String.format("%.2f", targetPrice));
+            } else {
+                logger.warn("Cannot set target price - position manager not initialized");
+            }
+        }
     }
     public Object getBufferLock() { 
         // Return the actual bufferLock from parent class for thread-safe test access

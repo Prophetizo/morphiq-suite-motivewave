@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import org.mockito.stubbing.OngoingStubbing;
 
 /**
  * Unit tests for PositionManager class.
@@ -47,6 +48,32 @@ class PositionManagerTest {
         when(mockOrderContext.getPosition()).thenReturn(0);
         
         positionManager = new PositionManager(mockOrderContext, mockPositionSizer);
+    }
+    
+    /**
+     * Helper method to setup position state for cleaner test code.
+     * @param position the position value (positive for long, negative for short, 0 for flat)
+     */
+    private void setupPosition(int position) {
+        reset(mockOrderContext);
+        when(mockOrderContext.getPosition()).thenReturn(position);
+        // Re-setup other required mocks after reset
+        when(mockOrderContext.getInstrument()).thenReturn(mockInstrument);
+        when(mockOrderContext.getDataContext()).thenReturn(mockDataContext);
+    }
+    
+    /**
+     * Helper method to setup sequential position states for operations that check position multiple times.
+     * @param positions array of position values to return in sequence
+     */
+    private void setupPositionSequence(int... positions) {
+        if (positions.length == 0) return;
+        
+        // Setup to return first value, then subsequent values
+        OngoingStubbing<Integer> stubbing = when(mockOrderContext.getPosition()).thenReturn(positions[0]);
+        for (int i = 1; i < positions.length; i++) {
+            stubbing = stubbing.thenReturn(positions[i]);
+        }
     }
     
     @Test
@@ -193,10 +220,16 @@ class PositionManagerTest {
     @Test
     @DisplayName("Reverse position should exit and enter opposite")
     void testReversePosition() {
-        // Setup existing long position
-        // Need 3 calls returning 2: hasPosition(), isLong(), and exitPosition()->hasPosition()
-        // Then 0 for after exit
-        when(mockOrderContext.getPosition()).thenReturn(2).thenReturn(2).thenReturn(2).thenReturn(0);
+        // Setup mock behavior for position checks during reversal:
+        // 1st call: hasPosition() check before reversal - returns 2 (long position)
+        // 2nd call: isLong() check to determine direction - returns 2 (long position)
+        // 3rd call: hasPosition() check during exit - returns 2 (still has position)
+        // 4th call: hasPosition() check after exit for new entry - returns 0 (flat after exit)
+        when(mockOrderContext.getPosition())
+            .thenReturn(2)  // hasPosition() - initial check
+            .thenReturn(2)  // isLong() - determine direction
+            .thenReturn(2)  // hasPosition() - during exit
+            .thenReturn(0); // hasPosition() - after exit, before new entry
         
         Order mockMarketOrder = mock(Order.class);
         Order mockStopOrder = mock(Order.class);
