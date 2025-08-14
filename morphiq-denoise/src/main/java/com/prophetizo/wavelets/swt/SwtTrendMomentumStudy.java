@@ -160,8 +160,6 @@ public class SwtTrendMomentumStudy extends Study {
         SUM,  // Sum of Details (D₁ + D₂ + ...)
         SIGN; // Sign Count (±1 per level)
         
-        private static final Logger enumLogger = LoggerConfig.getLogger(MomentumType.class);
-        
         /**
          * Converts a string value to a MomentumType enum.
          * 
@@ -181,9 +179,9 @@ public class SwtTrendMomentumStudy extends Study {
                 case "SUM":
                     return SUM;
                 default:
-                    if (enumLogger.isWarnEnabled()) {
-                        // Log warning for unexpected value
-                        enumLogger.warn("Unknown momentum type '{}', defaulting to SUM", value);
+                    if (logger.isWarnEnabled()) {
+                        // Log warning for unexpected value using the main class logger
+                        logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
                     }
                     // Default to SUM for unknown values
                     return SUM;
