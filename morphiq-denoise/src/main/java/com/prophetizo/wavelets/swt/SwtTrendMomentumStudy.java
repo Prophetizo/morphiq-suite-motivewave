@@ -109,6 +109,12 @@ public class SwtTrendMomentumStudy extends Study {
     private static final int DEFAULT_MOMENTUM_WINDOW = 10; // Default window for RMS calculation
     private static final double DEFAULT_MOMENTUM_SCALING_FACTOR = 100.0; // Default momentum scaling factor
     
+    // Cached momentum settings to avoid repeated getSettings() calls
+    private volatile String cachedMomentumType = "SUM";
+    private volatile int cachedMomentumWindow = DEFAULT_MOMENTUM_WINDOW;
+    private volatile double cachedLevelWeightDecay = 0.5;
+    private volatile double cachedMomentumScalingFactor = DEFAULT_MOMENTUM_SCALING_FACTOR;
+    
     /**
      * WATR Scaling Methods for different market conditions and instruments.
      * 
@@ -172,11 +178,23 @@ public class SwtTrendMomentumStudy extends Study {
         
         // Update minimum bars requirement based on window length after framework initialization
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
+        
+        // Cache momentum settings on initialization
+        cachedMomentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
+        cachedMomentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
+        cachedLevelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
+        cachedMomentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
     }
     
     @Override
     public void onSettingsUpdated(DataContext ctx) {
         logger.info("Settings updated - triggering recalculation");
+        
+        // Cache momentum settings to avoid repeated getSettings() calls during calculation
+        cachedMomentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
+        cachedMomentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
+        cachedLevelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
+        cachedMomentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
         
         // Log which settings might have changed (for debugging)
         if (logger.isDebugEnabled()) {
@@ -188,6 +206,8 @@ public class SwtTrendMomentumStudy extends Study {
                         getSettings().getString(SHRINKAGE_TYPE, "Soft"),
                         getSettings().getInteger(DETAIL_CONFIRM_K, 2),
                         getSettings().getBoolean(SHOW_WATR, false));
+            logger.debug("Momentum settings cached: type={}, window={}, decay={}, scaling={}", 
+                        cachedMomentumType, cachedMomentumWindow, cachedLevelWeightDecay, cachedMomentumScalingFactor);
         }
         
         // Clear state to force re-initialization of all components
@@ -726,10 +746,11 @@ public class SwtTrendMomentumStudy extends Study {
     
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
-        String momentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
-        int momentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
-        double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
-        double momentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
+        // Use cached settings instead of fetching them on every call
+        String momentumType = cachedMomentumType;
+        int momentumWindow = cachedMomentumWindow;
+        double levelWeightDecay = cachedLevelWeightDecay;
+        double momentumScalingFactor = cachedMomentumScalingFactor;
         
         double rawMomentum = 0.0;
         
