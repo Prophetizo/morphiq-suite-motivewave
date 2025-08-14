@@ -218,6 +218,16 @@ public class SwtTrendMomentumStudy extends Study {
         final double levelWeightDecay;
         final double momentumScalingFactor;
         
+        /**
+         * Constructs an immutable CachedSettings instance.
+         *
+         * <p>All fields are final and set only during construction, ensuring thread-safe immutability.
+         *
+         * @param momentumType the type of momentum calculation to use (see {@link MomentumType})
+         * @param momentumWindow the window size for momentum calculation
+         * @param levelWeightDecay the decay factor applied to level weights
+         * @param momentumScalingFactor the scaling factor applied to momentum values
+         */
         CachedSettings(MomentumType momentumType, int momentumWindow, 
                       double levelWeightDecay, double momentumScalingFactor) {
             this.momentumType = momentumType;
