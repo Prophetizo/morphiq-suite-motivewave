@@ -201,7 +201,7 @@ public class SwtTrendMomentumStudy extends Study {
                 if (logger.isWarnEnabled()) {
                     // Log warning for unexpected value using the main class logger
                     logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
-                logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
+                }
                 return SUM; // Default to SUM for unknown values
             }
             
