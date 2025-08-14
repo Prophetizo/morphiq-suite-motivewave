@@ -260,11 +260,11 @@ public class SwtTrendMomentumStudy extends Study {
                     momentumPlot.setFixedBottomValue(-range);
                     logger.debug("Updated momentum plot range (SIGN): {} to {}", -range, range);
                 } else {
-                    // For SUM mode: use auto-scaling since coefficient sums can vary widely
+                    // For SUM and SIMPLE modes: use auto-scaling since values can vary widely
                     // Remove fixed scaling to let the plot auto-adjust
                     momentumPlot.setFixedTopValue(null);
                     momentumPlot.setFixedBottomValue(null);
-                    logger.debug("Momentum plot using auto-scaling (SUM mode)");
+                    logger.debug("Momentum plot using auto-scaling ({} mode)", momentumType);
                 }
             }
         }
@@ -305,7 +305,8 @@ public class SwtTrendMomentumStudy extends Study {
         signalGroup.addRow(new DiscreteDescriptor(MOMENTUM_TYPE, "Momentum Calculation", "SUM",
                 Arrays.asList(
                         new NVP("SUM", "Sum of Details (D₁ + D₂ + ...)"),
-                        new NVP("SIGN", "Sign Count (±1 per level)")
+                        new NVP("SIGN", "Sign Count (±1 per level)"),
+                        new NVP("SIMPLE", "Simple (Level 1 only, no weighting)")
                 )));
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
         signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
@@ -728,6 +729,56 @@ public class SwtTrendMomentumStudy extends Study {
         
         double rawMomentum = 0.0;
         
+        // Handle SIMPLE mode separately for better performance
+        if ("SIMPLE".equals(momentumType)) {
+            rawMomentum = calculateSimpleMomentum(swtResult);
+        } else {
+            // Calculate weighted RMS energy from detail coefficients for SUM/SIGN modes
+            rawMomentum = calculateComplexMomentum(swtResult, levelsToUse, momentumType);
+        }
+        
+        // Scale the momentum to make it more visible
+        rawMomentum *= MOMENTUM_VISIBILITY_SCALING;
+        
+        return applyMomentumSmoothing(rawMomentum);
+    }
+    
+    /**
+     * Calculate simple momentum using only the finest detail level (Level 1).
+     * This provides a straightforward momentum indication without complex weighting.
+     * 
+     * @param swtResult the SWT decomposition result
+     * @return the simple momentum value
+     */
+    private double calculateSimpleMomentum(VectorWaveSwtAdapter.SwtResult swtResult) {
+        double[] detail = swtResult.getDetail(1); // Only use Level 1 (finest scale)
+        if (detail.length == 0) {
+            return 0.0;
+        }
+        
+        // Use a simple average of recent coefficients
+        int windowSize = Math.min(MOMENTUM_WINDOW, detail.length);
+        int startIdx = Math.max(0, detail.length - windowSize);
+        
+        double sum = 0.0;
+        for (int i = startIdx; i < detail.length; i++) {
+            sum += detail[i];
+        }
+        
+        return sum / windowSize; // Simple average, no weighting
+    }
+    
+    /**
+     * Calculate complex momentum using the original weighted RMS approach.
+     * 
+     * @param swtResult the SWT decomposition result
+     * @param levelsToUse number of decomposition levels to use
+     * @param momentumType "SUM" or "SIGN" calculation mode
+     * @return the complex momentum value
+     */
+    private double calculateComplexMomentum(VectorWaveSwtAdapter.SwtResult swtResult, int levelsToUse, String momentumType) {
+        double rawMomentum = 0.0;
+        
         // Calculate weighted RMS energy from detail coefficients
         for (int level = 1; level <= levelsToUse; level++) {
             double[] detail = swtResult.getDetail(level);
@@ -758,10 +809,7 @@ public class SwtTrendMomentumStudy extends Study {
             }
         }
         
-        // Scale the momentum to make it more visible
-        rawMomentum *= MOMENTUM_VISIBILITY_SCALING;
-        
-        return applyMomentumSmoothing(rawMomentum);
+        return rawMomentum;
     }
     
     /**
@@ -777,6 +825,7 @@ public class SwtTrendMomentumStudy extends Study {
     
     /**
      * Calculate the momentum contribution for a single wavelet level.
+     * Used for SUM and SIGN modes only (SIMPLE mode uses basic averaging).
      * 
      * @param momentumType "SUM" or "SIGN" calculation mode
      * @param levelEnergy sum of squared coefficients in the window
