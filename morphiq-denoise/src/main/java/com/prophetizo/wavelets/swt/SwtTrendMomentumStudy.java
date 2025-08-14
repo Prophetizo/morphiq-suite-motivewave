@@ -28,27 +28,41 @@ import java.util.List;
 public class SwtTrendMomentumStudy extends Study {
     private static final Logger logger = LoggerConfig.getLogger(SwtTrendMomentumStudy.class);
     
-    // Settings keys
+    /**
+     * Settings keys are organized into logical groups:
+     * 1. Wavelet Transform - Core SWT configuration
+     * 2. Thresholding - Denoising parameters
+     * 3. Momentum & Signal Generation - Trading signal parameters
+     * 4. WATR (Wavelet ATR) - Volatility measurement
+     */
+    
+    // Settings keys - Wavelet Transform
     public static final String WAVELET_TYPE = "WAVELET_TYPE";
     public static final String LEVELS = "LEVELS";
     public static final String WINDOW_LENGTH = "WINDOW_LENGTH";
+    
+    // Settings keys - Thresholding
     public static final String THRESHOLD_METHOD = "THRESHOLD_METHOD";
     public static final String SHRINKAGE_TYPE = "SHRINKAGE_TYPE";
     public static final String USE_DENOISED = "USE_DENOISED";
+    
+    // Settings keys - Momentum & Signal Generation
     public static final String DETAIL_CONFIRM_K = "DETAIL_CONFIRM_K";
     public static final String MOMENTUM_TYPE = "MOMENTUM_TYPE";
+    public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
+    public static final String MOMENTUM_WINDOW = "MOMENTUM_WINDOW";
+    public static final String MOMENTUM_SMOOTHING = "MOMENTUM_SMOOTHING";
+    public static final String MOMENTUM_SCALING_FACTOR = "MOMENTUM_SCALING_FACTOR";
+    public static final String MIN_SLOPE_THRESHOLD = "MIN_SLOPE_THRESHOLD";
+    public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
+    
+    // Settings keys - WATR (Wavelet ATR)
     public static final String SHOW_WATR = "SHOW_WATR";
     public static final String WATR_K = "WATR_K";
     public static final String WATR_MULTIPLIER = "WATR_MULTIPLIER";
     public static final String WATR_SCALE_METHOD = "WATR_SCALE_METHOD";
     public static final String WATR_SCALE_FACTOR = "WATR_SCALE_FACTOR";
     public static final String WATR_LEVEL_DECAY = "WATR_LEVEL_DECAY";
-    public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
-    public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
-    public static final String MIN_SLOPE_THRESHOLD = "MIN_SLOPE_THRESHOLD";
-    public static final String MOMENTUM_SMOOTHING = "MOMENTUM_SMOOTHING";
-    public static final String MOMENTUM_WINDOW = "MOMENTUM_WINDOW";
-    public static final String MOMENTUM_SCALING_FACTOR = "MOMENTUM_SCALING_FACTOR";
     
     // Path keys
     public static final String AJ_PATH = "AJ_PATH";
@@ -120,11 +134,30 @@ public class SwtTrendMomentumStudy extends Study {
         }
     }
     
-    // Cached momentum settings to avoid repeated getSettings() calls
-    private volatile MomentumType cachedMomentumType = MomentumType.SUM;
-    private volatile int cachedMomentumWindow = DEFAULT_MOMENTUM_WINDOW;
-    private volatile double cachedLevelWeightDecay = 0.5;
-    private volatile double cachedMomentumScalingFactor = DEFAULT_MOMENTUM_SCALING_FACTOR;
+    // Thread-safe cached settings using immutable object pattern
+    // All related settings are updated atomically to prevent inconsistent state
+    private static class CachedSettings {
+        final MomentumType momentumType;
+        final int momentumWindow;
+        final double levelWeightDecay;
+        final double momentumScalingFactor;
+        
+        CachedSettings(MomentumType momentumType, int momentumWindow, 
+                      double levelWeightDecay, double momentumScalingFactor) {
+            this.momentumType = momentumType;
+            this.momentumWindow = momentumWindow;
+            this.levelWeightDecay = levelWeightDecay;
+            this.momentumScalingFactor = momentumScalingFactor;
+        }
+    }
+    
+    // Single volatile reference ensures all settings are updated atomically
+    private volatile CachedSettings cachedSettings = new CachedSettings(
+        MomentumType.SUM, 
+        DEFAULT_MOMENTUM_WINDOW, 
+        0.5, 
+        DEFAULT_MOMENTUM_SCALING_FACTOR
+    );
     
     /**
      * WATR Scaling Methods for different market conditions and instruments.
@@ -197,17 +230,32 @@ public class SwtTrendMomentumStudy extends Study {
     /**
      * Updates cached settings to avoid repeated getSettings() calls during calculation.
      * This method should be called during initialization and when settings are updated.
+     * 
+     * Thread-safe: Creates a new immutable settings object and atomically swaps the reference.
+     * This ensures all related settings are always consistent with each other.
      */
     private void updateCachedSettings() {
-        cachedMomentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
-        cachedMomentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
-        cachedLevelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
-        cachedMomentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
+        // Read all settings into local variables first
+        MomentumType momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
+        int momentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
+        double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
+        double momentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
+        
+        // Create new immutable settings object
+        CachedSettings newSettings = new CachedSettings(
+            momentumType, 
+            momentumWindow, 
+            levelWeightDecay, 
+            momentumScalingFactor
+        );
+        
+        // Atomically swap the reference - all settings updated together
+        this.cachedSettings = newSettings;
         
         if (logger.isDebugEnabled()) {
-            logger.debug("Cached settings updated: type={}, window={}, decay={}, scaling={}", 
-                        cachedMomentumType.name(), cachedMomentumWindow, 
-                        cachedLevelWeightDecay, cachedMomentumScalingFactor);
+            logger.debug("Cached settings updated atomically: type={}, window={}, decay={}, scaling={}", 
+                        momentumType.name(), momentumWindow, 
+                        levelWeightDecay, momentumScalingFactor);
         }
     }
     
@@ -495,9 +543,10 @@ public class SwtTrendMomentumStudy extends Study {
         }
         
         if (waveletAtr == null) {
-            double levelDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
-            this.waveletAtr = new WaveletAtr(14, levelDecay); // 14-period smoothing with configurable decay
-            logger.debug("Initialized WATR component with level decay: {}", levelDecay);
+            // Use cached settings for thread-safe access
+            CachedSettings settings = this.cachedSettings;
+            this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
+            logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
         } else if (waveletChanged || levelsChanged || windowChanged) {
             // Reset WATR on settings change
             waveletAtr.reset();
@@ -766,11 +815,12 @@ public class SwtTrendMomentumStudy extends Study {
     
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
-        // Use cached settings instead of fetching them on every call
-        MomentumType momentumType = cachedMomentumType;
-        int momentumWindow = cachedMomentumWindow;
-        double levelWeightDecay = cachedLevelWeightDecay;
-        double momentumScalingFactor = cachedMomentumScalingFactor;
+        // Get cached settings atomically - all values are consistent with each other
+        CachedSettings settings = this.cachedSettings;
+        MomentumType momentumType = settings.momentumType;
+        int momentumWindow = settings.momentumWindow;
+        double levelWeightDecay = settings.levelWeightDecay;
+        double momentumScalingFactor = settings.momentumScalingFactor;
         
         double rawMomentum = 0.0;
         
