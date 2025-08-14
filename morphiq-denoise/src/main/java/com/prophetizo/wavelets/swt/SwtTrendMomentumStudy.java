@@ -727,6 +727,9 @@ public class SwtTrendMomentumStudy extends Study {
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
         String momentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
+        int momentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
+        double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
+        double momentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
         
         double rawMomentum = 0.0;
         
@@ -735,7 +738,6 @@ public class SwtTrendMomentumStudy extends Study {
             double[] detail = swtResult.getDetail(level);
             if (detail.length > 0) {
                 // Use a window of recent coefficients for RMS calculation
-                int momentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
                 int windowSize = Math.min(momentumWindow, detail.length);
                 int startIdx = Math.max(0, detail.length - windowSize);
                 
@@ -749,7 +751,6 @@ public class SwtTrendMomentumStudy extends Study {
                 
                 // Weight factor: finer scales (lower levels) get more weight
                 // Level 1 = 100%, Level 2 = 67%, Level 3 = 50%
-                double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
                 double weight = 1.0 / (1.0 + (level - 1) * levelWeightDecay);
                 
                 double contribution = 0.0;
@@ -773,8 +774,7 @@ public class SwtTrendMomentumStudy extends Study {
             }
         }
         
-        // Scale the momentum to make it more visible (configurable scaling factor for better visibility)
-        double momentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
+        // Scale the momentum to make it more visible (using pre-fetched scaling factor)
         rawMomentum *= momentumScalingFactor;
         
         // Apply exponential smoothing to filter noise

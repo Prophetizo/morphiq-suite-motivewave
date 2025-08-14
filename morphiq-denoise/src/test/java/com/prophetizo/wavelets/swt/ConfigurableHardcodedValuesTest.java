@@ -48,18 +48,18 @@ class ConfigurableHardcodedValuesTest {
     @ParameterizedTest
     @DisplayName("Level weight decay should work with various decay factors")
     @CsvSource({
-        "0.3, 1, 1.0000",      // Level 1 with decay 0.3: 1.0 / (1.0 + 0 * 0.3) = 1.0
-        "0.3, 2, 0.7692",      // Level 2 with decay 0.3: 1.0 / (1.0 + 1 * 0.3) = 0.769
-        "0.3, 3, 0.5882",      // Level 3 with decay 0.3: 1.0 / (1.0 + 2 * 0.3) = 0.588
-        "0.5, 1, 1.0000",      // Level 1 with decay 0.5: 1.0 / (1.0 + 0 * 0.5) = 1.0
-        "0.5, 2, 0.6667",      // Level 2 with decay 0.5: 1.0 / (1.0 + 1 * 0.5) = 0.667
-        "0.5, 3, 0.5000",      // Level 3 with decay 0.5: 1.0 / (1.0 + 2 * 0.5) = 0.5
-        "0.8, 1, 1.0000",      // Level 1 with decay 0.8: 1.0 / (1.0 + 0 * 0.8) = 1.0
-        "0.8, 2, 0.5556",      // Level 2 with decay 0.8: 1.0 / (1.0 + 1 * 0.8) = 0.556
-        "0.8, 3, 0.3846"       // Level 3 with decay 0.8: 1.0 / (1.0 + 2 * 0.8) = 0.385
+        "0.3, 0, 1.0000",      // Level 0 with decay 0.3: 1.0 / (1.0 + 0 * 0.3) = 1.0
+        "0.3, 1, 0.7692",      // Level 1 with decay 0.3: 1.0 / (1.0 + 1 * 0.3) = 0.769
+        "0.3, 2, 0.6250",      // Level 2 with decay 0.3: 1.0 / (1.0 + 2 * 0.3) = 0.625
+        "0.5, 0, 1.0000",      // Level 0 with decay 0.5: 1.0 / (1.0 + 0 * 0.5) = 1.0
+        "0.5, 1, 0.6667",      // Level 1 with decay 0.5: 1.0 / (1.0 + 1 * 0.5) = 0.667
+        "0.5, 2, 0.5000",      // Level 2 with decay 0.5: 1.0 / (1.0 + 2 * 0.5) = 0.5
+        "0.8, 0, 1.0000",      // Level 0 with decay 0.8: 1.0 / (1.0 + 0 * 0.8) = 1.0
+        "0.8, 1, 0.5556",      // Level 1 with decay 0.8: 1.0 / (1.0 + 1 * 0.8) = 0.556
+        "0.8, 2, 0.3846"       // Level 2 with decay 0.8: 1.0 / (1.0 + 2 * 0.8) = 0.385
     })
     void testLevelWeightDecayWithVariousFactors(double levelWeightDecay, int level, double expectedWeight) {
-        double weight = 1.0 / (1.0 + (level - 1) * levelWeightDecay);
+        double weight = 1.0 / (1.0 + level * levelWeightDecay);
         assertEquals(expectedWeight, weight, 0.0001, 
             String.format("Level %d with decay %.1f should have weight %.4f", level, levelWeightDecay, expectedWeight));
     }
