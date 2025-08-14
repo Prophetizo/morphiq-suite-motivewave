@@ -748,7 +748,12 @@ public class SwtTrendMomentumStudy extends Study {
      * This provides a straightforward momentum indication without complex weighting.
      * 
      * @param swtResult the SWT decomposition result
-     * @return the simple momentum value
+     * <p>
+     * <b>Note:</b> This method returns an <i>unscaled</i> momentum value.
+     * The scaling for visibility is applied in the calling method ({@link #calculateMomentumSum}).
+     * 
+     * @param swtResult the SWT decomposition result
+     * @return the unscaled simple momentum value
      */
     private double calculateSimpleMomentum(VectorWaveSwtAdapter.SwtResult swtResult) {
         double[] detail = swtResult.getDetail(1); // Only use Level 1 (finest scale)
