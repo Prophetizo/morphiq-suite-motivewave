@@ -106,6 +106,11 @@ public class SwtTrendMomentumStudy extends Study {
     private static final double DEFAULT_MOMENTUM_SMOOTHING = 0.5; // Default EMA smoothing factor (0.1-0.9, higher = more responsive)
     private static final int MOMENTUM_WINDOW = 10; // Window for RMS calculation
     
+    // Momentum calculation constants
+    private static final double MOMENTUM_VISIBILITY_SCALING = 100.0; // Scaling factor for better visibility
+    private static final double LEVEL_WEIGHT_DECAY_FACTOR = 0.5; // Weight decay factor for multi-level weighting
+    private static final double BASE_LEVEL_WEIGHT = 1.0; // Base weight for level 1 (100%)
+    
     /**
      * WATR Scaling Methods for different market conditions and instruments.
      * 
@@ -741,21 +746,10 @@ public class SwtTrendMomentumStudy extends Study {
                 
                 // Weight factor: finer scales (lower levels) get more weight
                 // Level 1 = 100%, Level 2 = 67%, Level 3 = 50%
-                double weight = 1.0 / (1.0 + (level - 1) * 0.5);
+                double weight = calculateLevelWeight(level);
                 
-                double contribution = 0.0;
-                if ("SUM".equals(momentumType)) {
-                    // Use weighted average of coefficients (preserves sign)
-                    double avgCoeff = levelSum / windowSize;
-                    contribution = avgCoeff * weight;
-                    rawMomentum += contribution;
-                } else {
-                    // Sign-based: use RMS with sign of average
-                    double rms = Math.sqrt(levelEnergy / windowSize);
-                    double sign = Math.signum(levelSum);
-                    contribution = sign * rms * weight;
-                    rawMomentum += contribution;
-                }
+                double contribution = calculateLevelContribution(momentumType, levelEnergy, levelSum, windowSize, weight);
+                rawMomentum += contribution;
                 
                 if (logger.isTraceEnabled()) {
                     logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
@@ -764,10 +758,53 @@ public class SwtTrendMomentumStudy extends Study {
             }
         }
         
-        // Scale the momentum to make it more visible (multiply by 100 for better visibility)
-        rawMomentum *= 100.0;
+        // Scale the momentum to make it more visible
+        rawMomentum *= MOMENTUM_VISIBILITY_SCALING;
         
-        // Apply exponential smoothing to filter noise
+        return applyMomentumSmoothing(rawMomentum);
+    }
+    
+    /**
+     * Calculate the weight for a given wavelet decomposition level.
+     * Finer scales (lower levels) get more weight for momentum calculation.
+     * 
+     * @param level the decomposition level (1-based)
+     * @return the weight factor for this level
+     */
+    private double calculateLevelWeight(int level) {
+        return BASE_LEVEL_WEIGHT / (BASE_LEVEL_WEIGHT + (level - 1) * LEVEL_WEIGHT_DECAY_FACTOR);
+    }
+    
+    /**
+     * Calculate the momentum contribution for a single wavelet level.
+     * 
+     * @param momentumType "SUM" or "SIGN" calculation mode
+     * @param levelEnergy sum of squared coefficients in the window
+     * @param levelSum sum of coefficients in the window
+     * @param windowSize number of coefficients in the window
+     * @param weight weight factor for this level
+     * @return the weighted contribution from this level
+     */
+    private double calculateLevelContribution(String momentumType, double levelEnergy, double levelSum, int windowSize, double weight) {
+        if ("SUM".equals(momentumType)) {
+            // Use weighted average of coefficients (preserves sign)
+            double avgCoeff = levelSum / windowSize;
+            return avgCoeff * weight;
+        } else {
+            // Sign-based: use RMS with sign of average
+            double rms = Math.sqrt(levelEnergy / windowSize);
+            double sign = Math.signum(levelSum);
+            return sign * rms * weight;
+        }
+    }
+    
+    /**
+     * Apply exponential smoothing to the raw momentum value.
+     * 
+     * @param rawMomentum the unsmoothed momentum value
+     * @return the smoothed momentum value
+     */
+    private double applyMomentumSmoothing(double rawMomentum) {
         if (smoothedMomentum == 0.0) {
             // Initialize with first value
             smoothedMomentum = rawMomentum;
@@ -776,7 +813,6 @@ public class SwtTrendMomentumStudy extends Study {
             double alpha = getSettings().getDouble(MOMENTUM_SMOOTHING, DEFAULT_MOMENTUM_SMOOTHING);
             smoothedMomentum = alpha * rawMomentum + (1.0 - alpha) * smoothedMomentum;
         }
-        
         return smoothedMomentum;
     }
     
