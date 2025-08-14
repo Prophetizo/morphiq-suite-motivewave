@@ -36,17 +36,23 @@ public class SwtTrendMomentumStudy extends Study {
      * 4. WATR (Wavelet ATR) - Volatility measurement
      */
     
-    // Settings keys - Wavelet Transform
+    // ========================================================================
+    // Settings Group 1: WAVELET TRANSFORM - Core SWT configuration
+    // ========================================================================
     public static final String WAVELET_TYPE = "WAVELET_TYPE";
     public static final String LEVELS = "LEVELS";
     public static final String WINDOW_LENGTH = "WINDOW_LENGTH";
     
-    // Settings keys - Thresholding
+    // ========================================================================
+    // Settings Group 2: THRESHOLDING - Denoising parameters
+    // ========================================================================
     public static final String THRESHOLD_METHOD = "THRESHOLD_METHOD";
     public static final String SHRINKAGE_TYPE = "SHRINKAGE_TYPE";
     public static final String USE_DENOISED = "USE_DENOISED";
     
-    // Settings keys - Momentum & Signal Generation
+    // ========================================================================
+    // Settings Group 3: MOMENTUM & SIGNAL GENERATION - Trading signal parameters
+    // ========================================================================
     public static final String DETAIL_CONFIRM_K = "DETAIL_CONFIRM_K";
     public static final String MOMENTUM_TYPE = "MOMENTUM_TYPE";
     public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
@@ -56,7 +62,9 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String MIN_SLOPE_THRESHOLD = "MIN_SLOPE_THRESHOLD";
     public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
     
-    // Settings keys - WATR (Wavelet ATR)
+    // ========================================================================
+    // Settings Group 4: WATR (Wavelet ATR) - Volatility measurement
+    // ========================================================================
     public static final String SHOW_WATR = "SHOW_WATR";
     public static final String WATR_K = "WATR_K";
     public static final String WATR_MULTIPLIER = "WATR_MULTIPLIER";
@@ -64,23 +72,31 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String WATR_SCALE_FACTOR = "WATR_SCALE_FACTOR";
     public static final String WATR_LEVEL_DECAY = "WATR_LEVEL_DECAY";
     
-    // Path keys
+    // ========================================================================
+    // UI ELEMENTS - Paths, Plots, and Markers
+    // ========================================================================
+    
+    // Path keys - Main chart lines
     public static final String AJ_PATH = "AJ_PATH";
     public static final String WATR_UPPER_PATH = "WATR_UPPER_PATH";
     public static final String WATR_LOWER_PATH = "WATR_LOWER_PATH";
     
-    // Plot keys
+    // Plot keys - Separate indicator window
     public static final String MOMENTUM_PLOT = "MOMENTUM_PLOT";
     
     // Path keys for momentum plot
     public static final String MOMENTUM_SUM_PATH = "MOMENTUM_SUM_PATH";
     public static final String SLOPE_PATH = "SLOPE_PATH";
     
-    // Marker keys
+    // Marker keys - Trading signals
     public static final String LONG_MARKER = "LONG_MARKER";
     public static final String SHORT_MARKER = "SHORT_MARKER";
     
-    // Values
+    // ========================================================================
+    // ENUMS - Values and Signals
+    // ========================================================================
+    
+    // Values - Data series stored by the study
     public enum Values { 
         AJ,                    // Approximation (trend)
         D1_SIGN, D2_SIGN, D3_SIGN,  // Detail signs for momentum
@@ -91,10 +107,14 @@ public class SwtTrendMomentumStudy extends Study {
         SLOPE                  // Trend slope
     }
     
-    // Signals - state-based, not action-based
+    // Signals - State-based trading signals (not action-based)
     public enum Signals {
         LONG, SHORT
     }
+    
+    // ========================================================================
+    // INSTANCE FIELDS - Components and State
+    // ========================================================================
     
     // Core components - volatile for thread safety
     private volatile VectorWaveSwtAdapter swtAdapter;
@@ -110,19 +130,29 @@ public class SwtTrendMomentumStudy extends Study {
     // No need for marker tracking - SDK handles this when we follow the pattern:
     // Only add markers when series.isBarComplete(index) is true
     
-    // Sliding window buffer for streaming updates - synchronized for thread safety
+    // ========================================================================
+    // BUFFER MANAGEMENT - Sliding window for streaming updates
+    // ========================================================================
+    
     // These fields must be accessed together atomically, so we use synchronization
     private double[] priceBuffer = null;
     private int bufferStartIndex = -1;
     private boolean bufferInitialized = false;
     protected final Object bufferLock = new Object(); // Lock for buffer operations (protected for test access)
     
+    // ========================================================================
+    // MOMENTUM CALCULATION - Smoothing and default values
+    // ========================================================================
+    
     // Momentum smoothing - volatile for thread safety in MotiveWave's multi-threaded calculation engine
     private volatile double smoothedMomentum = 0.0;
-    private static final double DEFAULT_MOMENTUM_SMOOTHING = 0.5; // Default EMA smoothing factor (0.1-0.9, higher = more responsive)
-    private static final int DEFAULT_MOMENTUM_WINDOW = 10; // Default window for RMS calculation
-    private static final double DEFAULT_MOMENTUM_SCALING_FACTOR = 100.0; // Default momentum scaling factor
-    private static final double DEFAULT_LEVEL_WEIGHT_DECAY = 0.5; // Default WATR level weight decay factor
+    
+    // Default constants for momentum and WATR calculations
+    // Package-private to allow testing without reflection
+    static final double DEFAULT_MOMENTUM_SMOOTHING = 0.5; // Default EMA smoothing factor (0.1-0.9, higher = more responsive)
+    static final int DEFAULT_MOMENTUM_WINDOW = 10; // Default window for RMS calculation
+    static final double DEFAULT_MOMENTUM_SCALING_FACTOR = 100.0; // Default momentum scaling factor
+    static final double DEFAULT_LEVEL_WEIGHT_DECAY = 0.5; // Default WATR level weight decay factor
     
     // Momentum type enum for efficient comparison
     // Package-private to allow testing without reflection
@@ -252,7 +282,8 @@ public class SwtTrendMomentumStudy extends Study {
      * 
      * Note: This is an absolute threshold in price points, NOT a percentage.
      */
-    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.05; // Absolute price points (e.g., 0.05 = 0.05 point minimum move)
+    // Package-private to allow testing without reflection
+    static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.05; // Absolute price points (e.g., 0.05 = 0.05 point minimum move)
     
     @Override
     public void onLoad(Defaults defaults) {
@@ -270,23 +301,27 @@ public class SwtTrendMomentumStudy extends Study {
     }
     
     /**
-     * Ensures settings have been initialized from the framework.
+     * Validates that settings have been properly initialized from the framework.
      * 
-     * This method should never need to initialize settings in normal operation,
-     * as onLoad() is always called by the framework before any calculations.
-     * If we reach the initialization code here, it indicates a serious problem
-     * with the framework lifecycle or our understanding of it.
+     * This is a safety check that should always pass in normal operation,
+     * as onLoad() is guaranteed to be called by the framework before any calculations.
+     * If this validation fails, it indicates a serious problem with the framework
+     * lifecycle or a bug in our initialization sequence.
      * 
-     * @throws IllegalStateException if settings have not been initialized
+     * This method does NOT perform initialization - it only validates and fails fast
+     * if initialization hasn't occurred, helping catch lifecycle violations during
+     * development and testing.
+     * 
+     * @throws IllegalStateException if settings have not been initialized by onLoad()
      */
-    private void ensureSettingsInitialized() {
+    private void validateSettingsInitialized() {
         if (!settingsInitialized) {
             // This should never happen in production - onLoad() should always be called first
             String errorMsg = "Settings not initialized before calculation. This indicates a framework " +
                              "lifecycle violation. onLoad() must be called before any calculations.";
             logger.error(errorMsg);
             
-            // Fail fast in development/testing to catch initialization issues
+            // Fail fast to catch initialization issues during development/testing
             throw new IllegalStateException(errorMsg);
         }
     }
@@ -613,7 +648,7 @@ public class SwtTrendMomentumStudy extends Study {
         if (waveletAtr == null) {
             // Verify settings initialization - should never fail in production
             // This check catches framework lifecycle violations during development
-            ensureSettingsInitialized();
+            validateSettingsInitialized();
             
             // Use cached settings for thread-safe access
             CachedSettings settings = this.cachedSettings;
@@ -889,7 +924,7 @@ public class SwtTrendMomentumStudy extends Study {
         int levelsToUse = Math.min(k, swtResult.getLevels());
         // Verify settings initialization - should never fail in production
         // This check catches framework lifecycle violations during development
-        ensureSettingsInitialized();
+        validateSettingsInitialized();
         
         // Get cached settings atomically - all values are consistent with each other
         CachedSettings settings = this.cachedSettings;

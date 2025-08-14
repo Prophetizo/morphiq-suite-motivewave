@@ -4,35 +4,22 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.lang.reflect.Field;
-
 /**
  * Test to verify that CachedSettings.createDefault() uses the correct constants
  * and avoids magic numbers.
  * 
- * Note: CachedSettings is package-private to allow direct testing without excessive reflection,
- * while keeping it encapsulated from external packages.
+ * Note: Both CachedSettings and the default constants are package-private to allow 
+ * direct testing without reflection, while keeping them encapsulated from external packages.
  */
 class CachedSettingsDefaultsTest {
     
     @Test
     @DisplayName("CachedSettings.createDefault() should use defined constants")
-    void testDefaultsUseConstants() throws Exception {
-        // Use reflection only for accessing private constants
-        Class<?> studyClass = SwtTrendMomentumStudy.class;
-        
-        // Get the default constants
-        Field momentumWindowField = studyClass.getDeclaredField("DEFAULT_MOMENTUM_WINDOW");
-        momentumWindowField.setAccessible(true);
-        int expectedMomentumWindow = (Integer) momentumWindowField.get(null);
-        
-        Field scalingFactorField = studyClass.getDeclaredField("DEFAULT_MOMENTUM_SCALING_FACTOR");
-        scalingFactorField.setAccessible(true);
-        double expectedScalingFactor = (Double) scalingFactorField.get(null);
-        
-        Field levelDecayField = studyClass.getDeclaredField("DEFAULT_LEVEL_WEIGHT_DECAY");
-        levelDecayField.setAccessible(true);
-        double expectedLevelDecay = (Double) levelDecayField.get(null);
+    void testDefaultsUseConstants() {
+        // Access the default constants directly (they're package-private)
+        int expectedMomentumWindow = SwtTrendMomentumStudy.DEFAULT_MOMENTUM_WINDOW;
+        double expectedScalingFactor = SwtTrendMomentumStudy.DEFAULT_MOMENTUM_SCALING_FACTOR;
+        double expectedLevelDecay = SwtTrendMomentumStudy.DEFAULT_LEVEL_WEIGHT_DECAY;
         
         // Verify the constants have the expected values
         assertEquals(10, expectedMomentumWindow, "DEFAULT_MOMENTUM_WINDOW should be 10");
@@ -60,7 +47,7 @@ class CachedSettingsDefaultsTest {
     
     @Test
     @DisplayName("No magic numbers should exist in initialization")
-    void testNoMagicNumbers() throws Exception {
+    void testNoMagicNumbers() {
         // Create default settings
         SwtTrendMomentumStudy.CachedSettings defaultSettings = 
             SwtTrendMomentumStudy.CachedSettings.createDefault();
@@ -69,10 +56,7 @@ class CachedSettingsDefaultsTest {
         assertNotNull(defaultSettings);
         
         // The important thing is that DEFAULT_LEVEL_WEIGHT_DECAY exists and equals 0.5
-        Class<?> studyClass = SwtTrendMomentumStudy.class;
-        Field levelDecayField = studyClass.getDeclaredField("DEFAULT_LEVEL_WEIGHT_DECAY");
-        levelDecayField.setAccessible(true);
-        double levelDecay = (Double) levelDecayField.get(null);
+        double levelDecay = SwtTrendMomentumStudy.DEFAULT_LEVEL_WEIGHT_DECAY;
         
         assertEquals(0.5, levelDecay, 0.0001, 
             "DEFAULT_LEVEL_WEIGHT_DECAY should be defined as 0.5 to replace magic number");
@@ -106,5 +90,25 @@ class CachedSettingsDefaultsTest {
         assertEquals(originalWindow, settings.momentumWindow);
         assertEquals(originalDecay, settings.levelWeightDecay, 0.0001);
         assertEquals(originalScaling, settings.momentumScalingFactor, 0.0001);
+    }
+    
+    @Test
+    @DisplayName("Default constants should be accessible without reflection")
+    void testConstantsAccessibility() {
+        // Verify we can access all default constants directly
+        assertDoesNotThrow(() -> {
+            double smoothing = SwtTrendMomentumStudy.DEFAULT_MOMENTUM_SMOOTHING;
+            int window = SwtTrendMomentumStudy.DEFAULT_MOMENTUM_WINDOW;
+            double scaling = SwtTrendMomentumStudy.DEFAULT_MOMENTUM_SCALING_FACTOR;
+            double decay = SwtTrendMomentumStudy.DEFAULT_LEVEL_WEIGHT_DECAY;
+            double slope = SwtTrendMomentumStudy.DEFAULT_MIN_SLOPE_THRESHOLD;
+            
+            // Verify expected values
+            assertEquals(0.5, smoothing, 0.0001, "DEFAULT_MOMENTUM_SMOOTHING");
+            assertEquals(10, window, "DEFAULT_MOMENTUM_WINDOW");
+            assertEquals(100.0, scaling, 0.0001, "DEFAULT_MOMENTUM_SCALING_FACTOR");
+            assertEquals(0.5, decay, 0.0001, "DEFAULT_LEVEL_WEIGHT_DECAY");
+            assertEquals(0.05, slope, 0.0001, "DEFAULT_MIN_SLOPE_THRESHOLD");
+        });
     }
 }
