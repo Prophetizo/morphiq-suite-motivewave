@@ -9,16 +9,16 @@ import static org.junit.jupiter.api.Assertions.*;
  * Performance comparison between String and Enum comparisons for momentum type.
  * 
  * This test can be configured via system properties:
- * - momentum.perf.iterations: Number of iterations (default: 1,000,000)
+ * - momentum.perf.iterations: Number of iterations (default: 100,000)
  * - momentum.perf.enabled: Set to "true" to run the test (default: runs always)
  * 
  * Example: mvn test -Dmomentum.perf.iterations=10000000 -Dmomentum.perf.enabled=true
  */
 class MomentumTypePerformanceTest {
     
-    // Default to 1 million iterations for reasonable CI performance
-    // Can be overridden via -Dmomentum.perf.iterations=10000000
-    private static final int ITERATIONS = Integer.getInteger("momentum.perf.iterations", 1_000_000);
+    // Default to 100,000 iterations for fast CI builds
+    // Can be overridden via -Dmomentum.perf.iterations=10000000 for detailed performance testing
+    private static final int ITERATIONS = Integer.getInteger("momentum.perf.iterations", 100_000);
     
     private enum MomentumType {
         SUM, SIGN
