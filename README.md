@@ -10,7 +10,7 @@ Morphiq Suite provides advanced wavelet analysis tools for systematic trading:
 - **Adaptive Denoising** - Three thresholding methods (Universal, BayesShrink, SURE)
 - **Wavelet-ATR (WATR)** - RMS energy-based volatility estimation from detail coefficients
 - **Real-time Performance** - Optimized sliding window buffers and parallel processing
-- **Position Management** - OrderContext-based state tracking with bracket orders
+- **Position Management** - Advanced order tracking with multi-order support and bracket orders
 
 ## Indicators & Strategies
 
@@ -49,6 +49,8 @@ Classic wavelet denoising for cleaner price action:
 - **Cross-Scale Analysis**: Multi-resolution momentum confirmation
 - **Position Sizing**: Factor-based with Trade Lots multiplication
 - **Risk Management**: Automated bracket orders with stop loss and take profit
+- **Order Management**: UUID-based tracking with OrderBundle for multi-order strategies
+- **Position Tracking**: Real-time P&L, risk/reward ratios, and trailing stops
 
 ## Quick Start
 
@@ -81,6 +83,7 @@ cp morphiq-bundle-premium/target/morphiq-premium-*.jar ~/Documents/MotiveWave/st
 ## Documentation
 
 - **[SWT Strategy Documentation](docs/SWT_TREND_MOMENTUM_DOCUMENTATION.md)** - Complete guide to the SWT/MODWT trading system
+- **[Position Manager Guide](docs/POSITION_MANAGER_GUIDE.md)** - Comprehensive guide to the position management framework
 - **[SWT White Paper](docs/white_papers/SWT_TREND_MOMENTUM_WHITEPAPER.md)** - Technical white paper on the trading methodology
 - **[API Reference](API_REFERENCE.md)** - Class and method reference
 - **[CLAUDE.md](CLAUDE.md)** - Development guide for AI assistants
@@ -98,6 +101,7 @@ morphiq-suite-motivewave/
 ├── morphiq-bundle-premium/ # Bundle of all indicators
 └── docs/                   # All documentation
     ├── SWT_TREND_MOMENTUM_DOCUMENTATION.md
+    ├── POSITION_MANAGER_GUIDE.md  # Position management framework
     ├── architecture/       # System design docs
     ├── blog/              # Educational articles
     ├── guides/            # Integration and migration guides
