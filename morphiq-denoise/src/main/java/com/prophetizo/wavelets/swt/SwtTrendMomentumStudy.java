@@ -682,7 +682,6 @@ public class SwtTrendMomentumStudy extends Study {
             if (settings == null) {
                 // Double-check in case of race condition
                 throw new IllegalStateException("CachedSettings became null after validation");
-            }
             this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
             logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
         } else if (waveletChanged || levelsChanged || windowChanged) {
