@@ -2,6 +2,53 @@
 
 ## Core Classes
 
+### PositionManager
+**Package**: `com.prophetizo.wavelets.swt.core`
+
+Centralized position management component for reuse across trading strategies.
+
+#### Key Methods
+- `enterLong(entryPrice, stopPrice, targetPrice, quantity)` - Enter long position with bracket orders
+- `enterShort(entryPrice, stopPrice, targetPrice, quantity)` - Enter short position with bracket orders
+- `reversePosition(entryPrice, stopPrice, targetPrice, quantity)` - Reverse current position
+- `exitPosition()` - Exit current position at market
+- `hasPosition()` - Check if position exists
+- `isLong()` / `isShort()` - Check position direction
+- `getCurrentPositionSide()` - Get position side as string ("LONG"/"SHORT"/"FLAT")
+- `onOrderFilled(Order)` - Handle order fill notifications
+
+#### Position Management
+- Integrates with PositionSizer for risk calculations
+- Creates bracket orders (market + stop + target) automatically
+- Tracks position state through PositionTracker
+- Handles position reversal seamlessly
+- Comprehensive error handling and validation
+
+---
+
+### PositionTracker
+**Package**: `com.prophetizo.wavelets.swt.core`
+
+Thread-safe position state tracking and calculations.
+
+#### Key Methods
+- `updatePosition(entryPrice, stopPrice, targetPrice, isLong)` - Update position state
+- `updateEntryPrice(entryPrice)` - Update entry price only
+- `reset()` - Clear all position state
+- `calculateUnrealizedPnL(currentPrice, quantity)` - Calculate unrealized P&L
+- `getStopDistance(currentPrice)` / `getTargetDistance(currentPrice)` - Distance calculations
+- `getRiskPerUnit()` / `getRewardPerUnit()` - Risk/reward per unit
+- `getRiskRewardRatio()` - Calculate risk/reward ratio
+- `isNearStop(currentPrice, threshold)` / `isNearTarget(currentPrice, threshold)` - Proximity detection
+
+#### State Management
+- Entry, stop, and target price tracking
+- Position direction and status
+- Thread-safe for concurrent access
+- Automatic calculations for common metrics
+
+---
+
 ### SwtTrendMomentumStudy
 **Package**: `com.prophetizo.wavelets.swt`
 
