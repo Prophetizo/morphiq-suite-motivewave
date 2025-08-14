@@ -774,7 +774,13 @@ public class SwtTrendMomentumStudy extends Study {
      * @param swtResult the SWT decomposition result
      * @param levelsToUse number of decomposition levels to use
      * @param momentumType "SUM" or "SIGN" calculation mode
-     * @return the complex momentum value
+     * <p>
+     * This method returns an <b>unscaled</b> momentum value; any scaling is applied in the calling method.
+     * 
+     * @param swtResult the SWT decomposition result
+     * @param levelsToUse number of decomposition levels to use
+     * @param momentumType "SUM" or "SIGN" calculation mode
+     * @return the unscaled complex momentum value
      */
     private double calculateComplexMomentum(VectorWaveSwtAdapter.SwtResult swtResult, int levelsToUse, String momentumType) {
         double rawMomentum = 0.0;
