@@ -961,7 +961,6 @@ public class SwtTrendMomentumStudy extends Study {
         if (settings == null) {
             // Double-check in case of race condition
             throw new IllegalStateException("CachedSettings became null after validation");
-        }
         MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
         double levelWeightDecay = settings.levelWeightDecay;
