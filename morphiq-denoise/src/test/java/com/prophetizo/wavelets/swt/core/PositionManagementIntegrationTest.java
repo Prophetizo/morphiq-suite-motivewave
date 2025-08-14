@@ -37,7 +37,7 @@ class PositionManagementIntegrationTest {
         when(mockInstrument.getSymbol()).thenReturn("ES");
         when(mockInstrument.getPointValue()).thenReturn(50.0);
         when(mockDataSeries.size()).thenReturn(100);
-        when(mockDataSeries.getClose(99)).thenReturn(4500.0);
+        when(mockDataSeries.getClose(99)).thenReturn(4500.0f);
         
         // Initially flat position
         when(mockOrderContext.getPosition()).thenReturn(0);
@@ -62,10 +62,10 @@ class PositionManagementIntegrationTest {
         when(mockOrderContext.createMarketOrder(any(), any(), eq(Enums.OrderAction.BUY), eq(2)))
             .thenReturn(mockMarketOrder);
         when(mockOrderContext.createStopOrder(any(), any(), eq(Enums.OrderAction.SELL), 
-                                             any(), eq(2), any()))
+                                             any(), eq(2), anyFloat()))
             .thenReturn(mockStopOrder);
         when(mockOrderContext.createLimitOrder(any(), any(), eq(Enums.OrderAction.SELL), 
-                                              any(), eq(2), any()))
+                                              any(), eq(2), anyFloat()))
             .thenReturn(mockTargetOrder);
         
         // Enter long position
@@ -141,10 +141,10 @@ class PositionManagementIntegrationTest {
         when(mockOrderContext.createMarketOrder(any(), any(), eq(Enums.OrderAction.BUY), eq(2)))
             .thenReturn(mockMarketOrder);
         when(mockOrderContext.createStopOrder(any(), any(), eq(Enums.OrderAction.SELL), 
-                                             any(), eq(2), any()))
+                                             any(), eq(2), anyFloat()))
             .thenReturn(mockStopOrder);
         when(mockOrderContext.createLimitOrder(any(), any(), eq(Enums.OrderAction.SELL), 
-                                              any(), eq(2), any()))
+                                              any(), eq(2), anyFloat()))
             .thenReturn(mockTargetOrder);
         
         // Mock position change to flat after exit, then to long
@@ -155,7 +155,7 @@ class PositionManagementIntegrationTest {
             positionManager.reversePosition(4500.0, 4490.0, 4530.0, 2);
         
         assertNotNull(reverseResult);
-        assertFalse(reverseResult.isLong()); // Should be short (opposite of was long)
+        assertTrue(reverseResult.isLong()); // Should be long (reversed from short)
         
         // Should exit existing position and enter new one
         verify(mockOrderContext).closeAtMarket(); // Exit existing

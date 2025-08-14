@@ -8,6 +8,12 @@ import com.prophetizo.LoggerConfig;
 import org.slf4j.Logger;
 
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Collections;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * Centralized position management component that can be reused across multiple trading strategies.
@@ -38,6 +44,18 @@ public class PositionManager {
     private final OrderContext orderContext;
     private final PositionSizer positionSizer;
     private final PositionTracker positionTracker;
+    
+    // Order bundle for managing multiple orders
+    private final OrderBundle orderBundle = new OrderBundle();
+    
+    // Legacy order tracking for backward compatibility
+    private final Map<String, Order> activeOrders = new ConcurrentHashMap<>();
+    private final Map<String, String> orderIdsByType = new ConcurrentHashMap<>(); // Type -> OrderId mapping
+    
+    // Order type constants
+    private static final String MARKET_ORDER = "MARKET";
+    private static final String STOP_ORDER = "STOP";
+    private static final String TARGET_ORDER = "TARGET";
     
     /**
      * Creates a position manager with the specified order context and position sizer.
@@ -149,6 +167,9 @@ public class PositionManager {
             logger.info("Exit order placed - Closing {} position at market", 
                        getCurrentPositionSide());
             
+            // Clear tracked orders
+            clearOrders();
+            
             // Reset position tracking
             positionTracker.reset();
             
@@ -256,6 +277,17 @@ public class PositionManager {
                    quantity, isBuy ? "BUY" : "SELL", 
                    String.format("%.2f", fillPrice));
         
+        // Try to find and remove the filled order from tracking
+        String filledOrderId = findOrderId(order);
+        if (filledOrderId != null) {
+            activeOrders.remove(filledOrderId);
+            orderIdsByType.entrySet().removeIf(entry -> filledOrderId.equals(entry.getValue()));
+            logger.debug("Removed filled order from tracking: {}", filledOrderId);
+        }
+        
+        // Also remove from OrderBundle
+        orderBundle.removeOrder(order);
+        
         // Update position tracking
         int currentPos = getCurrentPosition();
         if (currentPos != 0) {
@@ -268,7 +300,23 @@ public class PositionManager {
         } else {
             // Position was closed
             positionTracker.reset();
+            clearOrders(); // Clear all orders when position is closed
         }
+    }
+    
+    /**
+     * Finds the order ID for a given order object.
+     * 
+     * @param order the order to find
+     * @return the order ID if found, null otherwise
+     */
+    private String findOrderId(Order order) {
+        for (Map.Entry<String, Order> entry : activeOrders.entrySet()) {
+            if (entry.getValue().equals(order)) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
     
     // Private helper methods
@@ -310,6 +358,11 @@ public class PositionManager {
                 (float) targetPrice
             );
             
+            // Store orders and their IDs before submission
+            storeOrder(MARKET_ORDER, marketOrderId, marketOrder);
+            storeOrder(STOP_ORDER, stopOrderId, stopLoss);
+            storeOrder(TARGET_ORDER, targetOrderId, takeProfit);
+            
             // Submit all orders as a bracket
             orderContext.submitOrders(marketOrder, stopLoss, takeProfit);
             
@@ -318,11 +371,14 @@ public class PositionManager {
             logger.info("  - Expected Entry: {}", String.format("%.2f", entryPrice));
             logger.info("  - Planned Stop: {}", String.format("%.2f", stopPrice));
             logger.info("  - Planned Target: {}", String.format("%.2f", targetPrice));
+            logger.debug("  - Order IDs: Market={}, Stop={}, Target={}", 
+                        marketOrderId, stopOrderId, targetOrderId);
             
             // Update position tracking
             positionTracker.updatePosition(entryPrice, stopPrice, targetPrice, isLong);
             
-            return new PositionInfo(entryPrice, stopPrice, targetPrice, quantity, isLong);
+            return new PositionInfo(entryPrice, stopPrice, targetPrice, quantity, isLong,
+                                  marketOrderId, stopOrderId, targetOrderId);
             
         } catch (Exception e) {
             logger.error("Failed to place {} order: {}", isLong ? "long" : "short", e.getMessage(), e);
@@ -386,8 +442,430 @@ public class PositionManager {
         }
     }
     
+    // Order management methods
+    
     /**
-     * Container for position information.
+     * Stores an order with its ID and type for tracking.
+     */
+    private void storeOrder(String orderType, String orderId, Order order) {
+        // Store in legacy maps for backward compatibility
+        activeOrders.put(orderId, order);
+        orderIdsByType.put(orderType, orderId);
+        
+        // Also store in OrderBundle
+        switch (orderType) {
+            case MARKET_ORDER:
+                orderBundle.addMarketOrder(orderId, order, "market");
+                break;
+            case STOP_ORDER:
+                orderBundle.addStopOrder(orderId, order, "stop");
+                break;
+            case TARGET_ORDER:
+                orderBundle.addTargetOrder(orderId, order, "target");
+                break;
+        }
+        
+        logger.debug("Stored {} order with ID: {}", orderType, orderId);
+    }
+    
+    /**
+     * Clears all tracked orders (typically called after position exit).
+     */
+    private void clearOrders() {
+        activeOrders.clear();
+        orderIdsByType.clear();
+        orderBundle.clear();
+        logger.debug("Cleared all tracked orders");
+    }
+    
+    /**
+     * Gets an order by its ID.
+     * 
+     * @param orderId the order ID
+     * @return the order if found, null otherwise
+     */
+    public Order getOrderById(String orderId) {
+        return activeOrders.get(orderId);
+    }
+    
+    /**
+     * Gets an order ID by its type (MARKET, STOP, or TARGET).
+     * 
+     * @param orderType the order type
+     * @return the order ID if found, null otherwise
+     */
+    public String getOrderIdByType(String orderType) {
+        return orderIdsByType.get(orderType);
+    }
+    
+    /**
+     * Gets the current market order ID.
+     * 
+     * @return the market order ID if found, null otherwise
+     */
+    public String getMarketOrderId() {
+        return orderIdsByType.get(MARKET_ORDER);
+    }
+    
+    /**
+     * Gets the current stop order ID.
+     * 
+     * @return the stop order ID if found, null otherwise
+     */
+    public String getStopOrderId() {
+        return orderIdsByType.get(STOP_ORDER);
+    }
+    
+    /**
+     * Gets the current target order ID.
+     * 
+     * @return the target order ID if found, null otherwise
+     */
+    public String getTargetOrderId() {
+        return orderIdsByType.get(TARGET_ORDER);
+    }
+    
+    /**
+     * Gets all active order IDs.
+     * 
+     * @return unmodifiable map of order IDs to orders
+     */
+    public Map<String, Order> getActiveOrders() {
+        return Collections.unmodifiableMap(activeOrders);
+    }
+    
+    /**
+     * Cancels an order by its ID.
+     * 
+     * @param orderId the order ID to cancel
+     * @return true if cancel was requested, false if order not found
+     */
+    public boolean cancelOrderById(String orderId) {
+        Order order = activeOrders.get(orderId);
+        if (order != null) {
+            try {
+                // Check if order is still active before attempting to cancel
+                if (order.isActive() && !order.isCancelled() && !order.isFilled()) {
+                    // Note: The Order interface doesn't provide a direct cancel method
+                    // Cancellation typically happens through OrderContext or broker-specific methods
+                    // For now, we'll mark it as cancelled in our tracking
+                    logger.warn("Direct order cancellation not available in Order interface - removing from tracking");
+                }
+                
+                // Remove from tracking regardless
+                activeOrders.remove(orderId);
+                orderIdsByType.entrySet().removeIf(entry -> orderId.equals(entry.getValue()));
+                
+                logger.info("Removed order from tracking: {}", orderId);
+                return true;
+            } catch (Exception e) {
+                logger.error("Failed to process order removal {}: {}", orderId, e.getMessage(), e);
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Modifies a stop order's price.
+     * 
+     * @param newStopPrice the new stop price
+     * @return true if modification was successful, false otherwise
+     */
+    public boolean modifyStopPrice(double newStopPrice) {
+        String stopOrderId = orderIdsByType.get(STOP_ORDER);
+        if (stopOrderId == null) {
+            logger.warn("No stop order found to modify");
+            return false;
+        }
+        
+        Order stopOrder = activeOrders.get(stopOrderId);
+        if (stopOrder != null) {
+            try {
+                // Check if order is still active and can be modified
+                if (!stopOrder.isActive() || stopOrder.isCancelled() || stopOrder.isFilled()) {
+                    logger.warn("Stop order {} is not active (cancelled={}, filled={})", 
+                               stopOrderId, stopOrder.isCancelled(), stopOrder.isFilled());
+                    return false;
+                }
+                
+                // Use the Order's setAdjStopPrice method to modify the stop price
+                stopOrder.setAdjStopPrice((float) newStopPrice);
+                
+                logger.info("Modified stop order {} to new price: {}", stopOrderId, newStopPrice);
+                
+                // Update position tracker
+                positionTracker.updateStopPrice(newStopPrice);
+                return true;
+            } catch (Exception e) {
+                logger.error("Failed to modify stop order: {}", e.getMessage(), e);
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Modifies a target order's price.
+     * 
+     * @param newTargetPrice the new target price
+     * @return true if modification was successful, false otherwise
+     */
+    public boolean modifyTargetPrice(double newTargetPrice) {
+        String targetOrderId = orderIdsByType.get(TARGET_ORDER);
+        if (targetOrderId == null) {
+            logger.warn("No target order found to modify");
+            return false;
+        }
+        
+        Order targetOrder = activeOrders.get(targetOrderId);
+        if (targetOrder != null) {
+            try {
+                // Check if order is still active and can be modified
+                if (!targetOrder.isActive() || targetOrder.isCancelled() || targetOrder.isFilled()) {
+                    logger.warn("Target order {} is not active (cancelled={}, filled={})", 
+                               targetOrderId, targetOrder.isCancelled(), targetOrder.isFilled());
+                    return false;
+                }
+                
+                // Use the Order's setAdjLimitPrice method to modify the limit price
+                targetOrder.setAdjLimitPrice((float) newTargetPrice);
+                
+                logger.info("Modified target order {} to new price: {}", targetOrderId, newTargetPrice);
+                
+                // Update position tracker
+                positionTracker.updateTargetPrice(newTargetPrice);
+                return true;
+            } catch (Exception e) {
+                logger.error("Failed to modify target order: {}", e.getMessage(), e);
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Trails the stop order to a new price (only if it improves the position).
+     * For long positions, only allows raising the stop.
+     * For short positions, only allows lowering the stop.
+     * 
+     * @param newStopPrice the proposed new stop price
+     * @return true if stop was modified, false otherwise
+     */
+    public boolean trailStop(double newStopPrice) {
+        if (!hasPosition()) {
+            return false;
+        }
+        
+        double currentStop = positionTracker.getStopPrice();
+        boolean shouldTrail = false;
+        
+        if (isLong()) {
+            // For long position, only trail up (raise stop)
+            shouldTrail = newStopPrice > currentStop;
+        } else {
+            // For short position, only trail down (lower stop)
+            shouldTrail = newStopPrice < currentStop;
+        }
+        
+        if (shouldTrail) {
+            boolean modified = modifyStopPrice(newStopPrice);
+            if (modified) {
+                logger.info("Trailed stop from {} to {}", 
+                           String.format("%.2f", currentStop), 
+                           String.format("%.2f", newStopPrice));
+            }
+            return modified;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Modifies both stop and target prices for a position.
+     * 
+     * @param newStopPrice the new stop price
+     * @param newTargetPrice the new target price
+     * @return true if both modifications were successful
+     */
+    public boolean modifyBracket(double newStopPrice, double newTargetPrice) {
+        boolean stopModified = modifyStopPrice(newStopPrice);
+        boolean targetModified = modifyTargetPrice(newTargetPrice);
+        
+        if (stopModified && targetModified) {
+            logger.info("Modified bracket orders - Stop: {}, Target: {}", 
+                       String.format("%.2f", newStopPrice),
+                       String.format("%.2f", newTargetPrice));
+            return true;
+        } else if (stopModified || targetModified) {
+            logger.warn("Partial bracket modification - Stop modified: {}, Target modified: {}", 
+                       stopModified, targetModified);
+        }
+        
+        return stopModified && targetModified;
+    }
+    
+    /**
+     * Gets the status of all tracked orders.
+     * 
+     * @return formatted string with order statuses
+     */
+    public String getOrderStatus() {
+        return orderBundle.getStatus();
+    }
+    
+    /**
+     * Gets the order bundle for advanced order management.
+     * 
+     * @return the order bundle
+     */
+    public OrderBundle getOrderBundle() {
+        return orderBundle;
+    }
+    
+    /**
+     * Enters a position with multiple stops and targets.
+     * 
+     * @param isLong true for long, false for short
+     * @param entryPrice the expected entry price
+     * @param stopPrices array of stop prices (for different risk levels)
+     * @param stopQuantities array of quantities for each stop
+     * @param targetPrices array of target prices (for scaling out)
+     * @param targetQuantities array of quantities for each target
+     * @param totalQuantity total position quantity
+     * @return position information if successful, null if failed
+     */
+    public PositionInfo enterWithMultipleOrders(boolean isLong, double entryPrice,
+                                                double[] stopPrices, int[] stopQuantities,
+                                                double[] targetPrices, int[] targetQuantities,
+                                                int totalQuantity) {
+        if (hasPosition()) {
+            logger.warn("Cannot enter position - already have position: {}", getCurrentPositionSide());
+            return null;
+        }
+        
+        try {
+            Instrument instrument = orderContext.getInstrument();
+            List<Order> allOrders = new ArrayList<>();
+            
+            // Create market order
+            String marketOrderId = UUID.randomUUID().toString();
+            Order marketOrder = orderContext.createMarketOrder(
+                instrument,
+                marketOrderId,
+                isLong ? Enums.OrderAction.BUY : Enums.OrderAction.SELL,
+                totalQuantity
+            );
+            orderBundle.addMarketOrder(marketOrderId, marketOrder, "market");
+            allOrders.add(marketOrder);
+            
+            // Create multiple stop orders
+            for (int i = 0; i < stopPrices.length && i < stopQuantities.length; i++) {
+                String stopOrderId = UUID.randomUUID().toString();
+                Order stopOrder = orderContext.createStopOrder(
+                    instrument,
+                    stopOrderId,
+                    isLong ? Enums.OrderAction.SELL : Enums.OrderAction.BUY,
+                    Enums.TIF.DAY,
+                    stopQuantities[i],
+                    (float) stopPrices[i]
+                );
+                orderBundle.addStopOrder(stopOrderId, stopOrder, "stop" + (i + 1));
+                allOrders.add(stopOrder);
+            }
+            
+            // Create multiple target orders
+            for (int i = 0; i < targetPrices.length && i < targetQuantities.length; i++) {
+                String targetOrderId = UUID.randomUUID().toString();
+                Order targetOrder = orderContext.createLimitOrder(
+                    instrument,
+                    targetOrderId,
+                    isLong ? Enums.OrderAction.SELL : Enums.OrderAction.BUY,
+                    Enums.TIF.DAY,
+                    targetQuantities[i],
+                    (float) targetPrices[i]
+                );
+                orderBundle.addTargetOrder(targetOrderId, targetOrder, "target" + (i + 1));
+                allOrders.add(targetOrder);
+            }
+            
+            // Submit all orders
+            orderContext.submitOrders(allOrders.toArray(new Order[0]));
+            
+            logger.info("✅ {} POSITION ENTERED with {} stops and {} targets", 
+                       isLong ? "LONG" : "SHORT", stopPrices.length, targetPrices.length);
+            logger.info("  - Total Quantity: {}", totalQuantity);
+            logger.info("  - Stop Levels: {}", Arrays.toString(stopPrices));
+            logger.info("  - Target Levels: {}", Arrays.toString(targetPrices));
+            
+            // Update position tracking (use first stop and target for primary tracking)
+            double primaryStop = stopPrices.length > 0 ? stopPrices[0] : 0;
+            double primaryTarget = targetPrices.length > 0 ? targetPrices[0] : 0;
+            positionTracker.updatePosition(entryPrice, primaryStop, primaryTarget, isLong);
+            
+            // Return position info with order bundle reference
+            return new PositionInfo(entryPrice, primaryStop, primaryTarget, totalQuantity, isLong,
+                                  marketOrderId, null, null); // Can extend to include bundle reference
+            
+        } catch (Exception e) {
+            logger.error("Failed to enter position with multiple orders: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+    
+    /**
+     * Modifies all active stop orders to new prices.
+     * 
+     * @param newStopPrices array of new stop prices
+     * @return number of stops modified
+     */
+    public int modifyAllStops(double[] newStopPrices) {
+        List<Order> activeStops = orderBundle.getActiveStopOrders();
+        int modified = 0;
+        
+        for (int i = 0; i < activeStops.size() && i < newStopPrices.length; i++) {
+            Order stop = activeStops.get(i);
+            try {
+                stop.setAdjStopPrice((float) newStopPrices[i]);
+                modified++;
+                logger.info("Modified stop order {} to price: {}", 
+                           orderBundle.getOrderId(stop), newStopPrices[i]);
+            } catch (Exception e) {
+                logger.error("Failed to modify stop: {}", e.getMessage());
+            }
+        }
+        
+        return modified;
+    }
+    
+    /**
+     * Trails all stop orders by a fixed amount.
+     * 
+     * @param trailAmount the amount to trail by (positive for long, negative for short)
+     * @return number of stops trailed
+     */
+    public int trailAllStops(double trailAmount) {
+        List<Order> activeStops = orderBundle.getActiveStopOrders();
+        int trailed = 0;
+        
+        for (Order stop : activeStops) {
+            try {
+                float currentStop = stop.getStopPrice();
+                float newStop = currentStop + (float) trailAmount;
+                
+                // Validate trail direction
+                if (isLong() && trailAmount > 0 || !isLong() && trailAmount < 0) {
+                    stop.setAdjStopPrice(newStop);
+                    trailed++;
+                    logger.info("Trailed stop from {} to {}", currentStop, newStop);
+                }
+            } catch (Exception e) {
+                logger.error("Failed to trail stop: {}", e.getMessage());
+            }
+        }
+        
+        return trailed;
+    }
+    
+    /**
+     * Container for position information including order IDs.
      */
     public static class PositionInfo {
         private final double entryPrice;
@@ -396,13 +874,29 @@ public class PositionManager {
         private final int quantity;
         private final boolean isLong;
         
+        // Order IDs for tracking
+        private final String marketOrderId;
+        private final String stopOrderId;
+        private final String targetOrderId;
+        
+        // Legacy constructor for backward compatibility
         public PositionInfo(double entryPrice, double stopPrice, double targetPrice, 
                            int quantity, boolean isLong) {
+            this(entryPrice, stopPrice, targetPrice, quantity, isLong, null, null, null);
+        }
+        
+        // Full constructor with order IDs
+        public PositionInfo(double entryPrice, double stopPrice, double targetPrice, 
+                           int quantity, boolean isLong, String marketOrderId, 
+                           String stopOrderId, String targetOrderId) {
             this.entryPrice = entryPrice;
             this.stopPrice = stopPrice;
             this.targetPrice = targetPrice;
             this.quantity = quantity;
             this.isLong = isLong;
+            this.marketOrderId = marketOrderId;
+            this.stopOrderId = stopOrderId;
+            this.targetOrderId = targetOrderId;
         }
         
         public double getEntryPrice() { return entryPrice; }
@@ -411,10 +905,16 @@ public class PositionManager {
         public int getQuantity() { return quantity; }
         public boolean isLong() { return isLong; }
         
+        // New getter methods for order IDs
+        public String getMarketOrderId() { return marketOrderId; }
+        public String getStopOrderId() { return stopOrderId; }
+        public String getTargetOrderId() { return targetOrderId; }
+        
         @Override
         public String toString() {
-            return String.format("PositionInfo{%s, entry=%.2f, stop=%.2f, target=%.2f, qty=%d}",
-                               isLong ? "LONG" : "SHORT", entryPrice, stopPrice, targetPrice, quantity);
+            return String.format("PositionInfo{%s, entry=%.2f, stop=%.2f, target=%.2f, qty=%d, orders=[market=%s, stop=%s, target=%s]}",
+                               isLong ? "LONG" : "SHORT", entryPrice, stopPrice, targetPrice, quantity,
+                               marketOrderId, stopOrderId, targetOrderId);
         }
     }
 }

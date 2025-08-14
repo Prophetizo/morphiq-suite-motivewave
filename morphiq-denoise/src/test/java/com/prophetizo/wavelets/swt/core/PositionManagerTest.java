@@ -41,7 +41,7 @@ class PositionManagerTest {
         when(mockInstrument.getSymbol()).thenReturn("ES");
         when(mockInstrument.getPointValue()).thenReturn(50.0);
         when(mockDataSeries.size()).thenReturn(100);
-        when(mockDataSeries.getClose(99)).thenReturn(4500.0);
+        when(mockDataSeries.getClose(99)).thenReturn(4500.0f);
         
         // Initially flat position
         when(mockOrderContext.getPosition()).thenReturn(0);
@@ -194,7 +194,9 @@ class PositionManagerTest {
     @DisplayName("Reverse position should exit and enter opposite")
     void testReversePosition() {
         // Setup existing long position
-        when(mockOrderContext.getPosition()).thenReturn(2).thenReturn(0);
+        // Need 3 calls returning 2: hasPosition(), isLong(), and exitPosition()->hasPosition()
+        // Then 0 for after exit
+        when(mockOrderContext.getPosition()).thenReturn(2).thenReturn(2).thenReturn(2).thenReturn(0);
         
         Order mockMarketOrder = mock(Order.class);
         Order mockStopOrder = mock(Order.class);
@@ -240,6 +242,9 @@ class PositionManagerTest {
         
         // Setup position
         when(mockOrderContext.getPosition()).thenReturn(2);
+        
+        // First initialize position tracking
+        positionManager.getPositionTracker().updatePosition(4500.0, 4490.0, 4530.0, true);
         
         positionManager.onOrderFilled(mockOrder);
         

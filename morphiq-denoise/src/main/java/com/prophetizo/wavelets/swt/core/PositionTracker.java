@@ -69,6 +69,36 @@ public class PositionTracker {
     }
     
     /**
+     * Updates only the stop price (useful for trailing stops).
+     * 
+     * @param stopPrice the new stop price
+     */
+    public synchronized void updateStopPrice(double stopPrice) {
+        if (hasPosition) {
+            this.stopPrice = stopPrice;
+            
+            if (logger.isDebugEnabled()) {
+                logger.debug("Stop price updated to: {}", String.format("%.2f", stopPrice));
+            }
+        }
+    }
+    
+    /**
+     * Updates only the target price.
+     * 
+     * @param targetPrice the new target price
+     */
+    public synchronized void updateTargetPrice(double targetPrice) {
+        if (hasPosition) {
+            this.targetPrice = targetPrice;
+            
+            if (logger.isDebugEnabled()) {
+                logger.debug("Target price updated to: {}", String.format("%.2f", targetPrice));
+            }
+        }
+    }
+    
+    /**
      * Resets all position tracking data.
      */
     public synchronized void reset() {
