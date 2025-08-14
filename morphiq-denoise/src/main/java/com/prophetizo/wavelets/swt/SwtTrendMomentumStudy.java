@@ -47,6 +47,8 @@ public class SwtTrendMomentumStudy extends Study {
     public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
     public static final String MIN_SLOPE_THRESHOLD = "MIN_SLOPE_THRESHOLD";
     public static final String MOMENTUM_SMOOTHING = "MOMENTUM_SMOOTHING";
+    public static final String MOMENTUM_WINDOW = "MOMENTUM_WINDOW";
+    public static final String MOMENTUM_SCALING_FACTOR = "MOMENTUM_SCALING_FACTOR";
     
     // Path keys
     public static final String AJ_PATH = "AJ_PATH";
@@ -104,7 +106,8 @@ public class SwtTrendMomentumStudy extends Study {
     // Momentum smoothing - volatile for thread safety in MotiveWave's multi-threaded calculation engine
     private volatile double smoothedMomentum = 0.0;
     private static final double DEFAULT_MOMENTUM_SMOOTHING = 0.5; // Default EMA smoothing factor (0.1-0.9, higher = more responsive)
-    private static final int MOMENTUM_WINDOW = 10; // Window for RMS calculation
+    private static final int DEFAULT_MOMENTUM_WINDOW = 10; // Default window for RMS calculation
+    private static final double DEFAULT_MOMENTUM_SCALING_FACTOR = 100.0; // Default momentum scaling factor
     
     /**
      * WATR Scaling Methods for different market conditions and instruments.
@@ -307,6 +310,10 @@ public class SwtTrendMomentumStudy extends Study {
         // Note: Min Slope Threshold is in absolute price points (0.05 = 0.05 point minimum move, NOT percentage)
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
         // Note: Momentum smoothing alpha - 0.1 = heavy smoothing, 0.5 = balanced, 0.9 = minimal smoothing
+        signalGroup.addRow(new IntegerDescriptor(MOMENTUM_WINDOW, "Momentum Window (bars)", DEFAULT_MOMENTUM_WINDOW, 5, 50, 1));
+        // Note: Number of bars used for RMS energy calculation
+        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SCALING_FACTOR, "Momentum Scaling Factor", DEFAULT_MOMENTUM_SCALING_FACTOR, 1.0, 1000.0, 1.0));
+        // Note: Scaling factor to improve momentum visibility (100.0 = 100x amplification)
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
         
         // Display settings
@@ -728,7 +735,8 @@ public class SwtTrendMomentumStudy extends Study {
             double[] detail = swtResult.getDetail(level);
             if (detail.length > 0) {
                 // Use a window of recent coefficients for RMS calculation
-                int windowSize = Math.min(MOMENTUM_WINDOW, detail.length);
+                int momentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
+                int windowSize = Math.min(momentumWindow, detail.length);
                 int startIdx = Math.max(0, detail.length - windowSize);
                 
                 // Calculate RMS energy for this level over the window
@@ -741,7 +749,8 @@ public class SwtTrendMomentumStudy extends Study {
                 
                 // Weight factor: finer scales (lower levels) get more weight
                 // Level 1 = 100%, Level 2 = 67%, Level 3 = 50%
-                double weight = 1.0 / (1.0 + (level - 1) * 0.5);
+                double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
+                double weight = 1.0 / (1.0 + (level - 1) * levelWeightDecay);
                 
                 double contribution = 0.0;
                 if ("SUM".equals(momentumType)) {
@@ -764,8 +773,9 @@ public class SwtTrendMomentumStudy extends Study {
             }
         }
         
-        // Scale the momentum to make it more visible (multiply by 100 for better visibility)
-        rawMomentum *= 100.0;
+        // Scale the momentum to make it more visible (configurable scaling factor for better visibility)
+        double momentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
+        rawMomentum *= momentumScalingFactor;
         
         // Apply exponential smoothing to filter noise
         if (smoothedMomentum == 0.0) {
