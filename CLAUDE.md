@@ -8,6 +8,34 @@ Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced 
 
 ## Recent Updates (August 2024)
 
+### Strategy Signal System Refactoring (August 14, 2024)
+- **Position Tracking Improvements**:
+  - Replaced manual position tracking (hasPosition/isLong) with OrderContext-based tracking
+  - Added helper methods: `hasPosition(ctx)`, `isLong(ctx)`, `isShort(ctx)`, `getPosition(ctx)`
+  - Strategy now uses OrderContext as single source of truth for position state
+  - Improved thread safety by relying on MotiveWave's position management
+
+- **Signal System Changes**:
+  - Changed from action-based signals (LONG_ENTER, SHORT_ENTER) to state-based signals (LONG, SHORT)
+  - Removed FLAT_EXIT signal entirely - study only reports market state
+  - Strategy decides entry/exit actions based on state signals
+  - Proper separation of concerns: study reports state, strategy makes trading decisions
+
+- **Bracket Order Implementation**:
+  - Standardized bracket orders for both long and short entries
+  - Removed ENABLE_BRACKET_ORDERS setting - bracket orders are now mandatory
+  - Each entry creates three orders with unique UUIDs:
+    - Market order for entry
+    - Stop loss order at calculated stop price
+    - Take profit order at calculated target price
+  - Consistent order submission using `ctx.submitOrders()`
+
+- **Entry Logic Updates**:
+  - Long state signal: enters long if flat, exits short then enters long if short
+  - Short state signal: enters short if flat, exits long then enters short if long
+  - Prevents duplicate entries in same direction
+  - Automatic position reversal on opposite signals
+
 ### Documentation Corrections & Performance Optimization (August 13, 2024)
 - Fixed slope threshold documentation across all files
 - Clarified that Min Slope Threshold is in absolute price points, NOT percentage

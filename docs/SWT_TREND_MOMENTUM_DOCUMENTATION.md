@@ -22,6 +22,9 @@ The SWT Trend + Momentum Strategy is a sophisticated trading system that combine
 - **Adaptive Noise Reduction**: Three thresholding methods to filter market noise
 - **WATR-Based Stops**: Wavelet Average True Range for dynamic risk management
 - **Trade Lots Integration**: Properly respects MotiveWave's Trade Lots setting
+- **State-Based Signals**: Study reports market state (LONG/SHORT), strategy decides actions
+- **Mandatory Bracket Orders**: All entries include stop loss and take profit orders
+- **Automatic Position Management**: Uses OrderContext for reliable position tracking
 
 ### Components
 1. **Study (Indicator)**: Visual overlay with trend line and momentum oscillator
@@ -51,9 +54,14 @@ Momentum = Σ(weight[i] × detail[i]) × 100
 **Note**: As of v1.0.0, momentum values are scaled by 100x for better visibility
 
 ### 4. Signal Generation
-Entry signals require BOTH conditions:
-- **Long**: Positive slope AND momentum > threshold
-- **Short**: Negative slope AND momentum < -threshold
+The study generates state signals when BOTH conditions are met:
+- **Long State**: Positive slope AND momentum > threshold
+- **Short State**: Negative slope AND momentum < -threshold
+
+The strategy then decides whether to act on these states:
+- Enters new positions when flat
+- Reverses positions when receiving opposite state signal
+- Ignores signals when already in same direction
 
 ## Settings Guide
 
@@ -150,7 +158,6 @@ Entry signals require BOTH conditions:
 | **Target Multiplier** | 3.0 | 1.5-10 | Risk/reward ratio |
 | **Min Stop Distance** | 5 | 2-20 | Minimum points for stop |
 | **Max Stop Distance** | 25 | 10-100 | Maximum points for stop |
-| **Enable Bracket Orders** | ✓ | On/Off | Use bracket vs market orders |
 
 ## Settings Interactions
 
@@ -329,28 +336,41 @@ Max Stop: 500 points
 
 ## Signal Generation Logic
 
-### Entry Conditions
+### State Signal Generation (Study)
 
-**Long Entry**:
+**Long State**:
 ```java
 slope > minSlopeThreshold AND  // Slope in absolute price points
-momentum > momentumThreshold AND
-NOT currently in position
+momentum > momentumThreshold
 ```
 
-**Short Entry**:
+**Short State**:
 ```java
 slope < -minSlopeThreshold AND  // Negative slope in absolute price points
-momentum < -momentumThreshold AND
-NOT currently in position
+momentum < -momentumThreshold
 ```
 
-### Exit Conditions
+### Entry/Exit Logic (Strategy)
 
-**Exit Signal Generated When**:
-1. Slope reverses (loses minimum threshold)
-2. Momentum crosses zero
-3. Opposite entry signal appears
+**Strategy Actions Based on State**:
+1. **Long State Received**:
+   - If flat → Enter long with bracket order
+   - If short → Exit short, then enter long
+   - If already long → Do nothing
+
+2. **Short State Received**:
+   - If flat → Enter short with bracket order
+   - If long → Exit long, then enter short
+   - If already short → Do nothing
+
+### Bracket Order Structure
+
+All entries include three orders submitted together:
+1. **Market Order**: Entry at current price
+2. **Stop Loss**: Protective stop at calculated level
+3. **Take Profit**: Target at risk/reward multiple
+
+**No Flat Exit Signals**: The strategy automatically manages exits through opposite signals or stop/target hits
 
 ### Position Sizing Formula
 
@@ -455,6 +475,16 @@ Short Target = Entry - targetDistance
 
 **Symptoms**: Position size doesn't match Trade Lots setting
 **Solution**: Fixed in latest version - now properly multiplies by Trade Lots
+
+### Issue: Unwanted Exit Signals
+
+**Symptoms**: Getting FLAT_EXIT signals at inappropriate times
+**Solution**: Fixed in v1.1.0 - FLAT_EXIT signals removed. Strategy now only exits on opposite signals or stop/target hits
+
+### Issue: Position Not Reversing
+
+**Symptoms**: Strategy exits but doesn't enter opposite position
+**Solution**: Fixed in v1.1.0 - Strategy now automatically reverses positions when receiving opposite state signals
 
 ## Performance Optimization
 
@@ -580,7 +610,29 @@ Before going live, verify:
 - [ ] Stop distances are reasonable for the instrument
 - [ ] Win rate > 40% in backtesting
 
-### 5. Quick Start Guide
+### 5. Position Management Best Practices
+
+1. **Let the Strategy Manage Positions**
+   - Don't manually close positions while strategy is active
+   - Strategy tracks positions via OrderContext
+   - Manual intervention can desync position tracking
+
+2. **Bracket Orders are Mandatory**
+   - Every entry includes stop loss and take profit
+   - Cannot be disabled - this is by design
+   - Ensures consistent risk management
+
+3. **Position Reversal is Automatic**
+   - Long state while short → Exits short, enters long
+   - Short state while long → Exits long, enters short
+   - No manual intervention needed
+
+4. **Trade Lots Integration**
+   - Final quantity = Position Size Factor × Trade Lots
+   - Set Position Size Factor to 1 to use only Trade Lots
+   - Both settings multiply together
+
+### 6. Quick Start Guide
 
 #### Step 1: Choose Your Profile
 Pick ONE based on your style:

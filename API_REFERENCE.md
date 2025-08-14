@@ -20,12 +20,12 @@ Main wavelet indicator that overlays price charts with trend and momentum analys
 | `WINDOW_LENGTH` | Integer | 512 | Analysis window size (256-4096) |
 | `THRESHOLD_METHOD` | String | "Universal" | Universal, Bayes, or SURE |
 | `MOMENTUM_TYPE` | String | "SUM" | SUM or SIGN calculation |
-| `MOMENTUM_THRESHOLD` | Double | 0.01 | Minimum momentum for signals |
+| `MOMENTUM_THRESHOLD` | Double | 1.0 | Minimum momentum for signals (scaled 100x) |
+| `MIN_SLOPE_THRESHOLD` | Double | 0.05 | Minimum slope in absolute price points |
 
 #### Signals
-- `LONG_ENTER` - Long entry signal
-- `SHORT_ENTER` - Short entry signal  
-- `FLAT_EXIT` - Exit position signal
+- `LONG` - Long state signal (slope > threshold AND momentum > threshold)
+- `SHORT` - Short state signal (slope < -threshold AND momentum < -threshold)
 
 ---
 
@@ -43,10 +43,18 @@ Automated trading strategy extending the study with order management.
 #### Strategy Parameters
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `POSITION_SIZE` | Integer | 100 | Base position size |
+| `POSITION_SIZE` | Integer | 1 | Position size factor (multiplied by Trade Lots) |
 | `MAX_RISK_PER_TRADE` | Double | 500.0 | Maximum dollar risk |
 | `USE_WATR_STOPS` | Boolean | true | Use volatility-based stops |
 | `STOP_MULTIPLIER` | Double | 2.0 | Stop distance multiplier |
+| `TARGET_MULTIPLIER` | Double | 3.0 | Risk/reward ratio |
+| `MIN_STOP_POINTS` | Double | 5.0 | Minimum stop distance in points |
+| `MAX_STOP_POINTS` | Double | 25.0 | Maximum stop distance in points |
+
+#### Position Management
+- Uses OrderContext for position tracking
+- Automatic position reversal on opposite signals
+- Mandatory bracket orders (market + stop + target)
 
 ---
 

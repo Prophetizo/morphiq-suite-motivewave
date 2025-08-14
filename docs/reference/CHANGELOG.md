@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2024-08-14
+
+### Changed
+- **BREAKING**: Refactored signal system from action-based to state-based
+  - Study now emits LONG/SHORT state signals instead of LONG_ENTER/SHORT_ENTER
+  - Removed FLAT_EXIT signal entirely
+  - Strategy decides entry/exit actions based on state signals
+- **BREAKING**: Made bracket orders mandatory (removed ENABLE_BRACKET_ORDERS setting)
+- Replaced manual position tracking with OrderContext-based tracking
+- Position reversal now automatic on opposite signals
+
+### Added
+- Helper methods for position state: `hasPosition(ctx)`, `isLong(ctx)`, `isShort(ctx)`
+- UUID-based order reference IDs for proper bracket order management
+- Standardized bracket order implementation for both long and short entries
+
+### Fixed
+- Position tracking thread safety issues
+- Unwanted FLAT_EXIT signals between state transitions
+- Position reversal logic now properly exits before entering opposite
+
+### Removed
+- ENABLE_BRACKET_ORDERS setting (bracket orders now mandatory)
+- Manual hasPosition/isLong instance variables
+- FLAT_EXIT signal from Signals enum
+
+## [1.0.0] - 2024-08-13
+
 ### Changed
 - **MAJOR**: Migrated from JWave to VectorWave for high-performance wavelet analysis
 - Complete architecture modernization with service-oriented design
