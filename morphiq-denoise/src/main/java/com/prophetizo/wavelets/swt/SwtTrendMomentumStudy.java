@@ -181,10 +181,11 @@ public class SwtTrendMomentumStudy extends Study {
                 case "SUM":
                     return SUM;
                 default:
-                    // Log warning for unexpected value and default to SUM
                     if (enumLogger.isWarnEnabled()) {
+                        // Log warning for unexpected value
                         enumLogger.warn("Unknown momentum type '{}', defaulting to SUM", value);
                     }
+                    // Default to SUM for unknown values
                     return SUM;
             }
         }
