@@ -170,8 +170,9 @@ public class SwtTrendMomentumStudy extends Study {
     // Momentum type enum for efficient comparison
     // Package-private to allow testing without reflection
     enum MomentumType {
-        SUM,  // Sum of Details (D₁ + D₂ + ...)
-        SIGN; // Sign Count (±1 per level)
+        SUM,    // Sum of Details (D₁ + D₂ + ...)
+        SIGN,   // Sign Count (±1 per level)
+        SIMPLE; // Simple (Level 1 only, no weighting)
         
         // Static map for O(1) string-to-enum lookup
         // Initialized once when class is loaded, thread-safe by JVM guarantees
@@ -506,11 +507,11 @@ public class SwtTrendMomentumStudy extends Study {
                     momentumPlot.setFixedBottomValue(-range);
                     logger.debug("Updated momentum plot range (SIGN): {} to {}", -range, range);
                 } else {
-                    // For SUM mode: use auto-scaling since coefficient sums can vary widely
+                    // For SUM and SIMPLE modes: use auto-scaling since values can vary widely
                     // Remove fixed scaling to let the plot auto-adjust
                     momentumPlot.setFixedTopValue(null);
                     momentumPlot.setFixedBottomValue(null);
-                    logger.debug("Momentum plot using auto-scaling (SUM mode)");
+                    logger.debug("Momentum plot using auto-scaling ({} mode)", momentumType);
                 }
             }
         }
@@ -551,7 +552,8 @@ public class SwtTrendMomentumStudy extends Study {
         signalGroup.addRow(new DiscreteDescriptor(MOMENTUM_TYPE, "Momentum Calculation", "SUM",
                 Arrays.asList(
                         new NVP("SUM", "Sum of Details (D₁ + D₂ + ...)"),
-                        new NVP("SIGN", "Sign Count (±1 per level)")
+                        new NVP("SIGN", "Sign Count (±1 per level)"),
+                        new NVP("SIMPLE", "Simple (Level 1 only, no weighting)")
                 )));
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
         signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
@@ -981,56 +983,156 @@ public class SwtTrendMomentumStudy extends Study {
         CachedSettings settings = getCachedSettingsOrDefault("calculateMomentumSum");
         
         MomentumType momentumType = settings.momentumType;
+        double momentumScalingFactor = settings.momentumScalingFactor;
+        
+        double rawMomentum = 0.0;
+        
+        // Handle SIMPLE mode separately for better performance
+        if (momentumType == MomentumType.SIMPLE) {
+            rawMomentum = calculateSimpleMomentum(swtResult);
+        } else {
+            // Calculate weighted RMS energy from detail coefficients for SUM/SIGN modes
+            rawMomentum = calculateComplexMomentum(swtResult, levelsToUse);
+        }
+        
+        // Scale the momentum to make it more visible
+        rawMomentum *= momentumScalingFactor;
+        
+        return applyMomentumSmoothing(rawMomentum);
+    }
+    
+    /**
+     * Calculate simple momentum using only the finest detail level (Level 1).
+     * This provides a straightforward momentum indication without complex weighting.
+     * 
+     * @param swtResult the SWT decomposition result
+     * @return the simple momentum value
+     */
+    private double calculateSimpleMomentum(VectorWaveSwtAdapter.SwtResult swtResult) {
+        // Use only the finest level (Level 1) for simplicity
+        double[] detail = swtResult.getDetail(1);
+        if (detail.length == 0) {
+            return 0.0;
+        }
+        
+        // Get cached settings for window size
+        CachedSettings settings = getCachedSettingsOrDefault("calculateSimpleMomentum");
+        int momentumWindow = settings.momentumWindow;
+        
+        // Use a window of recent coefficients
+        int windowSize = Math.min(momentumWindow, detail.length);
+        int startIdx = Math.max(0, detail.length - windowSize);
+        
+        // Simple averaging - no RMS energy or complex weighting
+        double sum = 0.0;
+        for (int i = startIdx; i < detail.length; i++) {
+            sum += detail[i];
+        }
+        
+        return sum / windowSize;
+    }
+    
+    /**
+     * Calculate complex momentum using weighted RMS energy from multiple detail levels.
+     * Used for both SUM and SIGN momentum calculation types.
+     * 
+     * @param swtResult the SWT decomposition result
+     * @param levelsToUse number of detail levels to include
+     * @return the complex momentum value
+     */
+    private double calculateComplexMomentum(VectorWaveSwtAdapter.SwtResult swtResult, int levelsToUse) {
+        // Get cached settings atomically
+        CachedSettings settings = getCachedSettingsOrDefault("calculateComplexMomentum");
+        
+        MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
         double levelWeightDecay = settings.levelWeightDecay;
-        double momentumScalingFactor = settings.momentumScalingFactor;
         
         double rawMomentum = 0.0;
         
         // Calculate weighted RMS energy from detail coefficients
         for (int level = 1; level <= levelsToUse; level++) {
-            double[] detail = swtResult.getDetail(level);
-            if (detail.length > 0) {
-                // Use a window of recent coefficients for RMS calculation
-                int windowSize = Math.min(momentumWindow, detail.length);
-                int startIdx = Math.max(0, detail.length - windowSize);
-                
-                // Calculate RMS energy for this level over the window
-                double levelEnergy = 0.0;
-                double levelSum = 0.0;
-                for (int i = startIdx; i < detail.length; i++) {
-                    levelEnergy += detail[i] * detail[i];
-                    levelSum += detail[i];
-                }
-                
-                // Weight factor: finer scales (lower levels) get more weight
-                // Level 1 = 100%, Level 2 = 67%, Level 3 = 50%
-                double weight = 1.0 / (1.0 + (level - 1) * levelWeightDecay);
-                
-                double contribution = 0.0;
-                if (momentumType == MomentumType.SUM) {
-                    // Use weighted average of coefficients (preserves sign)
-                    double avgCoeff = levelSum / windowSize;
-                    contribution = avgCoeff * weight;
-                    rawMomentum += contribution;
-                } else {
-                    // Sign-based: use RMS with sign of average
-                    double rms = Math.sqrt(levelEnergy / windowSize);
-                    double sign = Math.signum(levelSum);
-                    contribution = sign * rms * weight;
-                    rawMomentum += contribution;
-                }
-                
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
-                                level, windowSize, weight, contribution);
-                }
-            }
+            double contribution = calculateLevelContribution(swtResult, level, momentumType, momentumWindow, levelWeightDecay);
+            rawMomentum += contribution;
         }
         
-        // Scale the momentum to make it more visible (using pre-fetched scaling factor)
-        rawMomentum *= momentumScalingFactor;
+        return rawMomentum;
+    }
+    
+    /**
+     * Calculate the momentum contribution for a single wavelet level.
+     * Used for SUM and SIGN modes only (SIMPLE mode uses basic averaging).
+     * 
+     * @param swtResult the SWT decomposition result
+     * @param level the wavelet detail level (1, 2, 3, ...)
+     * @param momentumType SUM or SIGN calculation mode
+     * @param momentumWindow number of recent coefficients to include
+     * @param levelWeightDecay weight decay factor for coarser levels
+     * @return the weighted contribution from this level
+     */
+    private double calculateLevelContribution(VectorWaveSwtAdapter.SwtResult swtResult, int level, 
+                                            MomentumType momentumType, int momentumWindow, double levelWeightDecay) {
+        double[] detail = swtResult.getDetail(level);
+        if (detail.length == 0) {
+            return 0.0;
+        }
         
+        // Use a window of recent coefficients for RMS calculation
+        int windowSize = Math.min(momentumWindow, detail.length);
+        int startIdx = Math.max(0, detail.length - windowSize);
+        
+        // Calculate RMS energy and sum for this level over the window
+        double levelEnergy = 0.0;
+        double levelSum = 0.0;
+        for (int i = startIdx; i < detail.length; i++) {
+            levelEnergy += detail[i] * detail[i];
+            levelSum += detail[i];
+        }
+        
+        // Calculate level weight: finer scales (lower levels) get more weight
+        double weight = calculateLevelWeight(level, levelWeightDecay);
+        
+        double contribution = 0.0;
+        if (momentumType == MomentumType.SUM) {
+            // Use weighted average of coefficients (preserves sign)
+            double avgCoeff = levelSum / windowSize;
+            contribution = avgCoeff * weight;
+        } else {
+            // Sign-based: use RMS with sign of average
+            double rms = Math.sqrt(levelEnergy / windowSize);
+            double sign = Math.signum(levelSum);
+            contribution = sign * rms * weight;
+        }
+        
+        if (logger.isTraceEnabled()) {
+            logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
+                        level, windowSize, weight, contribution);
+        }
+        
+        return contribution;
+    }
+    
+    /**
+     * Calculate the weight for a specific wavelet level.
+     * Finer scales (lower levels) get more weight by default.
+     * 
+     * @param level the wavelet detail level (1, 2, 3, ...)
+     * @param levelWeightDecay the decay factor (0.5 = Level 1: 100%, Level 2: 67%, Level 3: 50%)
+     * @return the weight factor for this level
+     */
+    private double calculateLevelWeight(int level, double levelWeightDecay) {
+        // Level 1 = 100%, Level 2 = 67%, Level 3 = 50% (with decay factor 0.5)
+        return 1.0 / (1.0 + (level - 1) * levelWeightDecay);
+    }
+    
+    /**
+     * Apply exponential moving average smoothing to the raw momentum value.
+     * This filters out short-term noise while preserving the overall momentum trend.
+     * 
+     * @param rawMomentum the unsmoothed momentum value
+     * @return the smoothed momentum value
+     */
+    private double applyMomentumSmoothing(double rawMomentum) {
         // Apply exponential smoothing to filter noise
         if (smoothedMomentum == 0.0) {
             // Initialize with first value
