@@ -32,6 +32,16 @@ public class SwtTrendMomentumStudy extends Study {
     private static final Logger logger = LoggerConfig.getLogger(SwtTrendMomentumStudy.class);
     
     /**
+     * MotiveWave SDK Lifecycle:
+     * The MotiveWave platform calls Study methods in a specific order:
+     * 1. initialize(Defaults) - UI setup, called when study is added to chart
+     * 2. onLoad(Defaults) - Called after initialize, before any calculations
+     * 3. calculate(int index, DataContext) - Called for each bar after onLoad
+     * 4. onSettingsUpdated(DataContext) - Called when user changes settings
+     * 
+     * This class relies on this lifecycle for proper initialization of cached settings.
+     * If the framework behavior changes, defensive checks will log errors and use defaults.
+     * 
      * Settings keys are organized into logical groups:
      * 1. Wavelet Transform - Core SWT configuration
      * 2. Thresholding - Denoising parameters
@@ -333,31 +343,6 @@ public class SwtTrendMomentumStudy extends Study {
         updateCachedSettings();
     }
     
-    /**
-     * Validates that settings have been properly initialized from the framework.
-     * 
-     * This is a safety check that should always pass in normal operation,
-     * as onLoad() is guaranteed to be called by the framework before any calculations.
-     * If this validation fails, it indicates a serious problem with the framework
-     * lifecycle or a bug in our initialization sequence.
-     * 
-     * This method does NOT perform initialization - it only validates and fails fast
-     * if initialization hasn't occurred, helping catch lifecycle violations during
-     * development and testing.
-     * 
-     * @throws IllegalStateException if settings have not been initialized by onLoad()
-     */
-    private void validateSettingsInitialized() {
-        if (cachedSettings == null) {
-            // This should never happen in production - onLoad() should always be called first
-            String errorMsg = "Settings not initialized before calculation. This indicates a framework " +
-                             "lifecycle violation. onLoad() must be called before any calculations.";
-            logger.error(errorMsg);
-            
-            // Fail fast to catch initialization issues during development/testing
-            throw new IllegalStateException(errorMsg);
-        }
-    }
     
     /**
      * Updates cached settings to avoid repeated getSettings() calls during calculation.
@@ -694,11 +679,16 @@ public class SwtTrendMomentumStudy extends Study {
         
         if (waveletAtr == null) {
             // Use cached settings for thread-safe access
-            // Settings are guaranteed to be initialized by onLoad() before any calculations
+            // Per MotiveWave SDK lifecycle: onLoad() is called before calculate()
+            // If this assumption is violated, the assertion below will catch it
             CachedSettings settings = this.cachedSettings;
             
-            // Use assertion for development-time validation (disabled in production with -da flag)
-            assert settings != null : "CachedSettings should never be null in production";
+            // Defensive check with graceful fallback for production safety
+            if (settings == null) {
+                logger.error("CachedSettings is null - MotiveWave lifecycle violation detected. " +
+                           "onLoad() should have been called before calculate(). Using defaults.");
+                settings = CachedSettings.createDefault();
+            }
             
             this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
             logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
@@ -972,11 +962,16 @@ public class SwtTrendMomentumStudy extends Study {
         int levelsToUse = Math.min(k, swtResult.getLevels());
         
         // Get cached settings atomically - all values are consistent with each other
-        // Settings are guaranteed to be initialized by onLoad() before any calculations
+        // Per MotiveWave SDK lifecycle: onLoad() is called before calculate()
+        // If this assumption is violated, we handle it gracefully
         CachedSettings settings = this.cachedSettings;
         
-        // Use assertion for development-time validation (disabled in production with -da flag)
-        assert settings != null : "CachedSettings should never be null in production";
+        // Defensive check with graceful fallback for production safety
+        if (settings == null) {
+            logger.error("CachedSettings is null in calculateMomentumSum - " +
+                       "MotiveWave lifecycle violation detected. Using defaults.");
+            settings = CachedSettings.createDefault();
+        }
         
         MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
