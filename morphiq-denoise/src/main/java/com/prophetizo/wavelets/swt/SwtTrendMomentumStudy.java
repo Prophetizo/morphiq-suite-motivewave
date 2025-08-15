@@ -14,7 +14,10 @@ import org.slf4j.Logger;
 
 import java.awt.*;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @StudyHeader(
         namespace = "com.prophetizo.wavelets.swt",
@@ -28,43 +31,85 @@ import java.util.List;
 public class SwtTrendMomentumStudy extends Study {
     private static final Logger logger = LoggerConfig.getLogger(SwtTrendMomentumStudy.class);
     
-    // Settings keys
+    /**
+     * MotiveWave SDK Lifecycle:
+     * The MotiveWave platform calls Study methods in a specific order:
+     * 1. initialize(Defaults) - UI setup, called when study is added to chart
+     * 2. onLoad(Defaults) - Called after initialize, before any calculations
+     * 3. calculate(int index, DataContext) - Called for each bar after onLoad
+     * 4. onSettingsUpdated(DataContext) - Called when user changes settings
+     * 
+     * This class relies on this lifecycle for proper initialization of cached settings.
+     * If the framework behavior changes, defensive checks will log errors and use defaults.
+     * 
+     * Settings keys are organized into logical groups:
+     * 1. Wavelet Transform - Core SWT configuration
+     * 2. Thresholding - Denoising parameters
+     * 3. Momentum & Signal Generation - Trading signal parameters
+     * 4. WATR (Wavelet ATR) - Volatility measurement
+     */
+    
+    // ========================================================================
+    // Settings Group 1: WAVELET TRANSFORM - Core SWT configuration
+    // ========================================================================
     public static final String WAVELET_TYPE = "WAVELET_TYPE";
     public static final String LEVELS = "LEVELS";
     public static final String WINDOW_LENGTH = "WINDOW_LENGTH";
+    
+    // ========================================================================
+    // Settings Group 2: THRESHOLDING - Denoising parameters
+    // ========================================================================
     public static final String THRESHOLD_METHOD = "THRESHOLD_METHOD";
     public static final String SHRINKAGE_TYPE = "SHRINKAGE_TYPE";
     public static final String USE_DENOISED = "USE_DENOISED";
+    
+    // ========================================================================
+    // Settings Group 3: MOMENTUM & SIGNAL GENERATION - Trading signal parameters
+    // ========================================================================
     public static final String DETAIL_CONFIRM_K = "DETAIL_CONFIRM_K";
     public static final String MOMENTUM_TYPE = "MOMENTUM_TYPE";
+    public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
+    public static final String MOMENTUM_WINDOW = "MOMENTUM_WINDOW";
+    public static final String MOMENTUM_SMOOTHING = "MOMENTUM_SMOOTHING";
+    public static final String MOMENTUM_SCALING_FACTOR = "MOMENTUM_SCALING_FACTOR";
+    public static final String MIN_SLOPE_THRESHOLD = "MIN_SLOPE_THRESHOLD";
+    public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
+    
+    // ========================================================================
+    // Settings Group 4: WATR (Wavelet ATR) - Volatility measurement
+    // ========================================================================
     public static final String SHOW_WATR = "SHOW_WATR";
     public static final String WATR_K = "WATR_K";
     public static final String WATR_MULTIPLIER = "WATR_MULTIPLIER";
     public static final String WATR_SCALE_METHOD = "WATR_SCALE_METHOD";
     public static final String WATR_SCALE_FACTOR = "WATR_SCALE_FACTOR";
     public static final String WATR_LEVEL_DECAY = "WATR_LEVEL_DECAY";
-    public static final String ENABLE_SIGNALS = "ENABLE_SIGNALS";
-    public static final String MOMENTUM_THRESHOLD = "MOMENTUM_THRESHOLD";
-    public static final String MIN_SLOPE_THRESHOLD = "MIN_SLOPE_THRESHOLD";
-    public static final String MOMENTUM_SMOOTHING = "MOMENTUM_SMOOTHING";
     
-    // Path keys
+    // ========================================================================
+    // UI ELEMENTS - Paths, Plots, and Markers
+    // ========================================================================
+    
+    // Path keys - Main chart lines
     public static final String AJ_PATH = "AJ_PATH";
     public static final String WATR_UPPER_PATH = "WATR_UPPER_PATH";
     public static final String WATR_LOWER_PATH = "WATR_LOWER_PATH";
     
-    // Plot keys
+    // Plot keys - Separate indicator window
     public static final String MOMENTUM_PLOT = "MOMENTUM_PLOT";
     
     // Path keys for momentum plot
     public static final String MOMENTUM_SUM_PATH = "MOMENTUM_SUM_PATH";
     public static final String SLOPE_PATH = "SLOPE_PATH";
     
-    // Marker keys
+    // Marker keys - Trading signals
     public static final String LONG_MARKER = "LONG_MARKER";
     public static final String SHORT_MARKER = "SHORT_MARKER";
     
-    // Values
+    // ========================================================================
+    // ENUMS - Values and Signals
+    // ========================================================================
+    
+    // Values - Data series stored by the study
     public enum Values { 
         AJ,                    // Approximation (trend)
         D1_SIGN, D2_SIGN, D3_SIGN,  // Detail signs for momentum
@@ -75,10 +120,14 @@ public class SwtTrendMomentumStudy extends Study {
         SLOPE                  // Trend slope
     }
     
-    // Signals - state-based, not action-based
+    // Signals - State-based trading signals (not action-based)
     public enum Signals {
         LONG, SHORT
     }
+    
+    // ========================================================================
+    // INSTANCE FIELDS - Components and State
+    // ========================================================================
     
     // Core components - volatile for thread safety
     private volatile VectorWaveSwtAdapter swtAdapter;
@@ -94,22 +143,136 @@ public class SwtTrendMomentumStudy extends Study {
     // No need for marker tracking - SDK handles this when we follow the pattern:
     // Only add markers when series.isBarComplete(index) is true
     
-    // Sliding window buffer for streaming updates - synchronized for thread safety
+    // ========================================================================
+    // BUFFER MANAGEMENT - Sliding window for streaming updates
+    // ========================================================================
+    
     // These fields must be accessed together atomically, so we use synchronization
     private double[] priceBuffer = null;
     private int bufferStartIndex = -1;
     private boolean bufferInitialized = false;
     protected final Object bufferLock = new Object(); // Lock for buffer operations (protected for test access)
     
+    // ========================================================================
+    // MOMENTUM CALCULATION - Smoothing and default values
+    // ========================================================================
+    
     // Momentum smoothing - volatile for thread safety in MotiveWave's multi-threaded calculation engine
     private volatile double smoothedMomentum = 0.0;
-    private static final double DEFAULT_MOMENTUM_SMOOTHING = 0.5; // Default EMA smoothing factor (0.1-0.9, higher = more responsive)
-    private static final int MOMENTUM_WINDOW = 10; // Window for RMS calculation
     
-    // Momentum calculation constants
-    private static final double MOMENTUM_VISIBILITY_SCALING = 100.0; // Scaling factor for better visibility
-    private static final double LEVEL_WEIGHT_DECAY_FACTOR = 0.5; // Weight decay factor for multi-level weighting
-    private static final double BASE_LEVEL_WEIGHT = 1.0; // Base weight for level 1 (100%)
+    // Default constants for momentum and WATR calculations
+    // Package-private to allow testing without reflection
+    static final double DEFAULT_MOMENTUM_SMOOTHING = 0.5; // Default EMA smoothing factor (0.1-0.9, higher = more responsive)
+    static final int DEFAULT_MOMENTUM_WINDOW = 10; // Default window for RMS calculation
+    static final double DEFAULT_MOMENTUM_SCALING_FACTOR = 100.0; // Default momentum scaling factor
+    static final double DEFAULT_LEVEL_WEIGHT_DECAY = 0.5; // Default WATR level weight decay factor
+    
+    // Momentum type enum for efficient comparison
+    // Package-private to allow testing without reflection
+    enum MomentumType {
+        SUM,  // Sum of Details (D₁ + D₂ + ...)
+        SIGN; // Sign Count (±1 per level)
+        
+        // Static map for O(1) string-to-enum lookup
+        // Initialized once when class is loaded, thread-safe by JVM guarantees
+        private static final Map<String, MomentumType> STRING_TO_ENUM_MAP;
+        
+        static {
+            // Build lookup map with uppercase keys for case-insensitive matching
+            Map<String, MomentumType> map = new HashMap<>();
+            for (MomentumType type : values()) {
+                map.put(type.name(), type);
+            }
+            STRING_TO_ENUM_MAP = Collections.unmodifiableMap(map);
+        }
+        
+        /**
+         * Converts a string value to a MomentumType enum using O(1) HashMap lookup.
+         * 
+         * <p>This implementation uses a pre-built HashMap for constant-time lookup
+         * regardless of the number of enum values, making it more scalable than
+         * a switch statement if additional momentum types are added in the future.
+         * 
+         * <p><b>Performance Note:</b> This method is only called during initialization
+         * and settings updates, never in the calculation hot path. The logger check
+         * is optimized to avoid unnecessary string operations for common cases like
+         * empty strings.
+         * 
+         * @param value the string value to convert (case-insensitive, trimmed)
+         * @return the corresponding MomentumType, or SUM as default for null/unknown values
+         */
+        static MomentumType fromString(String value) {
+            if (value == null) {
+                return SUM; // Default to SUM for null input
+            }
+            
+            // Normalize input for case-insensitive lookup
+            String normalizedValue = value.toUpperCase().trim();
+            
+            // O(1) HashMap lookup
+            MomentumType type = STRING_TO_ENUM_MAP.get(normalizedValue);
+            
+            if (type == null) {
+                // Only log warning if it's truly unexpected (not empty string)
+                // Order is intentional: isEmpty() is cheaper than isWarnEnabled()
+                // Empty string check filters out common cases before method call
+                if (logger.isWarnEnabled() && !normalizedValue.isEmpty()) {
+                    logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
+                }
+                return SUM; // Default to SUM for unknown values
+            }
+            
+            return type;
+        }
+    }
+    
+    // Thread-safe cached settings using immutable object pattern
+    // All related settings are updated atomically to prevent inconsistent state
+    // Package-private to allow testing without reflection
+    static class CachedSettings {
+        final MomentumType momentumType;
+        final int momentumWindow;
+        final double levelWeightDecay;
+        final double momentumScalingFactor;
+        
+        /**
+         * Constructs an immutable CachedSettings instance.
+         *
+         * <p>All fields are final and set only during construction, ensuring thread-safe immutability.
+         *
+         * @param momentumType the type of momentum calculation to use (see {@link MomentumType})
+         * @param momentumWindow the window size for momentum calculation
+         * @param levelWeightDecay the decay factor applied to level weights
+         * @param momentumScalingFactor the scaling factor applied to momentum values
+         */
+        CachedSettings(MomentumType momentumType, int momentumWindow, 
+                      double levelWeightDecay, double momentumScalingFactor) {
+            this.momentumType = momentumType;
+            this.momentumWindow = momentumWindow;
+            this.levelWeightDecay = levelWeightDecay;
+            this.momentumScalingFactor = momentumScalingFactor;
+        }
+        
+        /**
+         * Creates a CachedSettings instance with default values.
+         * This centralizes default value management and avoids duplication.
+         * 
+         * @return a new CachedSettings with default values
+         */
+        static CachedSettings createDefault() {
+            return new CachedSettings(
+                MomentumType.SUM,
+                DEFAULT_MOMENTUM_WINDOW,
+                DEFAULT_LEVEL_WEIGHT_DECAY,
+                DEFAULT_MOMENTUM_SCALING_FACTOR
+            );
+        }
+    }
+    
+    // Single volatile reference ensures all settings are updated atomically
+    // Initialized to null to track framework initialization state
+    // Will be set to proper values in onLoad() after framework initialization
+    private volatile CachedSettings cachedSettings = null;
     
     /**
      * WATR Scaling Methods for different market conditions and instruments.
@@ -163,7 +326,8 @@ public class SwtTrendMomentumStudy extends Study {
      * 
      * Note: This is an absolute threshold in price points, NOT a percentage.
      */
-    private static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.05; // Absolute price points (e.g., 0.05 = 0.05 point minimum move)
+    // Package-private to allow testing without reflection
+    static final double DEFAULT_MIN_SLOPE_THRESHOLD = 0.05; // Absolute price points (e.g., 0.05 = 0.05 point minimum move)
     
     @Override
     public void onLoad(Defaults defaults) {
@@ -174,10 +338,78 @@ public class SwtTrendMomentumStudy extends Study {
         
         // Update minimum bars requirement based on window length after framework initialization
         setMinBars(getSettings().getInteger(WINDOW_LENGTH, 4096));
+        
+        // Cache momentum settings on initialization
+        // This also serves as the initialization flag (non-null = initialized)
+        updateCachedSettings();
+    }
+    
+    
+    /**
+     * Updates cached settings to avoid repeated getSettings() calls during calculation.
+     * This method should be called during initialization and when settings are updated.
+     * 
+     * Thread-safe: Creates a new immutable settings object and atomically swaps the reference.
+     * This ensures all related settings are always consistent with each other.
+     * Safe to call multiple times - will always create a fresh settings object from current values.
+     * 
+     * Called automatically by onLoad() and onSettingsUpdated().
+     */
+    private void updateCachedSettings() {
+        // Read all settings into local variables first
+        MomentumType momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, MomentumType.SUM.name()));
+        int momentumWindow = getSettings().getInteger(MOMENTUM_WINDOW, DEFAULT_MOMENTUM_WINDOW);
+        double levelWeightDecay = getSettings().getDouble(WATR_LEVEL_DECAY, DEFAULT_LEVEL_WEIGHT_DECAY);
+        double momentumScalingFactor = getSettings().getDouble(MOMENTUM_SCALING_FACTOR, DEFAULT_MOMENTUM_SCALING_FACTOR);
+        
+        // Create new immutable settings object
+        CachedSettings newSettings = new CachedSettings(
+            momentumType, 
+            momentumWindow, 
+            levelWeightDecay, 
+            momentumScalingFactor
+        );
+        
+        // Atomically swap the reference - all settings updated together
+        this.cachedSettings = newSettings;
+        
+        if (logger.isDebugEnabled()) {
+            logger.debug("Cached settings updated atomically: type={}, window={}, decay={}, scaling={}", 
+                        momentumType.name(), momentumWindow, 
+                        levelWeightDecay, momentumScalingFactor);
+        }
+    }
+    
+    /**
+     * Gets cached settings with defensive null handling.
+     * 
+     * <p>This centralized method handles the case where cachedSettings might be null
+     * due to a MotiveWave lifecycle violation. In normal operation, onLoad() is called
+     * before any calculations, ensuring cachedSettings is initialized. If this contract
+     * is violated, we log an error and return safe defaults.
+     * 
+     * @param context Additional context for error message (e.g., calling method name)
+     * @return CachedSettings instance, never null (returns defaults if not initialized)
+     */
+    private CachedSettings getCachedSettingsOrDefault(String context) {
+        CachedSettings settings = this.cachedSettings;
+        
+        if (settings == null) {
+            // Log once per context to avoid spam
+            logger.error("CachedSettings is null in {} - MotiveWave lifecycle violation detected. " +
+                       "onLoad() should have been called before calculate(). Using defaults.", context);
+            settings = CachedSettings.createDefault();
+        }
+        
+        return settings;
     }
     
     @Override
     public void onSettingsUpdated(DataContext ctx) {
+        // CRITICAL: Update cached settings FIRST before any other operations
+        // This ensures any calculations triggered during settings update use the new values
+        updateCachedSettings();
+        
         logger.info("Settings updated - triggering recalculation");
         
         // Log which settings might have changed (for debugging)
@@ -250,21 +482,35 @@ public class SwtTrendMomentumStudy extends Study {
         if (desc != null) {
             var momentumPlot = desc.getPlot(MOMENTUM_PLOT);
             if (momentumPlot != null) {
-                String momentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
+                // Use cached settings if available (after onLoad), otherwise use SDK settings directly
+                // This handles both initialization (before onLoad) and updates (after onLoad)
+                MomentumType momentumType;
+                int k;
                 
-                if ("SIGN".equals(momentumType)) {
+                CachedSettings settings = this.cachedSettings;
+                if (settings != null) {
+                    // After onLoad - use cached settings for consistency
+                    momentumType = settings.momentumType;
+                    // Note: k is not in cached settings, so get from SDK
+                    k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
+                } else {
+                    // During initialize - cachedSettings not yet available
+                    momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
+                    k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
+                }
+                
+                if (momentumType == MomentumType.SIGN) {
                     // For SIGN mode: range is -k to +k
-                    int k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
                     int range = Math.max(k + 1, 3);
                     momentumPlot.setFixedTopValue(range);
                     momentumPlot.setFixedBottomValue(-range);
                     logger.debug("Updated momentum plot range (SIGN): {} to {}", -range, range);
                 } else {
-                    // For SUM and SIMPLE modes: use auto-scaling since values can vary widely
+                    // For SUM mode: use auto-scaling since coefficient sums can vary widely
                     // Remove fixed scaling to let the plot auto-adjust
                     momentumPlot.setFixedTopValue(null);
                     momentumPlot.setFixedBottomValue(null);
-                    logger.debug("Momentum plot using auto-scaling ({} mode)", momentumType);
+                    logger.debug("Momentum plot using auto-scaling (SUM mode)");
                 }
             }
         }
@@ -305,14 +551,17 @@ public class SwtTrendMomentumStudy extends Study {
         signalGroup.addRow(new DiscreteDescriptor(MOMENTUM_TYPE, "Momentum Calculation", "SUM",
                 Arrays.asList(
                         new NVP("SUM", "Sum of Details (D₁ + D₂ + ...)"),
-                        new NVP("SIGN", "Sign Count (±1 per level)"),
-                        new NVP("SIMPLE", "Simple (Level 1 only, no weighting)")
+                        new NVP("SIGN", "Sign Count (±1 per level)")
                 )));
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
         signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
         // Note: Min Slope Threshold is in absolute price points (0.05 = 0.05 point minimum move, NOT percentage)
         signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
         // Note: Momentum smoothing alpha - 0.1 = heavy smoothing, 0.5 = balanced, 0.9 = minimal smoothing
+        signalGroup.addRow(new IntegerDescriptor(MOMENTUM_WINDOW, "Momentum Window (bars)", DEFAULT_MOMENTUM_WINDOW, 5, 50, 1));
+        // Note: Number of bars used for RMS energy calculation
+        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SCALING_FACTOR, "Momentum Scaling Factor", DEFAULT_MOMENTUM_SCALING_FACTOR, 1.0, 1000.0, 1.0));
+        // Note: Scaling factor to improve momentum visibility (100.0 = 100x amplification)
         signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
         
         // Display settings
@@ -454,9 +703,11 @@ public class SwtTrendMomentumStudy extends Study {
         }
         
         if (waveletAtr == null) {
-            double levelDecay = getSettings().getDouble(WATR_LEVEL_DECAY, 0.5);
-            this.waveletAtr = new WaveletAtr(14, levelDecay); // 14-period smoothing with configurable decay
-            logger.debug("Initialized WATR component with level decay: {}", levelDecay);
+            // Use cached settings for thread-safe access with defensive fallback
+            CachedSettings settings = getCachedSettingsOrDefault("ensureInitialized");
+            
+            this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
+            logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
         } else if (waveletChanged || levelsChanged || windowChanged) {
             // Reset WATR on settings change
             waveletAtr.reset();
@@ -725,69 +976,15 @@ public class SwtTrendMomentumStudy extends Study {
     
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
-        String momentumType = getSettings().getString(MOMENTUM_TYPE, "SUM");
         
-        double rawMomentum = 0.0;
+        // Get cached settings atomically with defensive fallback
+        CachedSettings settings = getCachedSettingsOrDefault("calculateMomentumSum");
         
-        // Handle SIMPLE mode separately for better performance
-        if ("SIMPLE".equals(momentumType)) {
-            rawMomentum = calculateSimpleMomentum(swtResult);
-        } else {
-            // Calculate weighted RMS energy from detail coefficients for SUM/SIGN modes
-            rawMomentum = calculateComplexMomentum(swtResult, levelsToUse, momentumType);
-        }
+        MomentumType momentumType = settings.momentumType;
+        int momentumWindow = settings.momentumWindow;
+        double levelWeightDecay = settings.levelWeightDecay;
+        double momentumScalingFactor = settings.momentumScalingFactor;
         
-        // Scale the momentum to make it more visible
-        rawMomentum *= MOMENTUM_VISIBILITY_SCALING;
-        
-        return applyMomentumSmoothing(rawMomentum);
-    }
-    
-    /**
-     * Calculate simple momentum using only the finest detail level (Level 1).
-     * This provides a straightforward momentum indication without complex weighting.
-     * 
-     * @param swtResult the SWT decomposition result
-     * <p>
-     * <b>Note:</b> This method returns an <i>unscaled</i> momentum value.
-     * The scaling for visibility is applied in the calling method ({@link #calculateMomentumSum}).
-     * 
-     * @param swtResult the SWT decomposition result
-     * @return the unscaled simple momentum value
-     */
-    private double calculateSimpleMomentum(VectorWaveSwtAdapter.SwtResult swtResult) {
-        double[] detail = swtResult.getDetail(1); // Only use Level 1 (finest scale)
-        if (detail.length == 0) {
-            return 0.0;
-        }
-        
-        // Use a simple average of recent coefficients
-        int windowSize = Math.min(MOMENTUM_WINDOW, detail.length);
-        int startIdx = Math.max(0, detail.length - windowSize);
-        
-        double sum = 0.0;
-        for (int i = startIdx; i < detail.length; i++) {
-            sum += detail[i];
-        }
-        
-        return sum / windowSize; // Simple average, no weighting
-    }
-    
-    /**
-     * Calculate complex momentum using the original weighted RMS approach.
-     * 
-     * @param swtResult the SWT decomposition result
-     * @param levelsToUse number of decomposition levels to use
-     * @param momentumType "SUM" or "SIGN" calculation mode
-     * <p>
-     * This method returns an <b>unscaled</b> momentum value; any scaling is applied in the calling method.
-     * 
-     * @param swtResult the SWT decomposition result
-     * @param levelsToUse number of decomposition levels to use
-     * @param momentumType "SUM" or "SIGN" calculation mode
-     * @return the unscaled complex momentum value
-     */
-    private double calculateComplexMomentum(VectorWaveSwtAdapter.SwtResult swtResult, int levelsToUse, String momentumType) {
         double rawMomentum = 0.0;
         
         // Calculate weighted RMS energy from detail coefficients
@@ -795,7 +992,7 @@ public class SwtTrendMomentumStudy extends Study {
             double[] detail = swtResult.getDetail(level);
             if (detail.length > 0) {
                 // Use a window of recent coefficients for RMS calculation
-                int windowSize = Math.min(MOMENTUM_WINDOW, detail.length);
+                int windowSize = Math.min(momentumWindow, detail.length);
                 int startIdx = Math.max(0, detail.length - windowSize);
                 
                 // Calculate RMS energy for this level over the window
@@ -808,10 +1005,21 @@ public class SwtTrendMomentumStudy extends Study {
                 
                 // Weight factor: finer scales (lower levels) get more weight
                 // Level 1 = 100%, Level 2 = 67%, Level 3 = 50%
-                double weight = calculateLevelWeight(level);
+                double weight = 1.0 / (1.0 + (level - 1) * levelWeightDecay);
                 
-                double contribution = calculateLevelContribution(momentumType, levelEnergy, levelSum, windowSize, weight);
-                rawMomentum += contribution;
+                double contribution = 0.0;
+                if (momentumType == MomentumType.SUM) {
+                    // Use weighted average of coefficients (preserves sign)
+                    double avgCoeff = levelSum / windowSize;
+                    contribution = avgCoeff * weight;
+                    rawMomentum += contribution;
+                } else {
+                    // Sign-based: use RMS with sign of average
+                    double rms = Math.sqrt(levelEnergy / windowSize);
+                    double sign = Math.signum(levelSum);
+                    contribution = sign * rms * weight;
+                    rawMomentum += contribution;
+                }
                 
                 if (logger.isTraceEnabled()) {
                     logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
@@ -820,52 +1028,10 @@ public class SwtTrendMomentumStudy extends Study {
             }
         }
         
-        return rawMomentum;
-    }
-    
-    /**
-     * Calculate the weight for a given wavelet decomposition level.
-     * Finer scales (lower levels) get more weight for momentum calculation.
-     * 
-     * @param level the decomposition level (1-based)
-     * @return the weight factor for this level
-     */
-    private double calculateLevelWeight(int level) {
-        // Since BASE_LEVEL_WEIGHT is always 1.0, we simplify the formula for clarity.
-        return 1.0 / (1.0 + (level - 1) * LEVEL_WEIGHT_DECAY_FACTOR);
-    }
-    
-    /**
-     * Calculate the momentum contribution for a single wavelet level.
-     * Used for SUM and SIGN modes only (SIMPLE mode uses basic averaging).
-     * 
-     * @param momentumType "SUM" or "SIGN" calculation mode
-     * @param levelEnergy sum of squared coefficients in the window
-     * @param levelSum sum of coefficients in the window
-     * @param windowSize number of coefficients in the window
-     * @param weight weight factor for this level
-     * @return the weighted contribution from this level
-     */
-    private double calculateLevelContribution(String momentumType, double levelEnergy, double levelSum, int windowSize, double weight) {
-        if ("SUM".equals(momentumType)) {
-            // Use weighted average of coefficients (preserves sign)
-            double avgCoeff = levelSum / windowSize;
-            return avgCoeff * weight;
-        } else {
-            // Sign-based: use RMS with sign of average
-            double rms = Math.sqrt(levelEnergy / windowSize);
-            double sign = Math.signum(levelSum);
-            return sign * rms * weight;
-        }
-    }
-    
-    /**
-     * Apply exponential smoothing to the raw momentum value.
-     * 
-     * @param rawMomentum the unsmoothed momentum value
-     * @return the smoothed momentum value
-     */
-    private double applyMomentumSmoothing(double rawMomentum) {
+        // Scale the momentum to make it more visible (using pre-fetched scaling factor)
+        rawMomentum *= momentumScalingFactor;
+        
+        // Apply exponential smoothing to filter noise
         if (smoothedMomentum == 0.0) {
             // Initialize with first value
             smoothedMomentum = rawMomentum;
@@ -874,6 +1040,7 @@ public class SwtTrendMomentumStudy extends Study {
             double alpha = getSettings().getDouble(MOMENTUM_SMOOTHING, DEFAULT_MOMENTUM_SMOOTHING);
             smoothedMomentum = alpha * rawMomentum + (1.0 - alpha) * smoothedMomentum;
         }
+        
         return smoothedMomentum;
     }
     
