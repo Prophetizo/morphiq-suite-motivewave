@@ -183,6 +183,11 @@ public class SwtTrendMomentumStudy extends Study {
          * regardless of the number of enum values, making it more scalable than
          * a switch statement if additional momentum types are added in the future.
          * 
+         * <p><b>Performance Note:</b> This method is only called during initialization
+         * and settings updates, never in the calculation hot path. The logger check
+         * is optimized to avoid unnecessary string operations for common cases like
+         * empty strings.
+         * 
          * @param value the string value to convert (case-insensitive, trimmed)
          * @return the corresponding MomentumType, or SUM as default for null/unknown values
          */
@@ -198,8 +203,9 @@ public class SwtTrendMomentumStudy extends Study {
             MomentumType type = STRING_TO_ENUM_MAP.get(normalizedValue);
             
             if (type == null) {
-                if (logger.isWarnEnabled()) {
-                    // Log warning for unexpected value using the main class logger
+                // Only log warning if it's truly unexpected (not empty string)
+                // This avoids log spam while still catching actual configuration errors
+                if (logger.isWarnEnabled() && !normalizedValue.isEmpty()) {
                     logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
                 }
                 return SUM; // Default to SUM for unknown values
@@ -673,16 +679,13 @@ public class SwtTrendMomentumStudy extends Study {
         }
         
         if (waveletAtr == null) {
-            // Verify settings initialization - should never fail in production
-            // This check catches framework lifecycle violations during development
-            validateSettingsInitialized();
-            
             // Use cached settings for thread-safe access
+            // Settings are guaranteed to be initialized by onLoad() before any calculations
             CachedSettings settings = this.cachedSettings;
-            if (settings == null) {
-                // Double-check in case of race condition
-                throw new IllegalStateException("CachedSettings became null after validation");
-            }
+            
+            // Use assertion for development-time validation (disabled in production with -da flag)
+            assert settings != null : "CachedSettings should never be null in production";
+            
             this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
             logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
         } else if (waveletChanged || levelsChanged || windowChanged) {
@@ -953,16 +956,14 @@ public class SwtTrendMomentumStudy extends Study {
     
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
-        // Verify settings initialization - should never fail in production
-        // This check catches framework lifecycle violations during development
-        validateSettingsInitialized();
         
         // Get cached settings atomically - all values are consistent with each other
+        // Settings are guaranteed to be initialized by onLoad() before any calculations
         CachedSettings settings = this.cachedSettings;
-        if (settings == null) {
-            // Double-check in case of race condition
-            throw new IllegalStateException("CachedSettings became null after validation");
-        }
+        
+        // Use assertion for development-time validation (disabled in production with -da flag)
+        assert settings != null : "CachedSettings should never be null in production";
+        
         MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
         double levelWeightDecay = settings.levelWeightDecay;

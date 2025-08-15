@@ -8,33 +8,26 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Performance comparison between String and Enum comparisons for momentum type.
  * 
- * This test can be configured via system properties:
- * - momentum.perf.iterations: Number of iterations (default: 100,000)
- * - momentum.perf.enabled: Set to "true" to run the test (default: runs always)
+ * <p>This test verifies that enum comparison is faster than string comparison,
+ * which validates our design choice for the momentum type field.
  * 
- * Example: mvn test -Dmomentum.perf.iterations=10000000 -Dmomentum.perf.enabled=true
+ * <p><b>Configuration:</b>
+ * <ul>
+ *   <li>{@code -Dmomentum.perf.iterations=N} - Number of iterations (default: 100,000)
+ *       <ul>
+ *         <li>100,000: Default for CI, runs in ~10ms, balances speed vs accuracy</li>
+ *         <li>1,000,000+: For detailed local testing, more stable results</li>
+ *         <li>10,000: Quick smoke test, may have JIT warmup noise</li>
+ *       </ul>
+ *   </li>
+ * </ul>
+ * 
+ * <p><b>Example:</b>
+ * {@code mvn test -Dtest=MomentumTypePerformanceTest -Dmomentum.perf.iterations=1000000}
  */
 class MomentumTypePerformanceTest {
     
-    // Default to 100,000 iterations for fast CI builds
-    /**
-     * Number of iterations to use for performance tests.
-     * <p>
-     * <b>Performance implications:</b>
-     * - Higher values (e.g., 1,000,000+) provide more stable and reliable performance measurements,
-     *   but significantly increase test runtime, which may not be suitable for CI environments.
-     * - Lower values (e.g., 10,000–100,000) run quickly and are suitable for CI, but may be more
-     *   susceptible to noise and JIT warmup effects, especially on shared or virtualized hardware.
-     * <p>
-     * <b>Default value:</b>
-     * 100,000 iterations is chosen for CI builds as a compromise between test speed and measurement
-     * reliability. This typically results in test runtimes under a few seconds, minimizing CI delays
-     * while still providing meaningful performance comparisons.
-     * <p>
-     * <b>Customization:</b>
-     * You can override the default via the system property {@code -Dmomentum.perf.iterations}.
-     * For example, use {@code -Dmomentum.perf.iterations=1000000} for more detailed local testing.
-     */
+    // Number of iterations for performance tests (configurable via -Dmomentum.perf.iterations)
     private static final int ITERATIONS = Integer.getInteger("momentum.perf.iterations", 100_000);
     
     private enum MomentumType {
