@@ -34,7 +34,7 @@ class MomentumTypePerformanceTest {
      * Configurable via system property: {@code momentum.perf.iterations}
      * Default: 100,000 iterations (optimized for CI environments)
      */
-    private static final int ITERATIONS = Integer.getInteger("momentum.perf.iterations", 100_000);
+    private static final int ITERATIONS = Math.max(1_000, Math.min(10_000_000, Integer.getInteger("momentum.perf.iterations", 100_000)));
     
     private enum MomentumType {
         SUM, SIGN
