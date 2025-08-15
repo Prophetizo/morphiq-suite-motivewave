@@ -1,4 +1,4 @@
-package com.prophetizo.wavelets.swt.core;
+package com.prophetizo.common.position;
 
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.order_mgmt.Order;

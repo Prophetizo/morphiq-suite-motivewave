@@ -2,9 +2,9 @@ package com.prophetizo.wavelets.swt;
 
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.order_mgmt.Order;
-import com.prophetizo.wavelets.swt.core.PositionSizer;
-import com.prophetizo.wavelets.swt.core.PositionManager;
-import com.prophetizo.wavelets.swt.core.PositionTracker;
+import com.prophetizo.common.position.PositionSizer;
+import com.prophetizo.common.position.PositionManager;
+import com.prophetizo.common.position.PositionTracker;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.order_mgmt.OrderContext;
 import com.motivewave.platform.sdk.study.StudyHeader;

@@ -1,4 +1,4 @@
-package com.prophetizo.wavelets.swt.core;
+package com.prophetizo.common.position;
 
 import com.prophetizo.LoggerConfig;
 import org.slf4j.Logger;

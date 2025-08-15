@@ -1,4 +1,4 @@
-package com.prophetizo.wavelets.swt.core;
+package com.prophetizo.common.position;
 
 import com.motivewave.platform.sdk.common.DataContext;
 import com.motivewave.platform.sdk.common.DataSeries;

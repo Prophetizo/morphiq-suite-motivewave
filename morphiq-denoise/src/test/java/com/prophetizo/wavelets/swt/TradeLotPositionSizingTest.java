@@ -2,8 +2,8 @@ package com.prophetizo.wavelets.swt;
 
 import com.motivewave.platform.sdk.common.Instrument;
 import com.motivewave.platform.sdk.order_mgmt.OrderContext;
-import com.prophetizo.wavelets.swt.core.PositionSizer;
-import com.prophetizo.wavelets.swt.core.PositionSizer.PositionInfo;
+import com.prophetizo.common.position.PositionSizer;
+import com.prophetizo.common.position.PositionSizer.PositionInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;

@@ -1,4 +1,4 @@
-package com.prophetizo.wavelets.swt.core;
+package com.prophetizo.common.position;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

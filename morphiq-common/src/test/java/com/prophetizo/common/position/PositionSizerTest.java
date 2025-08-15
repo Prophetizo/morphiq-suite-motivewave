@@ -1,7 +1,7 @@
-package com.prophetizo.wavelets.swt.core;
+package com.prophetizo.common.position;
 
 import com.motivewave.platform.sdk.common.Instrument;
-import com.prophetizo.wavelets.swt.core.PositionSizer.PositionInfo;
+import com.prophetizo.common.position.PositionSizer.PositionInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
