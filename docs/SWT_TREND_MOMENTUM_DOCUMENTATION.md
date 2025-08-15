@@ -22,7 +22,9 @@ The SWT Trend + Momentum Strategy is a sophisticated trading system that combine
 - **Adaptive Noise Reduction**: Three thresholding methods to filter market noise
 - **WATR-Based Stops**: Wavelet Average True Range for dynamic risk management
 - **Trade Lots Integration**: Properly respects MotiveWave's Trade Lots setting
-- **State-Based Signals**: Study reports market state (LONG/SHORT), strategy decides actions
+- **State-Based Signal System**: Rich state change signals with magnitude and direction information
+- **Separation of Concerns**: Study reports market state changes, strategy makes trading decisions
+- **Multiple Signals Per Bar**: Can detect simultaneous slope and momentum changes
 - **Mandatory Bracket Orders**: All entries include stop loss and take profit orders
 - **Automatic Position Management**: Uses OrderContext for reliable position tracking
 
@@ -343,7 +345,61 @@ Max Stop: 500 points
 
 ## Signal Generation Logic
 
-### State Signal Generation (Study)
+### New State-Based Signal System (v1.1+)
+
+The SWT study now implements a sophisticated state-based signal system that provides rich market state information to strategies. This replaces the simple action-based signals and follows proper separation of concerns.
+
+#### State Change Signal Types
+
+**Slope State Changes**:
+- `SLOPE_TURNED_POSITIVE`: Trend slope changed from negative to positive
+- `SLOPE_TURNED_NEGATIVE`: Trend slope changed from positive to negative
+
+**Momentum State Changes**:
+- `MOMENTUM_CROSSED_POSITIVE`: Momentum crossed above zero
+- `MOMENTUM_CROSSED_NEGATIVE`: Momentum crossed below zero
+- `MOMENTUM_THRESHOLD_EXCEEDED`: Momentum magnitude exceeded configured threshold
+- `MOMENTUM_THRESHOLD_LOST`: Momentum magnitude fell below configured threshold
+
+#### StateChangeSignal Object Structure
+
+Each signal contains detailed information:
+```java
+public class StateChangeSignal {
+    private SignalType type;        // What type of change occurred
+    private double oldValue;        // Previous value before change
+    private double newValue;        // Current value after change
+    private double magnitude;       // Magnitude/strength of change
+    private long timestamp;         // When the change occurred
+}
+```
+
+#### Multiple Signals Per Bar
+
+The study can emit multiple state changes on a single bar:
+```java
+List<StateChangeSignal> signals = new ArrayList<>();
+if (slopeTurnedPositive) signals.add(new StateChangeSignal(...));
+if (momentumCrossedZero) signals.add(new StateChangeSignal(...));
+ctx.signal(index, signals);
+```
+
+### Strategy State Interpretation
+
+The strategy analyzes state changes to make trading decisions:
+
+**Long Entry Conditions**:
+- Slope turned positive AND (momentum crossed positive OR momentum threshold exceeded)
+
+**Short Entry Conditions**:
+- Slope turned negative AND (momentum crossed negative OR momentum threshold exceeded)
+
+**Exit Conditions**:
+- Momentum threshold lost OR opposite slope change
+
+### Legacy Signal System (Backward Compatibility)
+
+For transition period, the study also emits legacy signals:
 
 **Long State**:
 ```java
