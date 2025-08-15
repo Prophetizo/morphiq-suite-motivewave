@@ -214,7 +214,8 @@ public class SwtTrendMomentumStudy extends Study {
             
             if (type == null) {
                 // Only log warning if it's truly unexpected (not empty string)
-                // Check logger level first to avoid unnecessary operations when logging is disabled
+                // Order is intentional: isEmpty() is cheaper than isWarnEnabled()
+                // Empty string check filters out common cases before method call
                 if (!normalizedValue.isEmpty() && logger.isWarnEnabled()) {
                     logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
                 }
@@ -377,6 +378,30 @@ public class SwtTrendMomentumStudy extends Study {
                         momentumType.name(), momentumWindow, 
                         levelWeightDecay, momentumScalingFactor);
         }
+    }
+    
+    /**
+     * Gets cached settings with defensive null handling.
+     * 
+     * <p>This centralized method handles the case where cachedSettings might be null
+     * due to a MotiveWave lifecycle violation. In normal operation, onLoad() is called
+     * before any calculations, ensuring cachedSettings is initialized. If this contract
+     * is violated, we log an error and return safe defaults.
+     * 
+     * @param context Additional context for error message (e.g., calling method name)
+     * @return CachedSettings instance, never null (returns defaults if not initialized)
+     */
+    private CachedSettings getCachedSettingsOrDefault(String context) {
+        CachedSettings settings = this.cachedSettings;
+        
+        if (settings == null) {
+            // Log once per context to avoid spam
+            logger.error("CachedSettings is null in {} - MotiveWave lifecycle violation detected. " +
+                       "onLoad() should have been called before calculate(). Using defaults.", context);
+            settings = CachedSettings.createDefault();
+        }
+        
+        return settings;
     }
     
     @Override
@@ -678,17 +703,8 @@ public class SwtTrendMomentumStudy extends Study {
         }
         
         if (waveletAtr == null) {
-            // Use cached settings for thread-safe access
-            // Per MotiveWave SDK lifecycle: onLoad() is called before calculate()
-            // If this assumption is violated, the assertion below will catch it
-            CachedSettings settings = this.cachedSettings;
-            
-            // Defensive check with graceful fallback for production safety
-            if (settings == null) {
-                logger.error("CachedSettings is null - MotiveWave lifecycle violation detected. " +
-                           "onLoad() should have been called before calculate(). Using defaults.");
-                settings = CachedSettings.createDefault();
-            }
+            // Use cached settings for thread-safe access with defensive fallback
+            CachedSettings settings = getCachedSettingsOrDefault("ensureInitialized");
             
             this.waveletAtr = new WaveletAtr(14, settings.levelWeightDecay); // 14-period smoothing with configurable decay
             logger.debug("Initialized WATR component with level decay: {}", settings.levelWeightDecay);
@@ -961,17 +977,8 @@ public class SwtTrendMomentumStudy extends Study {
     private double calculateMomentumSum(VectorWaveSwtAdapter.SwtResult swtResult, int k) {
         int levelsToUse = Math.min(k, swtResult.getLevels());
         
-        // Get cached settings atomically - all values are consistent with each other
-        // Per MotiveWave SDK lifecycle: onLoad() is called before calculate()
-        // If this assumption is violated, we handle it gracefully
-        CachedSettings settings = this.cachedSettings;
-        
-        // Defensive check with graceful fallback for production safety
-        if (settings == null) {
-            logger.error("CachedSettings is null in calculateMomentumSum - " +
-                       "MotiveWave lifecycle violation detected. Using defaults.");
-            settings = CachedSettings.createDefault();
-        }
+        // Get cached settings atomically with defensive fallback
+        CachedSettings settings = getCachedSettingsOrDefault("calculateMomentumSum");
         
         MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
