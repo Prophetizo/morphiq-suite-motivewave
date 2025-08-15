@@ -15,7 +15,7 @@ class MomentumTypeHashMapTest {
     private static final int LOOKUP_ITERATIONS = 100_000; // Number of test iterations
     private static final int LOOKUPS_PER_ITERATION = 4; // Number of lookups per iteration (SUM, SIGN, INVALID, null)
     private static final int TOTAL_LOOKUPS = LOOKUP_ITERATIONS * LOOKUPS_PER_ITERATION; // 400,000 total
-    private static final int MAX_LOOKUP_TIME_NANOS = 2500; // 2.5 microseconds per lookup
+    private static final int MAX_LOOKUP_TIME_NANOS = 2_500; // 2,500 nanoseconds (2.5 microseconds) per lookup
     private static final int MAX_TOTAL_TIME_MS = 1000; // 1 second for all lookups in CI
     
     @Test
