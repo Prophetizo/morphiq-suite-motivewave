@@ -63,7 +63,7 @@ class MomentumTypeHashMapTest {
         
         // TOTAL_LOOKUPS should complete reasonably quickly with HashMap
         // Allow up to MAX_TOTAL_TIME_MS for CI environments (typically < 50ms locally)
-        long elapsedMs = elapsed / 1_000_000;
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(elapsed);
         assertTrue(elapsedMs < MAX_TOTAL_TIME_MS, 
             String.format("%d lookups took %d ms (limit: %d ms) - HashMap may not be working correctly", 
                          TOTAL_LOOKUPS, elapsedMs, MAX_TOTAL_TIME_MS));
