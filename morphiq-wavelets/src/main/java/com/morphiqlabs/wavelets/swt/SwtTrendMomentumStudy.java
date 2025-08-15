@@ -122,7 +122,7 @@ public class SwtTrendMomentumStudy extends Study {
     
     // Signals - State-based trading signals (not action-based)
     public enum Signals {
-        LONG, SHORT
+        LONG, SHORT, STATE_CHANGE
     }
     
     // ========================================================================
@@ -1213,7 +1213,7 @@ public class SwtTrendMomentumStudy extends Study {
         
         // Emit state change signals if any occurred
         if (!stateChanges.isEmpty() && barComplete) {
-            ctx.signal(index, stateChanges);
+            ctx.signal(index, Signals.STATE_CHANGE, "State Changes", stateChanges);
             
             if (logger.isDebugEnabled()) {
                 logger.debug("State changes detected at index {}: {}", index, stateChanges);
