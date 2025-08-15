@@ -1,5 +1,8 @@
 package com.morphiqlabs.wavelets.swt;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Represents a market state change event with detailed information about what changed.
  * Used by the SWT Study to report state changes to strategies, allowing strategies
@@ -13,6 +16,7 @@ package com.morphiqlabs.wavelets.swt;
  * signal type and can be determined using helper methods like {@link #isPositiveChange()}.
  */
 public class StateChangeSignal {
+    private static final Logger logger = LoggerFactory.getLogger(StateChangeSignal.class);
     
     /**
      * The type of state change that occurred.
@@ -49,6 +53,12 @@ public class StateChangeSignal {
     public StateChangeSignal(SignalType type, double oldValue, double newValue, double magnitude, long timestamp) {
         if (Double.isNaN(magnitude) || Double.isInfinite(magnitude)) {
             throw new IllegalArgumentException("Magnitude cannot be NaN or infinite: " + magnitude);
+        }
+        if (magnitude < 0) {
+            // Log a warning for negative magnitude since it will be converted to positive
+            // This helps developers catch potential logic errors
+            logger.warn("Negative magnitude provided ({}), converting to positive: {}", 
+                magnitude, Math.abs(magnitude));
         }
         
         this.type = type;

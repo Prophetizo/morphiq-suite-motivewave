@@ -1242,7 +1242,7 @@ public class SwtTrendMomentumStudy extends Study {
                 }
                 
                 // Also emit legacy signal for backward compatibility
-                ctx.signal(index, Signals.LONG, "Long State", price);
+                ctx.signal(index, Signals.LONG, "Long State", Signals.LONG);
                 logger.debug("Long state at index {} price {}", index, price);
             }
         } else if (shortFilter) {
@@ -1262,7 +1262,7 @@ public class SwtTrendMomentumStudy extends Study {
                 }
                 
                 // Also emit legacy signal for backward compatibility
-                ctx.signal(index, Signals.SHORT, "Short State", price);
+                ctx.signal(index, Signals.SHORT, "Short State", Signals.SHORT);
                 logger.debug("Short state at index {} price {}", index, price);
             }
         }

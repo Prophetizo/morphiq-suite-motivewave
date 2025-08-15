@@ -264,8 +264,10 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             
             // Handle new state change signals
             if (signal instanceof List<?>) {
-                @SuppressWarnings("unchecked")
-                List<StateChangeSignal> stateChanges = (List<StateChangeSignal>) signal;
+                List<StateChangeSignal> stateChanges = validateStateChangeSignalList((List<?>) signal);
+                if (stateChanges == null) {
+                    return; // Validation failed, error already logged
+                }
                 
                 logger.info("Processing {} state change(s) at price {}", 
                     stateChanges.size(), 
@@ -808,11 +810,53 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
      * Check if momentum threshold was exceeded in the negative direction.
      * This ensures short entries only occur when momentum is strongly negative,
      * not when it's strongly positive.
+     * 
+     * A valid negative momentum threshold exceeded means:
+     * 1. Signal type is MOMENTUM_THRESHOLD_EXCEEDED
+     * 2. The new momentum value is negative
+     * 3. The absolute value of momentum exceeds the configured threshold
      */
     private boolean isNegativeMomentumThresholdExceeded(List<StateChangeSignal> stateChanges) {
+        // Get the momentum threshold from settings for validation
+        double momentumThreshold = getSettings().getDouble(MOMENTUM_THRESHOLD, 1.0);
+        
         return stateChanges.stream()
             .filter(s -> s.getType() == StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED)
-            .anyMatch(s -> s.getNewValue() < 0);
+            .anyMatch(s -> s.getNewValue() < 0 && Math.abs(s.getNewValue()) > momentumThreshold);
+    }
+    
+    /**
+     * Validates that a raw list contains only StateChangeSignal instances.
+     * Provides type-safe casting with proper error handling.
+     * 
+     * @param rawList The raw list to validate
+     * @return A typed list of StateChangeSignal instances, or null if validation fails
+     */
+    private List<StateChangeSignal> validateStateChangeSignalList(List<?> rawList) {
+        if (rawList == null) {
+            logger.warn("Received null list signal");
+            return null;
+        }
+        
+        if (rawList.isEmpty()) {
+            // Empty list is valid - return empty typed list
+            return java.util.Collections.emptyList();
+        }
+        
+        // Check all elements to ensure type safety
+        for (int i = 0; i < rawList.size(); i++) {
+            Object element = rawList.get(i);
+            if (!(element instanceof StateChangeSignal)) {
+                logger.warn("List signal contains invalid element at index {}: expected StateChangeSignal, got {}", 
+                    i, element != null ? element.getClass().getName() : "null");
+                return null;
+            }
+        }
+        
+        // All elements validated - safe to cast
+        @SuppressWarnings("unchecked")
+        List<StateChangeSignal> validatedList = (List<StateChangeSignal>) rawList;
+        return validatedList;
     }
     
     /**
