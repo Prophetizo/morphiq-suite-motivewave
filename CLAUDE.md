@@ -153,11 +153,24 @@ mvn clean install
 
 ## Testing Strategy
 
-Tests are located in `morphiq-core/src/test/java/`:
+Tests are located in `morphiq-core/src/test/java/` and module-specific test directories:
 - Unit tests for mathematical functions
 - Integration tests for wavelet transforms
 - Parallel processing verification
 - Non-power-of-two data handling
+- Performance benchmarking tests
+- Thread safety verification tests
+
+### Test System Properties
+The following system properties can be used to configure test behavior:
+
+- **`momentum.perf.iterations`**: Controls iterations for momentum type performance tests
+  - Default: 100,000 (balances CI speed vs accuracy)
+  - Usage: `mvn test -Dmomentum.perf.iterations=1000000`
+  - Values:
+    - 10,000: Quick smoke test (may have JIT warmup noise)
+    - 100,000: Default for CI, runs in ~10ms
+    - 1,000,000+: Detailed local testing with stable results
 
 ## CI/CD Pipeline
 

@@ -13,21 +13,27 @@ import static org.junit.jupiter.api.Assertions.*;
  * 
  * <p><b>Configuration:</b>
  * <ul>
- *   <li>{@code -Dmomentum.perf.iterations=N} - Number of iterations (default: 100,000)
+ *   <li>{@code momentum.perf.iterations} - Number of iterations (default: 100,000)
  *       <ul>
+ *         <li>10,000: Quick smoke test, may have JIT warmup noise</li>
  *         <li>100,000: Default for CI, runs in ~10ms, balances speed vs accuracy</li>
  *         <li>1,000,000+: For detailed local testing, more stable results</li>
- *         <li>10,000: Quick smoke test, may have JIT warmup noise</li>
  *       </ul>
  *   </li>
  * </ul>
  * 
  * <p><b>Example:</b>
  * {@code mvn test -Dtest=MomentumTypePerformanceTest -Dmomentum.perf.iterations=1000000}
+ * 
+ * @see <a href="../../../../../../../../CLAUDE.md#test-system-properties">Test System Properties Documentation</a>
  */
 class MomentumTypePerformanceTest {
     
-    // Number of iterations for performance tests (configurable via -Dmomentum.perf.iterations)
+    /**
+     * Number of iterations for performance tests.
+     * Configurable via system property: {@code momentum.perf.iterations}
+     * Default: 100,000 iterations (optimized for CI environments)
+     */
     private static final int ITERATIONS = Integer.getInteger("momentum.perf.iterations", 100_000);
     
     private enum MomentumType {

@@ -204,8 +204,8 @@ public class SwtTrendMomentumStudy extends Study {
             
             if (type == null) {
                 // Only log warning if it's truly unexpected (not empty string)
-                // This avoids log spam while still catching actual configuration errors
-                if (logger.isWarnEnabled() && !normalizedValue.isEmpty()) {
+                // Check logger level first to avoid unnecessary operations when logging is disabled
+                if (!normalizedValue.isEmpty() && logger.isWarnEnabled()) {
                     logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
                 }
                 return SUM; // Default to SUM for unknown values
@@ -472,11 +472,25 @@ public class SwtTrendMomentumStudy extends Study {
         if (desc != null) {
             var momentumPlot = desc.getPlot(MOMENTUM_PLOT);
             if (momentumPlot != null) {
-                MomentumType momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
+                // Use cached settings if available (after onLoad), otherwise use SDK settings directly
+                // This handles both initialization (before onLoad) and updates (after onLoad)
+                MomentumType momentumType;
+                int k;
+                
+                CachedSettings settings = this.cachedSettings;
+                if (settings != null) {
+                    // After onLoad - use cached settings for consistency
+                    momentumType = settings.momentumType;
+                    // Note: k is not in cached settings, so get from SDK
+                    k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
+                } else {
+                    // During initialize - cachedSettings not yet available
+                    momentumType = MomentumType.fromString(getSettings().getString(MOMENTUM_TYPE, "SUM"));
+                    k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
+                }
                 
                 if (momentumType == MomentumType.SIGN) {
                     // For SIGN mode: range is -k to +k
-                    int k = getSettings().getInteger(DETAIL_CONFIRM_K, 2);
                     int range = Math.max(k + 1, 3);
                     momentumPlot.setFixedTopValue(range);
                     momentumPlot.setFixedBottomValue(-range);
