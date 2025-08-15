@@ -48,12 +48,26 @@ public class PositionManager {
     
     // Legacy order tracking for backward compatibility
     private final Map<String, Order> activeOrders = new ConcurrentHashMap<>();
-    private final Map<String, String> orderIdsByType = new ConcurrentHashMap<>(); // Type -> OrderId mapping
+    private final Map<OrderType, String> orderIdsByType = new ConcurrentHashMap<>(); // Type -> OrderId mapping
     
-    // Order type constants
-    private static final String MARKET_ORDER = "MARKET";
-    private static final String STOP_ORDER = "STOP";
-    private static final String TARGET_ORDER = "TARGET";
+    /**
+     * Enum representing the different types of orders managed by the position manager.
+     */
+    public enum OrderType {
+        MARKET("market"),
+        STOP("stop"),
+        TARGET("target");
+        
+        private final String label;
+        
+        OrderType(String label) {
+            this.label = label;
+        }
+        
+        public String getLabel() {
+            return label;
+        }
+    }
     
     /**
      * Creates a position manager with the specified order context and position sizer.
@@ -357,9 +371,9 @@ public class PositionManager {
             );
             
             // Store orders and their IDs before submission
-            storeOrder(MARKET_ORDER, marketOrderId, marketOrder);
-            storeOrder(STOP_ORDER, stopOrderId, stopLoss);
-            storeOrder(TARGET_ORDER, targetOrderId, takeProfit);
+            storeOrder(OrderType.MARKET, marketOrderId, marketOrder);
+            storeOrder(OrderType.STOP, stopOrderId, stopLoss);
+            storeOrder(OrderType.TARGET, targetOrderId, takeProfit);
             
             // Submit all orders as a bracket
             orderContext.submitOrders(marketOrder, stopLoss, takeProfit);
@@ -445,21 +459,21 @@ public class PositionManager {
     /**
      * Stores an order with its ID and type for tracking.
      */
-    private void storeOrder(String orderType, String orderId, Order order) {
+    private void storeOrder(OrderType orderType, String orderId, Order order) {
         // Store in legacy maps for backward compatibility
         activeOrders.put(orderId, order);
         orderIdsByType.put(orderType, orderId);
         
         // Also store in OrderBundle
         switch (orderType) {
-            case MARKET_ORDER:
-                orderBundle.addMarketOrder(orderId, order, "market");
+            case MARKET:
+                orderBundle.addMarketOrder(orderId, order, orderType.getLabel());
                 break;
-            case STOP_ORDER:
-                orderBundle.addStopOrder(orderId, order, "stop");
+            case STOP:
+                orderBundle.addStopOrder(orderId, order, orderType.getLabel());
                 break;
-            case TARGET_ORDER:
-                orderBundle.addTargetOrder(orderId, order, "target");
+            case TARGET:
+                orderBundle.addTargetOrder(orderId, order, orderType.getLabel());
                 break;
         }
         
@@ -541,12 +555,12 @@ public class PositionManager {
     }
     
     /**
-     * Gets an order ID by its type (MARKET, STOP, or TARGET).
+     * Gets an order ID by its type.
      * 
      * @param orderType the order type
      * @return the order ID if found, null otherwise
      */
-    public String getOrderIdByType(String orderType) {
+    public String getOrderIdByType(OrderType orderType) {
         return orderIdsByType.get(orderType);
     }
     
@@ -556,7 +570,7 @@ public class PositionManager {
      * @return the market order ID if found, null otherwise
      */
     public String getMarketOrderId() {
-        return orderIdsByType.get(MARKET_ORDER);
+        return orderIdsByType.get(OrderType.MARKET);
     }
     
     /**
@@ -565,7 +579,7 @@ public class PositionManager {
      * @return the stop order ID if found, null otherwise
      */
     public String getStopOrderId() {
-        return orderIdsByType.get(STOP_ORDER);
+        return orderIdsByType.get(OrderType.STOP);
     }
     
     /**
@@ -574,7 +588,7 @@ public class PositionManager {
      * @return the target order ID if found, null otherwise
      */
     public String getTargetOrderId() {
-        return orderIdsByType.get(TARGET_ORDER);
+        return orderIdsByType.get(OrderType.TARGET);
     }
     
     /**
@@ -624,7 +638,7 @@ public class PositionManager {
      * @return true if modification was successful, false otherwise
      */
     public boolean modifyStopPrice(double newStopPrice) {
-        String stopOrderId = orderIdsByType.get(STOP_ORDER);
+        String stopOrderId = orderIdsByType.get(OrderType.STOP);
         if (stopOrderId == null) {
             logger.warn("No stop order found to modify");
             return false;
@@ -662,7 +676,7 @@ public class PositionManager {
      * @return true if modification was successful, false otherwise
      */
     public boolean modifyTargetPrice(double newTargetPrice) {
-        String targetOrderId = orderIdsByType.get(TARGET_ORDER);
+        String targetOrderId = orderIdsByType.get(OrderType.TARGET);
         if (targetOrderId == null) {
             logger.warn("No target order found to modify");
             return false;
