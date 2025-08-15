@@ -2,6 +2,7 @@ package com.prophetizo.wavelets.swt;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -127,7 +128,9 @@ class MomentumTypeHashMapTest {
             try {
                 thread.join();
             } catch (InterruptedException e) {
-                fail("Thread interrupted");
+                // Restore interrupted status before failing
+                Thread.currentThread().interrupt();
+                fail("Test thread was interrupted while waiting for worker threads: " + e.getMessage());
             }
         }
         
