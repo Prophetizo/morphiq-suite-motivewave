@@ -24,9 +24,7 @@ import java.util.Arrays;
  * <p>The SWT (also known as the undecimated or redundant wavelet transform) 
  * maintains the same data length at each decomposition level, making it 
  * shift-invariant and suitable for financial time series analysis.
- * 
- * @author Prophetizo
- * @since 1.0.0
+ *
  * @see ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter
  */
 public class VectorWaveSwtAdapter {

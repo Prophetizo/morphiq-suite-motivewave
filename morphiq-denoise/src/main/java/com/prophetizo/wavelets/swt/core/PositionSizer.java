@@ -26,9 +26,7 @@ import org.slf4j.Logger;
  * );
  * ctx.buy(info.getFinalQuantity());
  * </pre>
- * 
- * @author Prophetizo
- * @since 1.0.0
+ *
  */
 public class PositionSizer {
     private static final Logger logger = LoggerConfig.getLogger(PositionSizer.class);

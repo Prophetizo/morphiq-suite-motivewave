@@ -15,9 +15,7 @@ import org.slf4j.Logger;
  * </ul>
  * 
  * <p>Thread-safe for use across multiple strategies.
- * 
- * @author Prophetizo
- * @since 1.0.0
+ *
  */
 public class PositionTracker {
     private static final Logger logger = LoggerConfig.getLogger(PositionTracker.class);

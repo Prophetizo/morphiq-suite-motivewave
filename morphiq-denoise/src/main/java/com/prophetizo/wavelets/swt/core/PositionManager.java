@@ -34,9 +34,7 @@ import java.util.Arrays;
  *     manager.exitPosition();
  * }
  * </pre>
- * 
- * @author Prophetizo
- * @since 1.0.0
+ *
  */
 public class PositionManager {
     private static final Logger logger = LoggerConfig.getLogger(PositionManager.class);

@@ -19,9 +19,7 @@ import java.util.stream.Collectors;
  *   <li>Tagged orders for easy identification</li>
  *   <li>Order grouping and management</li>
  * </ul>
- * 
- * @author Prophetizo
- * @since 1.1.0
+ *
  */
 public class OrderBundle {
     private static final Logger logger = LoggerConfig.getLogger(OrderBundle.class);
