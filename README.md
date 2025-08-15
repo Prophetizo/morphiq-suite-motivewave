@@ -70,7 +70,7 @@ cd morphiq-suite-motivewave
 mvn clean package
 
 # Install to MotiveWave
-cp morphiq-bundle-premium/target/morphiq-premium-*.jar ~/Documents/MotiveWave/studies/
+cp morphiq-wavelets/target/morphiq-wavelets-*-motivewave.jar ~/Documents/MotiveWave/studies/
 ```
 
 ### Usage in MotiveWave
@@ -94,11 +94,13 @@ cp morphiq-bundle-premium/target/morphiq-premium-*.jar ~/Documents/MotiveWave/st
 
 ```
 morphiq-suite-motivewave/
-├── morphiq-core/           # Core wavelet processing library
-├── morphiq-common/         # Shared MotiveWave utilities
-├── morphiq-autowave/       # AutoWavelets indicator
-├── morphiq-denoise/        # SWT/MODWT trend following system
-├── morphiq-bundle-premium/ # Bundle of all indicators
+├── morphiq-common/         # Shared utilities & position management
+│   ├── LoggerConfig       # Centralized logging
+│   ├── position/          # Position management framework
+│   └── wavelets/          # Wavelet types & options
+├── morphiq-wavelets/       # All wavelet indicators & strategies
+│   ├── AutoWavelets       # Multi-level decomposition
+│   └── swt/               # SWT/MODWT trend following system
 └── docs/                   # All documentation
     ├── SWT_TREND_MOMENTUM_DOCUMENTATION.md
     ├── POSITION_MANAGER_GUIDE.md  # Position management framework
@@ -122,13 +124,13 @@ mvn clean install
 mvn clean package -DskipTests
 
 # Build specific module
-cd morphiq-core
+cd morphiq-wavelets
 mvn clean package
 ```
 
 ### Creating Custom Indicators
 
-See the [API Reference](API_REFERENCE.md) for detailed class documentation and the [SWT implementation](morphiq-denoise/src/main/java/com/prophetizo/wavelets/swt/) for complete examples.
+See the [API Reference](API_REFERENCE.md) for detailed class documentation and the [SWT implementation](morphiq-wavelets/src/main/java/com/morphiqlabs/wavelets/swt/) for complete examples.
 
 ## Performance Features
 

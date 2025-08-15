@@ -13,21 +13,35 @@
     <artifactId>morphiq-common</artifactId>
     <packaging>jar</packaging>
 
-    <name>Morphiq Common MotiveWave Utilities</name>
-    <description>Shared MotiveWave-specific utilities for Morphiq Suite</description>
+    <name>Morphiq Common</name>
+    <description>Shared utilities for Morphiq Suite</description>
 
     <dependencies>
-        <!-- Morphiq Core -->
+        <!-- Logging -->
         <dependency>
-            <groupId>ai.prophetizo</groupId>
-            <artifactId>morphiq-core</artifactId>
-            <version>${project.version}</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
         </dependency>
         <!-- MotiveWave SDK -->
         <dependency>
             <groupId>com.motivewave.platform.sdk</groupId>
             <artifactId>mwave_sdk</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

@@ -48,13 +48,13 @@ PositionManager
 ### Basic Setup
 
 ```java
-import com.prophetizo.wavelets.swt.core.*;
+import com.morphiqlabs.wavelets.swt.core.*;
 import com.motivewave.platform.sdk.order_mgmt.OrderContext;
 
 // Initialize the framework
 OrderContext ctx = ... // From MotiveWave
-PositionSizer sizer = new PositionSizer(ctx.getInstrument());
-PositionManager positionManager = new PositionManager(ctx, sizer);
+        PositionSizer sizer = new PositionSizer(ctx.getInstrument());
+        PositionManager positionManager = new PositionManager(ctx, sizer);
 ```
 
 ### Simple Position Entry

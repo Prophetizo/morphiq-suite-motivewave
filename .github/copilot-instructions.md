@@ -43,7 +43,7 @@ mvn clean package -DskipTests
 # Set timeout: 1200+ seconds (20+ minutes)
 
 # Individual module build (faster if dependencies are resolved)
-cd morphiq-core && mvn clean package -DskipTests
+cd morphiq-wavelets && mvn clean package -DskipTests
 # Set timeout: 600+ seconds (10+ minutes)
 
 # Install to local repository - NEVER CANCEL, takes 25-35 minutes
@@ -63,7 +63,7 @@ mvn test -Dtest=StatisticsTest
 # Set timeout: 300+ seconds (5+ minutes)
 
 # Run tests in specific module
-cd morphiq-core && mvn test
+cd morphiq-wavelets && mvn test
 # Set timeout: 600+ seconds (10+ minutes)
 ```
 
@@ -96,25 +96,23 @@ The build requires access to external Maven repositories. If credentials are not
 
 ## Module Structure and Navigation
 
-### Key Modules
-- **morphiq-core/**: Core wavelet processing library and mathematical utilities
-  - Location: `/morphiq-core/src/main/java/com/prophetizo/`
-  - Key classes: `Statistics.java`, `MovingAverage.java`, `WaveletAnalyzer.java`
-  - Tests: `/morphiq-core/src/test/java/com/prophetizo/`
+### Key Modules (Consolidated to 2 modules)
+- **morphiq-common/**: Shared utilities and core components
+  - Location: `/morphiq-common/src/main/java/com/morphiqlabs/common/`
+  - Key components:
+    - `LoggerConfig.java` - Centralized logging
+    - `position/` - Complete position management framework
+    - `wavelets/` - Wavelet types and configuration
+    - `StudyUIHelper.java` - MotiveWave UI utilities
+  - Tests: `/morphiq-common/src/test/java/com/morphiqlabs/common/`
 
-- **morphiq-common/**: MotiveWave-specific utilities  
-  - Location: `/morphiq-common/src/main/java/com/prophetizo/`
-  - Shared utilities for MotiveWave integration
-
-- **morphiq-autowave/**: Automatic wavelet decomposition indicator
-  - Location: `/morphiq-autowave/src/main/java/com/prophetizo/studies/`
-  - Main study: `AutoWavelets.java`
-
-- **morphiq-denoise/**: Denoised trend following indicator
-  - Location: `/morphiq-denoise/src/main/java/com/prophetizo/studies/`
-  - Main study: `DenoisedTrendFollowing.java`
-
-- **morphiq-bundle-premium/**: Packaging module (creates fat JARs)
+- **morphiq-wavelets/**: All wavelet indicators and strategies
+  - Location: `/morphiq-wavelets/src/main/java/com/morphiqlabs/`
+  - Key components:
+    - `motivewave/studies/Wavelets.java` - AutoWavelets indicator
+    - `wavelets/swt/` - SWT Trend + Momentum system
+    - `wavelets/swt/core/` - Core wavelet processing
+  - Tests: `/morphiq-wavelets/src/test/java/com/morphiqlabs/`
 
 ### Important Configuration Files
 - **Parent POM**: `/pom.xml` - manages all dependencies and plugin versions
@@ -164,9 +162,9 @@ When external dependencies ARE available:
 ### Common Development Tasks
 
 1. **Adding New Mathematical Functions**:
-   - Implement in `/morphiq-core/src/main/java/com/prophetizo/timeseries/math/`
+   - Implement in `/morphiq-wavelets/src/main/java/com/morphiqlabs/wavelets/`
    - Add comprehensive unit tests in corresponding test directory
-   - Follow existing patterns in `Statistics.java` and `MovingAverage.java`
+   - Follow existing patterns in wavelet processing classes
 
 2. **Creating New MotiveWave Studies**:
    - Extend `com.motivewave.platform.sdk.study.Study`
@@ -175,10 +173,10 @@ When external dependencies ARE available:
    - Override `calculate()` method for main logic
 
 3. **Modifying Wavelet Processing**:
-   - Core processing logic in `/morphiq-core/src/main/java/com/prophetizo/wavelets/`
-   - Supports Daubechies4, Daubechies6 wavelets  
-   - Automatic parallel processing for performance
-   - Handles non-power-of-two data lengths
+   - Core processing logic in `/morphiq-wavelets/src/main/java/com/morphiqlabs/wavelets/`
+   - Uses VectorWave for high-performance transforms
+   - Supports multiple wavelet families via VectorWave
+   - Handles real-time streaming data efficiently
 
 ### Architecture Patterns
 1. **Parallel Processing**: Automatic parallelization for datasets ≥ 512 points
@@ -190,15 +188,10 @@ When external dependencies ARE available:
 
 ### Module Dependencies
 ```
-morphiq-bundle-premium (pom)
-├── morphiq-autowave (jar)
-│   ├── morphiq-common (jar)
-│   │   └── morphiq-core (jar)
-│   │       └── vector-wave (external)
-│   └── mwave_sdk (provided)
-└── morphiq-denoise (jar)
-    ├── morphiq-common (jar)
-    └── mwave_sdk (provided)
+morphiq-wavelets (jar)
+├── morphiq-common (jar)
+├── vector-wave (external)
+└── mwave_sdk (provided)
 ```
 
 ### Key External Dependencies
@@ -209,9 +202,9 @@ morphiq-bundle-premium (pom)
 
 ### Build Artifacts
 After successful build, artifacts are located at:
-- Individual modules: `{module}/target/{module}-1.0.0-SNAPSHOT.jar`
-- Premium bundle: `morphiq-bundle-premium/target/morphiq-premium-*.jar`
-- For MotiveWave: Copy bundle JAR to `~/Documents/MotiveWave/studies/`
+- Common utilities: `morphiq-common/target/morphiq-common-1.0.0-SNAPSHOT.jar`
+- MotiveWave plugin: `morphiq-wavelets/target/morphiq-wavelets-1.0.0-SNAPSHOT-motivewave.jar`
+- For MotiveWave: Copy the shaded JAR to `~/Documents/MotiveWave/studies/`
 
 ## CI/CD Information
 

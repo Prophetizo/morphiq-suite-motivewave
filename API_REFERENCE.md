@@ -3,7 +3,7 @@
 ## Core Classes
 
 ### PositionManager
-**Package**: `com.prophetizo.wavelets.swt.core`
+**Package**: `com.morphiqlabs.common.position`
 
 Centralized position management component for reuse across trading strategies.
 
@@ -27,7 +27,7 @@ Centralized position management component for reuse across trading strategies.
 ---
 
 ### PositionTracker
-**Package**: `com.prophetizo.wavelets.swt.core`
+**Package**: `com.morphiqlabs.common.position`
 
 Thread-safe position state tracking and calculations.
 
@@ -50,7 +50,7 @@ Thread-safe position state tracking and calculations.
 ---
 
 ### SwtTrendMomentumStudy
-**Package**: `com.prophetizo.wavelets.swt`
+**Package**: `com.morphiqlabs.wavelets.swt`
 
 Main wavelet indicator that overlays price charts with trend and momentum analysis.
 
@@ -77,7 +77,7 @@ Main wavelet indicator that overlays price charts with trend and momentum analys
 ---
 
 ### SwtTrendMomentumStrategy
-**Package**: `com.prophetizo.wavelets.swt`
+**Package**: `com.morphiqlabs.wavelets.swt`
 
 Automated trading strategy extending the study with order management.
 
@@ -106,7 +106,7 @@ Automated trading strategy extending the study with order management.
 ---
 
 ### VectorWaveSwtAdapter
-**Package**: `com.prophetizo.wavelets.swt.core`
+**Package**: `com.morphiqlabs.wavelets.swt.core`
 
 Bridge to VectorWave library for SWT/MODWT transforms.
 
@@ -124,7 +124,7 @@ Bridge to VectorWave library for SWT/MODWT transforms.
 ---
 
 ### Thresholds
-**Package**: `com.prophetizo.wavelets.swt.core`
+**Package**: `com.morphiqlabs.wavelets.swt.core`
 
 Wavelet coefficient thresholding methods.
 
@@ -141,7 +141,7 @@ Wavelet coefficient thresholding methods.
 ---
 
 ### WaveletAtr
-**Package**: `com.prophetizo.wavelets.swt.core`
+**Package**: `com.morphiqlabs.wavelets.swt.core`
 
 Wavelet-based Average True Range calculation.
 
@@ -163,7 +163,7 @@ Wavelet-based Average True Range calculation.
 ### Study Registration
 ```java
 @StudyHeader(
-    namespace = "com.prophetizo.wavelets.swt",
+    namespace = "com.morphiqlabs.wavelets.swt",
     id = "SWT_TREND_MOMENTUM",
     name = "SWT Trend + Momentum",
     menu = "MorphIQ | Wavelet Analysis",

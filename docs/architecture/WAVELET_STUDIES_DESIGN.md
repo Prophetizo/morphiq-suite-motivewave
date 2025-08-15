@@ -16,7 +16,7 @@ This document describes the wavelet-based studies currently implemented in the M
 Complete trading system using Stationary Wavelet Transform (SWT/MODWT) with cross-scale momentum confirmation.
 
 #### Implementation Details
-- **Class**: `com.prophetizo.wavelets.swt.SwtTrendMomentumStudy`
+- **Class**: `com.morphiqlabs.wavelets.swt.SwtTrendMomentumStudy`
 - **Type**: Overlay study with momentum subplot
 - **Menu**: MorphIQ | Wavelet Analysis
 
@@ -66,7 +66,7 @@ Bottom Panel:
 Automated trading strategy extending the study with position management and risk control.
 
 #### Implementation Details
-- **Class**: `com.prophetizo.wavelets.swt.SwtTrendMomentumStrategy`
+- **Class**: `com.morphiqlabs.wavelets.swt.SwtTrendMomentumStrategy`
 - **Type**: Trading strategy (extends Study)
 - **Inherits**: All features from SwtTrendMomentumStudy
 
@@ -92,9 +92,9 @@ Automated trading strategy extending the study with position management and risk
 Multi-level wavelet decomposition visualization for market structure analysis.
 
 #### Implementation Details
-- **Class**: `com.prophetizo.studies.AutoWavelets`
+- **Class**: `com.morphiqlabs.wavelets.Wavelets`
 - **Type**: Multi-panel decomposition display
-- **Core Library**: morphiq-core wavelet processing
+- **Location**: morphiq-wavelets module
 
 #### Visual Output
 ```
@@ -119,9 +119,9 @@ Multi-level wavelet decomposition visualization for market structure analysis.
 Classic wavelet denoising for cleaner price action and reduced false signals.
 
 #### Implementation Details
-- **Class**: `com.prophetizo.studies.DenoisedTrendFollowing`
+- **Class**: `com.morphiqlabs.wavelets.DenoisedTrendFollowing`
 - **Type**: Overlay with denoised price
-- **Uses**: WaveletDenoiser from morphiq-core
+- **Location**: morphiq-wavelets module
 
 #### Key Features
 - Adaptive noise reduction
@@ -223,7 +223,7 @@ Wavelet-based volatility estimation:
 1. **Extend Study Base Class**
 ```java
 @StudyHeader(
-    namespace = "com.prophetizo.wavelets",
+    namespace = "com.morphiqlabs.wavelets",
     id = "UNIQUE_ID",
     name = "Study Name",
     overlay = true

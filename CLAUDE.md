@@ -8,6 +8,20 @@ Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced 
 
 ## Recent Updates (August 2024)
 
+### Module Consolidation (August 15, 2024)
+- **Project Structure Simplified**:
+  - Consolidated from 5 modules to 2 modules
+  - Removed `morphiq-core`, `morphiq-denoise`, and `morphiq-bundle-premium`
+  - All wavelet functionality now in `morphiq-wavelets`
+  - Shared utilities and position management in `morphiq-common`
+  
+- **Position Management Improvements**:
+  - Converted Order Type from string constants to OrderType enum
+  - Moved all position management code to `morphiq-common`
+  - Better type safety and maintainability
+
+## Previous Updates (August 2024)
+
 ### Strategy Signal System Refactoring (August 14, 2024)
 - **Position Tracking Improvements**:
   - Replaced manual position tracking (hasPosition/isLong) with OrderContext-based tracking
@@ -116,25 +130,27 @@ mvn clean install
 ## Architecture
 
 ### Module Structure
-- **morphiq-core**: Core wavelet processing library with utilities
-  - `WaveletAnalyzer`: Parallel wavelet transform implementation
-  - `WaveletDenoiser`: Signal denoising using wavelet thresholding
-  - Mathematical utilities: `MovingAverage`, `Statistics`
-  
-- **morphiq-common**: Shared MotiveWave utilities
+- **morphiq-common**: Shared utilities and core components
+  - `LoggerConfig`: Centralized logging configuration
+  - `position/`: Complete position management framework
+    - `PositionManager`: Position and order management with OrderType enum
+    - `PositionSizer`: Risk-based position sizing calculations
+    - `PositionTracker`: Thread-safe position state tracking
+    - `OrderBundle`: Multi-order management for bracket orders
+  - `wavelets/`: Wavelet configuration
+    - `WaveletType`: Available wavelet types
+    - `WaveletOptionsProvider`: Wavelet options interface
   - `StudyUIHelper`: UI component builders for consistent settings
   
-- **morphiq-autowave**: Automatic wavelet decomposition indicator
-  - `AutoWavelets`: Multi-level decomposition visualization
-  
-- **morphiq-denoise**: SWT/MODWT trend following system
-  - `SwtTrendMomentumStudy`: Complete indicator with trend and momentum
-  - `SwtTrendMomentumStrategy`: Automated trading strategy
-  - `VectorWaveSwtAdapter`: Bridge to VectorWave SWT implementation
-  - `Thresholds`: Universal, BayesShrink, SURE thresholding
-  - `WaveletAtr`: RMS energy-based volatility estimation
-  
-- **morphiq-bundle-premium**: Bundle packaging all indicators into single JAR
+- **morphiq-wavelets**: All wavelet indicators and strategies
+  - `Wavelets`: Automatic wavelet decomposition indicator (AutoWavelets)
+  - `swt/`: SWT/MODWT trend following system
+    - `SwtTrendMomentumStudy`: Complete indicator with trend and momentum
+    - `SwtTrendMomentumStrategy`: Automated trading strategy
+    - `core/`: Core wavelet processing
+      - `VectorWaveSwtAdapter`: Bridge to VectorWave SWT implementation
+      - `Thresholds`: Universal, BayesShrink, SURE thresholding
+      - `WaveletAtr`: RMS energy-based volatility estimation
 
 ### Key Design Patterns
 1. **Parallel Processing**: Automatic parallelization for datasets ≥ 512 points
@@ -153,7 +169,7 @@ mvn clean install
 
 ## Testing Strategy
 
-Tests are located in `morphiq-core/src/test/java/` and module-specific test directories:
+Tests are located in module-specific test directories:
 - Unit tests for mathematical functions
 - Integration tests for wavelet transforms
 - Parallel processing verification
@@ -189,7 +205,7 @@ GitHub Actions workflow (`.github/workflows/maven.yml`):
 - Access price data via `DataContext`
 
 ### Wavelet Processing
-- Core processing in `morphiq-core` module
+- Core processing in `morphiq-wavelets` module
 - Supports multiple wavelet types (Daubechies4, Daubechies6)
 - Automatic parallel processing for performance
 - Handles non-power-of-two data lengths
@@ -203,8 +219,8 @@ The `CUSTOM_WAVELET_DESIGN.md` outlines advanced features including:
 
 ### Important Files
 - Parent POM: `/pom.xml` - manages all dependencies and plugin versions
-- Core utilities: `/morphiq-core/src/main/java/com/prophetizo/wavelets/`
-- SWT Strategy: `/morphiq-denoise/src/main/java/com/prophetizo/wavelets/swt/`
+- Common utilities: `/morphiq-common/src/main/java/com/morphiqlabs/common/`
+- SWT Strategy: `/morphiq-wavelets/src/main/java/com/morphiqlabs/wavelets/swt/`
 - Documentation: `/docs/SWT_TREND_MOMENTUM_DOCUMENTATION.md`
 
 ## Important Considerations
@@ -226,8 +242,8 @@ The `CUSTOM_WAVELET_DESIGN.md` outlines advanced features including:
 ### Maven Build Configuration
 - Use `shadedArtifactAttached=true` to avoid JAR conflicts and overlapping class warnings
 - Classifier `motivewave` creates separate shaded JAR for MotiveWave deployment
-- Dependencies included: morphiq-core, vector-wave, slf4j
-- Bundle uses shaded JARs with classifier to avoid duplicate classes
+- Dependencies included: morphiq-common, vector-wave, slf4j
+- Shaded JAR includes all necessary dependencies for MotiveWave
 
 ### Testing Best Practices
 - Use instance-specific Random with fixed seeds
