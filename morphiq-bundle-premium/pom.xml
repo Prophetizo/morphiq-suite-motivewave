@@ -19,7 +19,7 @@
         <!-- Include shaded indicator modules with classifier -->
         <dependency>
             <groupId>ai.prophetizo</groupId>
-            <artifactId>morphiq-autowave</artifactId>
+            <artifactId>morphiq-wavelets</artifactId>
             <version>${project.version}</version>
             <classifier>motivewave</classifier>
         </dependency>

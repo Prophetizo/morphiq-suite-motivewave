@@ -15,7 +15,7 @@
     <modules>
         <module>morphiq-core</module>
         <module>morphiq-common</module>
-        <module>morphiq-autowave</module>
+        <module>morphiq-wavelets</module>
         <module>morphiq-denoise</module>
         <module>morphiq-bundle-premium</module>
     </modules>

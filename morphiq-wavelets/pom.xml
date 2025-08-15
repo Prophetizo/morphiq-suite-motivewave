@@ -10,7 +10,7 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>morphiq-autowave</artifactId>
+    <artifactId>morphiq-wavelets</artifactId>
     <name>Morphiq AutoWave</name>
     <description>AI-powered automatic wavelet decomposition with dynamic timeframe adaptation</description>
 
