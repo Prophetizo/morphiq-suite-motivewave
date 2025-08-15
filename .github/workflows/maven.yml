@@ -46,27 +46,19 @@ jobs:
         run: mvn -B package -U -DskipTests --file pom.xml
       - name: List built artifacts
         run: |
-          echo "=== Individual Module JARs ==="
-          echo "Morphiq AutoWave:"
-          ls -la morphiq-autowave/target/*.jar || echo "No JARs found"
+          echo "=== Module JARs ==="
+          echo "Morphiq Common:"
+          ls -la morphiq-common/target/*.jar || echo "No JARs found"
           echo ""
-          echo "Morphiq Denoise:"
-          ls -la morphiq-denoise/target/*.jar || echo "No JARs found"
-          echo ""
-          echo "=== Premium Bundle JAR ==="
-          ls -la morphiq-bundle-premium/target/*.jar || echo "No JARs found"
-      - name: Upload individual artifacts
+          echo "Morphiq Wavelets (MotiveWave Plugin):"
+          ls -la morphiq-wavelets/target/*.jar || echo "No JARs found"
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: individual-modules
+          name: morphiq-modules
           path: |
-            morphiq-autowave/target/*.jar
-            morphiq-denoise/target/*.jar
-      - name: Upload bundle artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphiq-premium-bundle
-          path: morphiq-bundle-premium/target/*.jar
+            morphiq-common/target/*.jar
+            morphiq-wavelets/target/*.jar
 
   test:
     runs-on: ubuntu-latest
