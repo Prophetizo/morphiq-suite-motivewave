@@ -12,6 +12,7 @@ import com.morphiqlabs.wavelets.swt.core.*;
 import org.slf4j.Logger;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -138,6 +139,13 @@ public class SwtTrendMomentumStudy extends Study {
     private volatile Integer currentWindowLength = null;
     private volatile boolean lastLongFilter = false;
     private volatile boolean lastShortFilter = false;
+    
+    // State change tracking for new signal system
+    private volatile double lastSlope = 0.0;
+    private volatile double lastMomentum = 0.0;
+    private volatile boolean lastSlopePositive = false;
+    private volatile boolean lastMomentumPositive = false;
+    private volatile boolean lastMomentumAboveThreshold = false;
     
     // No need for marker tracking - SDK handles this when we follow the pattern:
     // Only add markers when series.isBarComplete(index) is true
@@ -453,6 +461,13 @@ public class SwtTrendMomentumStudy extends Study {
         currentWindowLength = null;
         lastLongFilter = false;
         lastShortFilter = false;
+        
+        // Reset state change tracking
+        lastSlope = 0.0;
+        lastMomentum = 0.0;
+        lastSlopePositive = false;
+        lastMomentumPositive = false;
+        lastMomentumAboveThreshold = false;
         
         // Clear components to force re-initialization
         swtAdapter = null;
@@ -854,8 +869,8 @@ public class SwtTrendMomentumStudy extends Study {
             series.setDouble(index, Values.LONG_FILTER, longFilter ? 1.0 : 0.0);
             series.setDouble(index, Values.SHORT_FILTER, shortFilter ? 1.0 : 0.0);
             
-            // Generate signals
-            generateSignals(ctx, series, index, longFilter, shortFilter);
+            // Generate signals with current values for state change detection
+            generateSignals(ctx, series, index, longFilter, shortFilter, slope, momentumSum, momentumThreshold);
             
             // Calculate WATR (always calculate for strategy use, only display if enabled)
             // The Strategy subclass needs WATR for stop calculations even when not displayed
@@ -1142,7 +1157,8 @@ public class SwtTrendMomentumStudy extends Study {
         }
     }
     
-    private void generateSignals(DataContext ctx, DataSeries series, int index, boolean longFilter, boolean shortFilter) {
+    private void generateSignals(DataContext ctx, DataSeries series, int index, boolean longFilter, boolean shortFilter, 
+                                double currentSlope, double currentMomentum, double momentumThreshold) {
         if (!getSettings().getBoolean(ENABLE_SIGNALS, true)) {
             return;
         }
@@ -1151,19 +1167,64 @@ public class SwtTrendMomentumStudy extends Study {
         // This follows the MotiveWave SDK pattern and ensures markers persist
         boolean barComplete = series.isBarComplete(index);
         
-        // Detect transitions
+        // Get current price and timestamp for signal value
+        double price = series.getClose(index);
+        double trendValue = series.getDouble(index, Values.AJ, price);
+        long timestamp = series.getStartTime(index);
+        
+        // Detect state changes
+        List<StateChangeSignal> stateChanges = new ArrayList<>();
+        
+        // Check for slope direction changes
+        boolean currentSlopePositive = currentSlope > 0;
+        if (currentSlopePositive && !lastSlopePositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.SLOPE_TURNED_POSITIVE,
+                lastSlope, currentSlope, timestamp));
+        } else if (!currentSlopePositive && lastSlopePositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.SLOPE_TURNED_NEGATIVE,
+                lastSlope, currentSlope, timestamp));
+        }
+        
+        // Check for momentum zero crosses
+        boolean currentMomentumPositive = currentMomentum > 0;
+        if (currentMomentumPositive && !lastMomentumPositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_CROSSED_POSITIVE,
+                lastMomentum, currentMomentum, timestamp));
+        } else if (!currentMomentumPositive && lastMomentumPositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_CROSSED_NEGATIVE,
+                lastMomentum, currentMomentum, timestamp));
+        }
+        
+        // Check for momentum threshold crosses
+        boolean currentMomentumAboveThreshold = Math.abs(currentMomentum) > momentumThreshold;
+        if (currentMomentumAboveThreshold && !lastMomentumAboveThreshold) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED,
+                lastMomentum, currentMomentum, Math.abs(currentMomentum), timestamp));
+        } else if (!currentMomentumAboveThreshold && lastMomentumAboveThreshold) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_LOST,
+                lastMomentum, currentMomentum, Math.abs(currentMomentum), timestamp));
+        }
+        
+        // Emit state change signals if any occurred
+        if (!stateChanges.isEmpty() && barComplete) {
+            ctx.signal(index, stateChanges);
+            
+            if (logger.isDebugEnabled()) {
+                logger.debug("State changes detected at index {}: {}", index, stateChanges);
+            }
+        }
+        
+        // Maintain backward compatibility with legacy LONG/SHORT signals for now
+        // This allows gradual transition
         boolean wasLongFilter = lastLongFilter;
         boolean wasShortFilter = lastShortFilter;
         
-        // Get current price for signal value
-        double price = series.getClose(index);
-        double trendValue = series.getDouble(index, Values.AJ, price);
-        
-        // According to spec:
-        // Entry: slope > 0 AND momentum > 0 (long), slope < 0 AND momentum < 0 (short)
-        // Exit: slope loss OR momentum sign flip
-        
-        // Emit state signals - not entry decisions
         if (longFilter) {
             series.setBoolean(index, Signals.LONG, true);
             
@@ -1180,6 +1241,7 @@ public class SwtTrendMomentumStudy extends Study {
                     logger.trace("Could not add long marker: {}", e.getMessage());
                 }
                 
+                // Also emit legacy signal for backward compatibility
                 ctx.signal(index, Signals.LONG, "Long State", price);
                 logger.debug("Long state at index {} price {}", index, price);
             }
@@ -1199,14 +1261,20 @@ public class SwtTrendMomentumStudy extends Study {
                     logger.trace("Could not add short marker: {}", e.getMessage());
                 }
                 
+                // Also emit legacy signal for backward compatibility
                 ctx.signal(index, Signals.SHORT, "Short State", price);
                 logger.debug("Short state at index {} price {}", index, price);
             }
         }
         
-        // Update state
+        // Update state for next iteration
         lastLongFilter = longFilter;
         lastShortFilter = shortFilter;
+        lastSlope = currentSlope;
+        lastMomentum = currentMomentum;
+        lastSlopePositive = currentSlopePositive;
+        lastMomentumPositive = currentMomentumPositive;
+        lastMomentumAboveThreshold = currentMomentumAboveThreshold;
     }
     
     private void calculateWatr(DataSeries series, int index, VectorWaveSwtAdapter.SwtResult swtResult, double centerPrice) {

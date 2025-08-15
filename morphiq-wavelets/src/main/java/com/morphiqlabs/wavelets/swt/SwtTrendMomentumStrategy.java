@@ -10,6 +10,8 @@ import com.motivewave.platform.sdk.study.StudyHeader;
 import com.morphiqlabs.common.LoggerConfig;
 import org.slf4j.Logger;
 
+import java.util.List;
+
 @StudyHeader(
         namespace = "com.prophetizo.wavelets.swt",
         id = "SWT_TREND_MOMENTUM_STRATEGY",
@@ -260,11 +262,23 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
             // Log position status periodically
             logPositionStatus(ctx, series, index);
             
-            if (signal instanceof Signals) {
+            // Handle new state change signals
+            if (signal instanceof List<?>) {
+                @SuppressWarnings("unchecked")
+                List<StateChangeSignal> stateChanges = (List<StateChangeSignal>) signal;
+                
+                logger.info("Processing {} state change(s) at price {}", 
+                    stateChanges.size(), 
+                    String.format("%.2f", currentPrice));
+                
+                handleStateChanges(ctx, index, stateChanges);
+                
+            } else if (signal instanceof Signals) {
+                // Legacy signal handling for backward compatibility
                 Signals swtSignal = (Signals) signal;
                 
                 // Log signal processing
-                logger.info("Processing {} signal at price {}", 
+                logger.info("Processing legacy {} signal at price {}", 
                     swtSignal, 
                     String.format("%.2f", currentPrice));
                 
@@ -299,7 +313,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                         hasPosition(ctx) ? (isLong(ctx) ? "LONG" : "SHORT") : "FLAT");
                 }
             } else {
-                logger.warn("Received non-Signals type: {} ({})", 
+                logger.warn("Received unknown signal type: {} ({})", 
                     signal, 
                     signal != null ? signal.getClass().getName() : "null");
             }
@@ -788,6 +802,76 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         }
         
         return new PositionSize(finalQuantity, stopPrice, targetPrice);
+    }
+    
+    /**
+     * Handle state change signals from the study.
+     * This implements the new separation of concerns where the study reports
+     * state changes and the strategy decides how to react.
+     */
+    private void handleStateChanges(OrderContext ctx, int index, List<StateChangeSignal> stateChanges) {
+        if (stateChanges.isEmpty()) {
+            return;
+        }
+        
+        // Analyze the state changes to make trading decisions
+        boolean slopePositive = stateChanges.stream()
+            .anyMatch(s -> s.getType() == StateChangeSignal.SignalType.SLOPE_TURNED_POSITIVE);
+        boolean slopeNegative = stateChanges.stream()
+            .anyMatch(s -> s.getType() == StateChangeSignal.SignalType.SLOPE_TURNED_NEGATIVE);
+        boolean momentumPositive = stateChanges.stream()
+            .anyMatch(s -> s.getType() == StateChangeSignal.SignalType.MOMENTUM_CROSSED_POSITIVE);
+        boolean momentumNegative = stateChanges.stream()
+            .anyMatch(s -> s.getType() == StateChangeSignal.SignalType.MOMENTUM_CROSSED_NEGATIVE);
+        boolean momentumThresholdExceeded = stateChanges.stream()
+            .anyMatch(s -> s.getType() == StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED);
+        boolean momentumThresholdLost = stateChanges.stream()
+            .anyMatch(s -> s.getType() == StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_LOST);
+        
+        // Log the state changes for debugging
+        if (logger.isDebugEnabled()) {
+            logger.debug("State change analysis: slope+ {} slope- {} momentum+ {} momentum- {} threshold+ {} threshold-{}", 
+                slopePositive, slopeNegative, momentumPositive, momentumNegative, 
+                momentumThresholdExceeded, momentumThresholdLost);
+        }
+        
+        // Strategy logic: Enter long when both slope and momentum align positively
+        // This is more conservative than the legacy system that just looked at combined filters
+        if (slopePositive && (momentumPositive || momentumThresholdExceeded)) {
+            if (logger.isInfoEnabled()) {
+                logger.info("LONG conditions met - Slope turned positive and momentum is favorable");
+            }
+            if (!hasPosition(ctx) || isShort(ctx)) {
+                handleLongEntry(ctx, index);
+            }
+        }
+        
+        // Strategy logic: Enter short when both slope and momentum align negatively  
+        else if (slopeNegative && (momentumNegative || momentumThresholdExceeded)) {
+            if (logger.isInfoEnabled()) {
+                logger.info("SHORT conditions met - Slope turned negative and momentum is favorable");
+            }
+            if (!hasPosition(ctx) || isLong(ctx)) {
+                handleShortEntry(ctx, index);
+            }
+        }
+        
+        // Exit conditions: significant momentum loss or opposite slope change
+        else if (momentumThresholdLost || 
+                 (hasPosition(ctx) && ((isLong(ctx) && slopeNegative) || (isShort(ctx) && slopePositive)))) {
+            if (logger.isInfoEnabled()) {
+                logger.info("EXIT conditions met - Momentum lost or slope reversed");
+            }
+            // Exit logic would go here - for now we let the opposite entry handle it
+            // This could be enhanced to have explicit exit orders in future versions
+        }
+        
+        // Log detailed state change information
+        if (logger.isDebugEnabled()) {
+            for (StateChangeSignal change : stateChanges) {
+                logger.debug("State change: {}", change.toString());
+            }
+        }
     }
     
     /**
