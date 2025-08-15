@@ -275,6 +275,18 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
                 
                 handleStateChanges(ctx, index, stateChanges);
                 
+            } else if (signal instanceof StateChangeSignal) {
+                // Handle individual state change signal (legacy compatibility)
+                StateChangeSignal stateChange = (StateChangeSignal) signal;
+                
+                logger.info("Processing single state change signal: {} at price {}", 
+                    stateChange.getType(), 
+                    String.format("%.2f", currentPrice));
+                
+                // Convert to list for consistent handling
+                List<StateChangeSignal> stateChanges = java.util.Arrays.asList(stateChange);
+                handleStateChanges(ctx, index, stateChanges);
+                
             } else if (signal instanceof Signals) {
                 // Legacy signal handling for backward compatibility
                 Signals swtSignal = (Signals) signal;

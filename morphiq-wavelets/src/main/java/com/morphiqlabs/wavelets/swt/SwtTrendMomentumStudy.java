@@ -137,8 +137,6 @@ public class SwtTrendMomentumStudy extends Study {
     private volatile String currentWaveletType = null;
     private volatile Integer currentLevels = null;
     private volatile Integer currentWindowLength = null;
-    private volatile boolean lastLongFilter = false;
-    private volatile boolean lastShortFilter = false;
     
     // State change tracking for new signal system
     private volatile double lastSlope = 0.0;
@@ -459,8 +457,6 @@ public class SwtTrendMomentumStudy extends Study {
         currentWaveletType = null;
         currentLevels = null;
         currentWindowLength = null;
-        lastLongFilter = false;
-        lastShortFilter = false;
         
         // Reset state change tracking
         lastSlope = 0.0;
@@ -708,8 +704,6 @@ public class SwtTrendMomentumStudy extends Study {
                 }
                 
                 // Reset signal tracking on change
-                lastLongFilter = false;
-                lastShortFilter = false;
                 
                 logger.info("SWT adapter initialized/updated - wavelet: {} -> {}, levels: {}, window: {}", 
                            waveletType, vectorWaveType, levels, windowLength);
@@ -1220,56 +1214,8 @@ public class SwtTrendMomentumStudy extends Study {
             }
         }
         
-        // Maintain backward compatibility with legacy LONG/SHORT signals for now
-        // This allows gradual transition
-        boolean wasLongFilter = lastLongFilter;
-        boolean wasShortFilter = lastShortFilter;
-        
-        if (longFilter) {
-            series.setBoolean(index, Signals.LONG, true);
-            
-            // Only add marker on state transition
-            if (barComplete && !wasLongFilter) {
-                try {
-                    var marker = getSettings().getMarker(LONG_MARKER);
-                    if (marker != null && marker.isEnabled()) {
-                        var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Long State @ %.2f", price);
-                        addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
-                    }
-                } catch (Exception e) {
-                    logger.trace("Could not add long marker: {}", e.getMessage());
-                }
-                
-                // Also emit legacy signal for backward compatibility
-                ctx.signal(index, Signals.LONG, "Long State", Signals.LONG);
-                logger.debug("Long state at index {} price {}", index, price);
-            }
-        } else if (shortFilter) {
-            series.setBoolean(index, Signals.SHORT, true);
-            
-            // Only add marker on state transition
-            if (barComplete && !wasShortFilter) {
-                try {
-                    var marker = getSettings().getMarker(SHORT_MARKER);
-                    if (marker != null && marker.isEnabled()) {
-                        var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Short State @ %.2f", price);
-                        addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
-                    }
-                } catch (Exception e) {
-                    logger.trace("Could not add short marker: {}", e.getMessage());
-                }
-                
-                // Also emit legacy signal for backward compatibility
-                ctx.signal(index, Signals.SHORT, "Short State", Signals.SHORT);
-                logger.debug("Short state at index {} price {}", index, price);
-            }
-        }
         
         // Update state for next iteration
-        lastLongFilter = longFilter;
-        lastShortFilter = shortFilter;
         lastSlope = currentSlope;
         lastMomentum = currentMomentum;
         lastSlopePositive = currentSlopePositive;
