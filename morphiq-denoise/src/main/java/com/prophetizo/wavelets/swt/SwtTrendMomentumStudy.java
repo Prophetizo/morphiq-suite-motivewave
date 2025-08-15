@@ -831,7 +831,8 @@ public class SwtTrendMomentumStudy extends Study {
      * @return the weight factor for this level
      */
     private double calculateLevelWeight(int level) {
-        return BASE_LEVEL_WEIGHT / (BASE_LEVEL_WEIGHT + (level - 1) * LEVEL_WEIGHT_DECAY_FACTOR);
+        // Since BASE_LEVEL_WEIGHT is always 1.0, we simplify the formula for clarity.
+        return 1.0 / (1.0 + (level - 1) * LEVEL_WEIGHT_DECAY_FACTOR);
     }
     
     /**
