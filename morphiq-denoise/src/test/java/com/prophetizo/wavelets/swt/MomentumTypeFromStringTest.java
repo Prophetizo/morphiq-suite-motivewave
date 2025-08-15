@@ -82,11 +82,12 @@ class MomentumTypeFromStringTest {
     void testEnumValues() {
         // Verify we can access the enum values directly
         SwtTrendMomentumStudy.MomentumType[] values = SwtTrendMomentumStudy.MomentumType.values();
-        assertEquals(2, values.length);
+        assertEquals(3, values.length);
         
         // Verify the specific values exist
         assertEquals(SwtTrendMomentumStudy.MomentumType.SUM, values[0]);
         assertEquals(SwtTrendMomentumStudy.MomentumType.SIGN, values[1]);
+        assertEquals(SwtTrendMomentumStudy.MomentumType.SIMPLE, values[2]);
     }
     
     @Test

@@ -989,10 +989,10 @@ public class SwtTrendMomentumStudy extends Study {
         
         // Handle SIMPLE mode separately for better performance
         if (momentumType == MomentumType.SIMPLE) {
-            rawMomentum = calculateSimpleMomentum(swtResult);
+            rawMomentum = calculateSimpleMomentum(swtResult, settings.momentumWindow);
         } else {
             // Calculate weighted RMS energy from detail coefficients for SUM/SIGN modes
-            rawMomentum = calculateComplexMomentum(swtResult, levelsToUse);
+            rawMomentum = calculateComplexMomentum(swtResult, levelsToUse, settings);
         }
         
         // Scale the momentum to make it more visible
@@ -1006,30 +1006,28 @@ public class SwtTrendMomentumStudy extends Study {
      * This provides a straightforward momentum indication without complex weighting.
      * 
      * @param swtResult the SWT decomposition result
+     * @param momentumWindow the window size for momentum calculation
      * @return the simple momentum value
      */
-    private double calculateSimpleMomentum(VectorWaveSwtAdapter.SwtResult swtResult) {
+    private double calculateSimpleMomentum(VectorWaveSwtAdapter.SwtResult swtResult, int momentumWindow) {
         // Use only the finest level (Level 1) for simplicity
         double[] detail = swtResult.getDetail(1);
-        if (detail.length == 0) {
-            return 0.0;
+        if (detail.length > 0) {
+            
+            // Use a window of recent coefficients
+            int windowSize = Math.min(momentumWindow, detail.length);
+            int startIdx = Math.max(0, detail.length - windowSize);
+            
+            // Simple averaging - no RMS energy or complex weighting
+            double sum = 0.0;
+            for (int i = startIdx; i < detail.length; i++) {
+                sum += detail[i];
+            }
+            
+            return sum / windowSize;
         }
         
-        // Get cached settings for window size
-        CachedSettings settings = getCachedSettingsOrDefault("calculateSimpleMomentum");
-        int momentumWindow = settings.momentumWindow;
-        
-        // Use a window of recent coefficients
-        int windowSize = Math.min(momentumWindow, detail.length);
-        int startIdx = Math.max(0, detail.length - windowSize);
-        
-        // Simple averaging - no RMS energy or complex weighting
-        double sum = 0.0;
-        for (int i = startIdx; i < detail.length; i++) {
-            sum += detail[i];
-        }
-        
-        return sum / windowSize;
+        return 0.0;
     }
     
     /**
@@ -1038,12 +1036,10 @@ public class SwtTrendMomentumStudy extends Study {
      * 
      * @param swtResult the SWT decomposition result
      * @param levelsToUse number of detail levels to include
+     * @param settings the cached settings containing momentum parameters
      * @return the complex momentum value
      */
-    private double calculateComplexMomentum(VectorWaveSwtAdapter.SwtResult swtResult, int levelsToUse) {
-        // Get cached settings atomically
-        CachedSettings settings = getCachedSettingsOrDefault("calculateComplexMomentum");
-        
+    private double calculateComplexMomentum(VectorWaveSwtAdapter.SwtResult swtResult, int levelsToUse, CachedSettings settings) {
         MomentumType momentumType = settings.momentumType;
         int momentumWindow = settings.momentumWindow;
         double levelWeightDecay = settings.levelWeightDecay;
@@ -1073,56 +1069,44 @@ public class SwtTrendMomentumStudy extends Study {
     private double calculateLevelContribution(VectorWaveSwtAdapter.SwtResult swtResult, int level, 
                                             MomentumType momentumType, int momentumWindow, double levelWeightDecay) {
         double[] detail = swtResult.getDetail(level);
-        if (detail.length == 0) {
-            return 0.0;
+        if (detail.length > 0) {
+            // Use a window of recent coefficients for RMS calculation
+            int windowSize = Math.min(momentumWindow, detail.length);
+            int startIdx = Math.max(0, detail.length - windowSize);
+            
+            // Calculate RMS energy and sum for this level over the window
+            double levelEnergy = 0.0;
+            double levelSum = 0.0;
+            for (int i = startIdx; i < detail.length; i++) {
+                levelEnergy += detail[i] * detail[i];
+                levelSum += detail[i];
+            }
+            
+            // Calculate level weight: finer scales (lower levels) get more weight
+            // Level 1 = 100%, Level 2 = 67%, Level 3 = 50% (with decay factor 0.5)
+            double weight = 1.0 / (1.0 + (level - 1) * levelWeightDecay);
+            
+            double contribution = 0.0;
+            if (momentumType == MomentumType.SUM) {
+                // Use weighted average of coefficients (preserves sign)
+                double avgCoeff = levelSum / windowSize;
+                contribution = avgCoeff * weight;
+            } else {
+                // Sign-based: use RMS with sign of average
+                double rms = Math.sqrt(levelEnergy / windowSize);
+                double sign = Math.signum(levelSum);
+                contribution = sign * rms * weight;
+            }
+            
+            if (logger.isTraceEnabled()) {
+                logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
+                            level, windowSize, weight, contribution);
+            }
+            
+            return contribution;
         }
         
-        // Use a window of recent coefficients for RMS calculation
-        int windowSize = Math.min(momentumWindow, detail.length);
-        int startIdx = Math.max(0, detail.length - windowSize);
-        
-        // Calculate RMS energy and sum for this level over the window
-        double levelEnergy = 0.0;
-        double levelSum = 0.0;
-        for (int i = startIdx; i < detail.length; i++) {
-            levelEnergy += detail[i] * detail[i];
-            levelSum += detail[i];
-        }
-        
-        // Calculate level weight: finer scales (lower levels) get more weight
-        double weight = calculateLevelWeight(level, levelWeightDecay);
-        
-        double contribution = 0.0;
-        if (momentumType == MomentumType.SUM) {
-            // Use weighted average of coefficients (preserves sign)
-            double avgCoeff = levelSum / windowSize;
-            contribution = avgCoeff * weight;
-        } else {
-            // Sign-based: use RMS with sign of average
-            double rms = Math.sqrt(levelEnergy / windowSize);
-            double sign = Math.signum(levelSum);
-            contribution = sign * rms * weight;
-        }
-        
-        if (logger.isTraceEnabled()) {
-            logger.trace("Level {} momentum: window={}, weight={:.2f}, contribution={:.4f}", 
-                        level, windowSize, weight, contribution);
-        }
-        
-        return contribution;
-    }
-    
-    /**
-     * Calculate the weight for a specific wavelet level.
-     * Finer scales (lower levels) get more weight by default.
-     * 
-     * @param level the wavelet detail level (1, 2, 3, ...)
-     * @param levelWeightDecay the decay factor (0.5 = Level 1: 100%, Level 2: 67%, Level 3: 50%)
-     * @return the weight factor for this level
-     */
-    private double calculateLevelWeight(int level, double levelWeightDecay) {
-        // Level 1 = 100%, Level 2 = 67%, Level 3 = 50% (with decay factor 0.5)
-        return 1.0 / (1.0 + (level - 1) * levelWeightDecay);
+        return 0.0;
     }
     
     /**
