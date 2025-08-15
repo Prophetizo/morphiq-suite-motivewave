@@ -11,16 +11,10 @@
     </parent>
 
     <artifactId>morphiq-wavelets</artifactId>
-    <name>Morphiq AutoWave</name>
+    <name>Morphiq Wavelets</name>
     <description>AI-powered automatic wavelet decomposition with dynamic timeframe adaptation</description>
 
     <dependencies>
-        <!-- Wavelet Commons -->
-        <dependency>
-            <groupId>ai.prophetizo</groupId>
-            <artifactId>morphiq-core</artifactId>
-            <version>${project.version}</version>
-        </dependency>
         <!-- MotiveWave Common Utilities -->
         <dependency>
             <groupId>ai.prophetizo</groupId>
@@ -57,6 +51,25 @@
                 <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
             <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.13</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <executions>
@@ -72,7 +85,6 @@
                             <minimizeJar>false</minimizeJar>
                             <artifactSet>
                                 <includes>
-                                    <include>ai.prophetizo:morphiq-core</include>
                                     <include>ai.prophetizo:morphiq-common</include>
                                     <include>ai.prophetizo:vector-wave</include>
                                     <include>org.slf4j:*</include>
@@ -107,7 +119,7 @@
                             <relocations>
                                 <relocation>
                                     <pattern>org.slf4j</pattern>
-                                    <shadedPattern>com.prophetizo.autowave.shaded.slf4j</shadedPattern>
+                                    <shadedPattern>com.morphiqlabs.autowave.shaded.slf4j</shadedPattern>
                                 </relocation>
                             </relocations>
                             <transformers>

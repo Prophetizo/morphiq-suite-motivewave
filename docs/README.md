@@ -17,7 +17,6 @@ Morphiq Suite is a collection of advanced wavelet-based trading indicators for t
 - [Trading Strategies](guides/STRATEGIES.md) - Trading strategies using wavelet analysis
 
 ### 📖 Reference
-- [Changelog](reference/CHANGELOG.md) - Project version history
 - [Known Issues](reference/KNOWN_ISSUES.md) - Current limitations and workarounds
 - [Wavelet Financial Applications Matrix](reference/WAVELET_FINANCIAL_APPLICATIONS_MATRIX.md) - Wavelet selection guide
 

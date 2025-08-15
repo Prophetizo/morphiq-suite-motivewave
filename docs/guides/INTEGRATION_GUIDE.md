@@ -53,8 +53,9 @@ Your Custom Study
 ### 1. Add VectorWave Dependency
 
 ```xml
+
 <dependency>
-    <groupId>com.prophetizo</groupId>
+    <groupId>com.morphiqlabscom.morphiqlabs</groupId>
     <artifactId>vectorwave-motivewave</artifactId>
     <version>1.0.0</version>
 </dependency>
@@ -65,59 +66,59 @@ Your Custom Study
 ```java
 package com.mycompany.studies;
 
-import com.prophetizo.vectorwave.motivewave.studies.VectorWaveStudy;
+import com.morphiqlabs.vectorwave.motivewave.studies.VectorWaveStudy;
 import com.motivewave.platform.sdk.common.Enums.*;
 import com.motivewave.platform.sdk.study.StudyDescriptor;
 
 @StudyHeader(
-    namespace = "com.mycompany",
-    id = "WAVELET_TREND",
-    name = "Wavelet Trend",
-    label = "Wavelet Trend",
-    desc = "Extracts trend using wavelet decomposition",
-    menu = "Wavelets",
-    overlay = true,
-    signals = true
+        namespace = "com.mycompany",
+        id = "WAVELET_TREND",
+        name = "Wavelet Trend",
+        label = "Wavelet Trend",
+        desc = "Extracts trend using wavelet decomposition",
+        menu = "Wavelets",
+        overlay = true,
+        signals = true
 )
 public class WaveletTrend extends VectorWaveStudy {
-    
+
     @Override
     protected Values getInputValue() {
         return Values.CLOSE;  // Process close prices
     }
-    
+
     @Override
     protected void setupStudyParameters(StudyDescriptor desc) {
         // Configure study
         desc.setLabelSettings(InputLabels.INPUT);
-        
+
         // Add outputs
         desc.addOutput(Values.A1, "Trend", Colors.BLUE, Plot.LINE, 2);
         desc.addOutput(Values.D1, "Noise", Colors.GRAY, Plot.LINE, 1);
-        
+
         // Optional: signals
         desc.addSignal(Signals.CROSS_ABOVE, "Price crosses above trend");
         desc.addSignal(Signals.CROSS_BELOW, "Price crosses below trend");
     }
-    
+
     @Override
-    protected void storeResults(DataSeries series, int index, 
-                              TransformResult result) {
+    protected void storeResults(DataSeries series, int index,
+                                TransformResult result) {
         // Store using compact strategy
         CoefficientStore.MappingStrategy.COMPACT.store(series, index, result);
-        
+
         // Generate signals
         checkSignals(series, index);
     }
-    
+
     private void checkSignals(DataSeries series, int index) {
         if (index < 1) return;
-        
+
         double price = series.getDouble(index, Values.CLOSE);
         double trend = series.getDouble(index, Values.A1);
         double prevPrice = series.getDouble(index - 1, Values.CLOSE);
         double prevTrend = series.getDouble(index - 1, Values.A1);
-        
+
         // Check for crossovers
         if (prevPrice <= prevTrend && price > trend) {
             series.signal(index, Signals.CROSS_ABOVE);

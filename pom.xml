@@ -13,11 +13,8 @@
     <description>Advanced AI-powered trading analysis suite for MotiveWave</description>
 
     <modules>
-        <module>morphiq-core</module>
         <module>morphiq-common</module>
         <module>morphiq-wavelets</module>
-        <module>morphiq-denoise</module>
-        <module>morphiq-bundle-premium</module>
     </modules>
 
     <properties>
@@ -49,6 +46,11 @@
                 <version>1.0-SNAPSHOT</version>
             </dependency>
             <!-- Minimal Logging -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.slf4j</groupId>
                 <artifactId>slf4j-simple</artifactId>

@@ -560,7 +560,7 @@ public class WaveletPerformanceMetrics {
 
 ```java
 @StudyHeader(
-    namespace = "com.prophetizo.motivewave.studies",
+    namespace = "com.morphiqlabs.motivewave.studies",
     id = "CUSTOM_ESNQ_WAVELET",
     name = "Custom ES/NQ Wavelet",
     desc = "AI-Optimized Wavelet for ES/NQ Microstructure",

@@ -489,18 +489,23 @@ where σ is estimated using the median absolute deviation (MAD) of the finest sc
 #### B.2 Key Implementation Files
 ```
 morphiq-suite-motivewave/
-├── morphiq-denoise/
-│   ├── src/main/java/com/prophetizo/wavelets/swt/
-│   │   ├── SwtTrendMomentumStudy.java      # Main indicator
-│   │   ├── SwtTrendMomentumStrategy.java   # Trading strategy
-│   │   └── core/
-│   │       ├── VectorWaveSwtAdapter.java   # SWT wrapper
-│   │       ├── WaveletAtr.java            # WATR implementation
-│   │       └── Thresholds.java            # Denoising methods
-│   └── src/test/java/                      # Comprehensive test suite
+├── morphiq-wavelets/
+│   ├── src/main/java/com/morphiqlabs/wavelets/
+│   │   ├── swt/
+│   │   │   ├── SwtTrendMomentumStudy.java      # Main indicator
+│   │   │   ├── SwtTrendMomentumStrategy.java   # Trading strategy
+│   │   │   └── core/
+│   │   │       ├── VectorWaveSwtAdapter.java   # SWT wrapper
+│   │   │       ├── WaveletAtr.java            # WATR implementation
+│   │   │       └── Thresholds.java            # Denoising methods
+│   │   └── Wavelets.java                       # AutoWavelets study
+│   └── src/test/java/                          # Comprehensive test suite
+├── morphiq-common/
+│   └── src/main/java/com/morphiqlabs/common/
+│       └── position/                            # Position management framework
 └── docs/
-    ├── SWT_TREND_MOMENTUM_DOCUMENTATION.md  # User guide
-    └── white_papers/                        # Research papers
+    ├── SWT_TREND_MOMENTUM_DOCUMENTATION.md      # User guide
+    └── white_papers/                            # Research papers
 ```
 
 #### B.3 Dependencies

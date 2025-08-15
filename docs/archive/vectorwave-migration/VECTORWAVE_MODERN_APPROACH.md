@@ -36,7 +36,7 @@ double latestValue = coefficients[level][coefficients[level].length - 1];
 Instead of generic wavelet classes, create **trading-specific domain objects**:
 
 ```java
-package com.prophetizo.wavelets.trading;
+package com.morphiqlabs.wavelets.trading;
 
 /**
  * Represents a multi-timeframe decomposition of price data
@@ -45,13 +45,17 @@ public class PriceWaveletDecomposition {
     private final MultiLevelMODWTResult modwtResult;
     private final WaveletConfig config;
     private final TimeFrame timeFrame;
-    
+
     // Domain methods, not raw array access
-    public double getDetailSignalAtLevel(int level) { ... }
-    public double getSmoothedTrend() { ... }
-    public boolean isBreakoutDetected(int level) { ... }
-    public double getVolatilityEstimate() { ... }
-    public MarketRegime detectCurrentRegime() { ... }
+    public double getDetailSignalAtLevel(int level) { ...}
+
+    public double getSmoothedTrend() { ...}
+
+    public boolean isBreakoutDetected(int level) { ...}
+
+    public double getVolatilityEstimate() { ...}
+
+    public MarketRegime detectCurrentRegime() { ...}
 }
 
 /**
@@ -62,10 +66,12 @@ public class WaveletConfig {
     private final int decompositionLevels;
     private final TimeFrame adaptiveTimeFrame;
     private final DenoiseStrategy denoiseStrategy;
-    
+
     // Factory methods for common trading scenarios
     public static WaveletConfig forScalping();
+
     public static WaveletConfig forSwingTrading();
+
     public static WaveletConfig forPositionTrading();
 }
 ```
@@ -75,7 +81,7 @@ public class WaveletConfig {
 Replace procedural classes with focused services:
 
 ```java
-package com.prophetizo.wavelets.services;
+package com.morphiqlabs.wavelets.services;
 
 /**
  * High-level service for wavelet-based price analysis
@@ -85,21 +91,21 @@ public class TradingWaveletService {
     private final VectorWaveAdapter vectorWave;
     private final TradingSignalExtractor signalExtractor;
     private final PerformanceOptimizer optimizer;
-    
+
     public PriceWaveletDecomposition analyzePriceAction(
-            double[] prices, 
+            double[] prices,
             WaveletConfig config,
             BarSize barSize) {
-        
+
         // Use VectorWave's financial analyzer
         FinancialAnalyzer analyzer = new FinancialAnalyzer(config.toFinancialConfig());
-        
+
         // Leverage VectorWave's native capabilities
         MultiLevelMODWTResult result = vectorWave.decompose(prices, config);
-        
+
         return new PriceWaveletDecomposition(result, config, inferTimeFrame(barSize));
     }
-    
+
     public TrendSignal extractTrendSignal(PriceWaveletDecomposition decomposition) {
         // Use VectorWave's financial analysis capabilities
         return signalExtractor.extractFromDecomposition(decomposition);
@@ -109,23 +115,23 @@ public class TradingWaveletService {
 /**
  * Specialized service for denoising operations
  */
-@Service  
+@Service
 public class TradingDenoiseService {
     private final WaveletDenoiser vectorDenoiser;
-    
+
     public DenoisedPriceData denoise(double[] prices, DenoiseStrategy strategy) {
         // Leverage VectorWave's financial denoiser
         WaveletDenoiser denoiser = WaveletDenoiser.forFinancialData();
-        
+
         return switch (strategy) {
             case CONSERVATIVE -> new DenoisedPriceData(
-                denoiser.denoise(prices, ThresholdMethod.SOFT, ThresholdType.ADAPTIVE)
+                    denoiser.denoise(prices, ThresholdMethod.SOFT, ThresholdType.ADAPTIVE)
             );
             case AGGRESSIVE -> new DenoisedPriceData(
-                removeHighFrequencyNoise(prices, denoiser)
+                    removeHighFrequencyNoise(prices, denoiser)
             );
             case TREND_FOLLOWING -> new DenoisedPriceData(
-                extractTrendComponent(prices, denoiser)
+                    extractTrendComponent(prices, denoiser)
             );
         };
     }

@@ -8,7 +8,7 @@ The position management components have been refactored to decouple them from th
 
 ### PositionManager
 
-**Location**: `com.prophetizo.wavelets.swt.core.PositionManager`
+**Location**: `com.morphiqlabs.common.position.PositionManager`
 
 The central position management orchestrator that can be reused across multiple trading strategies.
 
@@ -48,7 +48,7 @@ String side = positionManager.getCurrentPositionSide(); // "LONG", "SHORT", "FLA
 
 ### PositionTracker
 
-**Location**: `com.prophetizo.wavelets.swt.core.PositionTracker`
+**Location**: `com.morphiqlabs.common.position.PositionTracker`
 
 Thread-safe position state tracking and calculations.
 
@@ -84,7 +84,7 @@ boolean nearTarget = tracker.isNearTarget(currentPrice, 0.2); // Within 20% of r
 
 ### PositionSizer (Existing)
 
-**Location**: `com.prophetizo.wavelets.swt.core.PositionSizer`
+**Location**: `com.morphiqlabs.common.position.PositionSizer`
 
 The existing position sizing calculator remains unchanged and is integrated with the new components.
 

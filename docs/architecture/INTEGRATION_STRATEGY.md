@@ -11,7 +11,7 @@ This document describes the actual integration between MotiveWave SDK and Vector
 The primary integration point between MotiveWave and VectorWave's native SWT implementation:
 
 ```java
-package com.prophetizo.wavelets.swt.core;
+package com.morphiqlabs.wavelets.swt.core;
 
 /**
  * Bridge to VectorWave's Stationary Wavelet Transform
@@ -20,22 +20,22 @@ public class VectorWaveSwtAdapter {
     private final String waveletType;
     private final BoundaryMode boundaryMode;
     private final ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter swtAdapter;
-    
+
     public VectorWaveSwtAdapter(String waveletType) {
         this.waveletType = waveletType;
         this.boundaryMode = BoundaryMode.PERIODIC;
         this.wavelet = WaveletRegistry.getWavelet(waveletType);
         this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, boundaryMode);
     }
-    
+
     public SwtResult transform(double[] data, int levels) {
         MutableMultiLevelMODWTResult result = swtAdapter.forward(data, levels);
         return new SwtResult(
-            result.getApproximationCoeffs(),
-            extractDetails(result, levels),
-            waveletType,
-            boundaryMode,
-            result
+                result.getApproximationCoeffs(),
+                extractDetails(result, levels),
+                waveletType,
+                boundaryMode,
+                result
         );
     }
 }
@@ -46,25 +46,25 @@ public class VectorWaveSwtAdapter {
 The integration follows MotiveWave's calculation model with efficient data extraction:
 
 ```java
-package com.prophetizo.wavelets.swt;
+package com.morphiqlabs.wavelets.swt;
 
 public class SwtTrendMomentumStudy extends Study {
     // Sliding window buffer for efficiency
     private double[] priceBuffer = null;
     private int bufferStartIndex = -1;
     private boolean bufferInitialized = false;
-    
+
     @Override
     protected void calculate(int index, DataContext ctx) {
         // Extract price window efficiently
         double[] prices = updateSlidingWindow(series, index, windowLength, ctx);
-        
+
         // Transform via VectorWave
         VectorWaveSwtAdapter.SwtResult swtResult = swtAdapter.transform(prices, levels);
-        
+
         // Apply thresholding
         applyThresholding(swtResult);
-        
+
         // Store results in MotiveWave DataSeries
         series.setDouble(index, Values.AJ, swtResult.getApproximation()[last]);
         series.setDouble(index, Values.MOMENTUM_SUM, calculateMomentum(swtResult));
@@ -124,7 +124,7 @@ series.setDouble(index, Values.SLOPE, slope);
 VectorWave coefficients are denoised using multiple methods:
 
 ```java
-package com.prophetizo.wavelets.swt.core;
+package com.morphiqlabs.wavelets.swt.core;
 
 public class Thresholds {
     public static double calculateThreshold(double[] coeffs, ThresholdMethod method, int level) {
@@ -137,7 +137,7 @@ public class Thresholds {
                 return calculateSureThreshold(coeffs);
         }
     }
-    
+
     // Applied to VectorWave SWT result
     public void applyShrinkage(SwtResult result, int level, double threshold, boolean soft) {
         double[] mutableDetails = result.getVectorWaveResult().getMutableDetailCoeffs(level);
@@ -202,7 +202,7 @@ private double calculateMomentumSum(SwtResult swtResult, int k) {
 ### Study Registration
 ```java
 @StudyHeader(
-    namespace = "com.prophetizo.wavelets.swt",
+    namespace = "com.morphiqlabs.wavelets.swt",
     id = "SWT_TREND_MOMENTUM",
     name = "SWT Trend + Momentum",
     menu = "MorphIQ | Wavelet Analysis",

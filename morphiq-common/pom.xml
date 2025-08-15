@@ -13,15 +13,18 @@
     <artifactId>morphiq-common</artifactId>
     <packaging>jar</packaging>
 
-    <name>Morphiq Common MotiveWave Utilities</name>
-    <description>Shared MotiveWave-specific utilities for Morphiq Suite</description>
+    <name>Morphiq Common</name>
+    <description>Shared utilities for Morphiq Suite</description>
 
     <dependencies>
-        <!-- Morphiq Core -->
+        <!-- Logging -->
         <dependency>
-            <groupId>ai.prophetizo</groupId>
-            <artifactId>morphiq-core</artifactId>
-            <version>${project.version}</version>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
         </dependency>
         <!-- MotiveWave SDK -->
         <dependency>

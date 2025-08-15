@@ -23,50 +23,49 @@ vectorwave/
 ### 1. Data Bridge (`bridge/DataSeriesBridge.java`)
 
 ```java
-package com.prophetizo.vectorwave.motivewave.bridge;
+package com.morphiqlabs.vectorwave.motivewave.bridge;
 
 import com.motivewave.platform.sdk.common.DataSeries;
 import com.motivewave.platform.sdk.common.Enums.Values;
-import com.prophetizo.vectorwave.core.*;
-import java.util.concurrent.ConcurrentHashMap;
+import com.morphiqlabs.vectorwave.core.*;
 
 /**
  * High-performance bridge between MotiveWave DataSeries and VectorWave
  */
 public class DataSeriesBridge {
-    
+
     // Thread-local buffer pools for zero allocation in hot paths
-    private static final ThreadLocal<BufferPool> BUFFER_POOLS = 
-        ThreadLocal.withInitial(BufferPool::new);
-    
+    private static final ThreadLocal<BufferPool> BUFFER_POOLS =
+            ThreadLocal.withInitial(BufferPool::new);
+
     /**
      * Extract data with automatic buffer management
      */
-    public static double[] extract(DataSeries series, Values value, 
-                                 int start, int length) {
+    public static double[] extract(DataSeries series, Values value,
+                                   int start, int length) {
         BufferPool pool = BUFFER_POOLS.get();
         double[] buffer = pool.acquire(length);
-        
+
         // Bulk extraction with bounds checking
         for (int i = 0; i < length; i++) {
             buffer[i] = series.getDouble(start + i, value);
         }
-        
+
         return buffer;
     }
-    
+
     /**
      * Auto-release buffer after use
      */
     public static void release(double[] buffer) {
         BUFFER_POOLS.get().release(buffer);
     }
-    
+
     /**
      * Extract with automatic windowing for real-time
      */
     public static double[] extractWindow(DataSeries series, Values value,
-                                       int currentIndex, int windowSize) {
+                                         int currentIndex, int windowSize) {
         int start = Math.max(0, currentIndex - windowSize + 1);
         int actualSize = currentIndex - start + 1;
         return extract(series, value, start, actualSize);
@@ -77,9 +76,10 @@ public class DataSeriesBridge {
 ### 2. Real-time State Management (`realtime/TransformState.java`)
 
 ```java
-package com.prophetizo.vectorwave.motivewave.realtime;
+package com.morphiqlabs.vectorwave.motivewave.realtime;
 
-import com.prophetizo.vectorwave.core.*;
+import com.morphiqlabs.vectorwave.core.*;
+
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -89,40 +89,40 @@ import java.util.concurrent.ConcurrentHashMap;
 public class TransformState {
     private final Map<String, WindowState> states = new ConcurrentHashMap<>();
     private final WaveletTransform transform;
-    
+
     private static class WindowState {
         final CircularBuffer buffer;
         TransformResult lastResult;
         int lastIndex = -1;
         long lastTimestamp = -1;
-        
+
         WindowState(int size) {
             this.buffer = new CircularBuffer(size);
         }
     }
-    
+
     /**
      * Get or create state for a specific series/value combination
      */
-    public TransformResult updateIncremental(String key, int index, 
-                                           double newValue, long timestamp) {
-        WindowState state = states.computeIfAbsent(key, 
-            k -> new WindowState(defaultWindowSize));
-        
+    public TransformResult updateIncremental(String key, int index,
+                                             double newValue, long timestamp) {
+        WindowState state = states.computeIfAbsent(key,
+                k -> new WindowState(defaultWindowSize));
+
         // Check if we can do incremental update
-        if (state.lastIndex == index - 1 && 
-            timestamp - state.lastTimestamp < MAX_GAP_MS) {
+        if (state.lastIndex == index - 1 &&
+                timestamp - state.lastTimestamp < MAX_GAP_MS) {
             // Incremental update
             state.buffer.add(newValue);
             state.lastResult = transform.incrementalForward(
-                state.buffer.toArray(), state.lastResult);
+                    state.buffer.toArray(), state.lastResult);
         } else {
             // Full recalculation needed
             state.buffer.clear();
             state.buffer.fill(/* get historical data */);
             state.lastResult = transform.forward(state.buffer.toArray());
         }
-        
+
         state.lastIndex = index;
         state.lastTimestamp = timestamp;
         return state.lastResult;
@@ -133,7 +133,7 @@ public class TransformState {
 ### 3. Coefficient Storage (`storage/CoefficientStore.java`)
 
 ```java
-package com.prophetizo.vectorwave.motivewave.storage;
+package com.morphiqlabs.vectorwave.motivewave.storage;
 
 import com.motivewave.platform.sdk.common.DataSeries;
 import com.motivewave.platform.sdk.common.Enums.Values;
@@ -142,28 +142,28 @@ import com.motivewave.platform.sdk.common.Enums.Values;
  * Efficient coefficient storage strategies for MotiveWave
  */
 public class CoefficientStore {
-    
+
     /**
      * Pre-defined mapping strategies
      */
     public enum MappingStrategy {
         STANDARD {
             @Override
-            public void store(DataSeries series, int index, 
-                            MultiLevelTransformResult result) {
+            public void store(DataSeries series, int index,
+                              MultiLevelTransformResult result) {
                 // D1-D8 for details, A1-A4 for approximations
                 for (int i = 0; i < Math.min(result.getLevels(), 8); i++) {
                     double[] detail = result.getDetailCoeffsAtLevel(i);
-                    series.setDouble(index, Values.valueOf("D" + (i+1)), 
-                                   detail[detail.length - 1]);
+                    series.setDouble(index, Values.valueOf("D" + (i + 1)),
+                            detail[detail.length - 1]);
                 }
             }
         },
-        
+
         COMPACT {
             @Override
             public void store(DataSeries series, int index,
-                            MultiLevelTransformResult result) {
+                              MultiLevelTransformResult result) {
                 // Store only most significant coefficients
                 double[] approx = result.getApproximationCoeffs();
                 double[] d1 = result.getDetailCoeffsAtLevel(0);
@@ -171,29 +171,29 @@ public class CoefficientStore {
                 series.setDouble(index, Values.VAL2, d1[d1.length - 1]);
             }
         },
-        
+
         ENERGY {
             @Override
             public void store(DataSeries series, int index,
-                            MultiLevelTransformResult result) {
+                              MultiLevelTransformResult result) {
                 // Store energy at each level
                 for (int i = 0; i < result.getLevels(); i++) {
                     double energy = calculateEnergy(result.getDetailCoeffsAtLevel(i));
-                    series.setDouble(index, Values.valueOf("VAL" + (i+1)), energy);
+                    series.setDouble(index, Values.valueOf("VAL" + (i + 1)), energy);
                 }
             }
         };
-        
+
         public abstract void store(DataSeries series, int index,
-                                 MultiLevelTransformResult result);
+                                   MultiLevelTransformResult result);
     }
-    
+
     /**
      * Smart storage based on study requirements
      */
     public static void storeAdaptive(DataSeries series, int index,
-                                   TransformResult result,
-                                   StudyRequirements requirements) {
+                                     TransformResult result,
+                                     StudyRequirements requirements) {
         if (requirements.needsAllCoefficients()) {
             storeComplete(series, index, result);
         } else if (requirements.needsEnergyOnly()) {
@@ -208,64 +208,64 @@ public class CoefficientStore {
 ### 4. Base Study Classes (`studies/VectorWaveStudy.java`)
 
 ```java
-package com.prophetizo.vectorwave.motivewave.studies;
+package com.morphiqlabs.vectorwave.motivewave.studies;
 
 import com.motivewave.platform.sdk.study.Study;
-import com.prophetizo.vectorwave.core.*;
+import com.morphiqlabs.vectorwave.core.*;
 
 /**
  * Base class for all VectorWave-based studies
  */
 public abstract class VectorWaveStudy extends Study {
-    
+
     protected TransformState transformState;
     protected DataSeriesBridge dataBridge;
     protected CoefficientStore coeffStore;
-    
+
     // Common parameters
     protected Wavelet wavelet;
     protected int windowSize;
     protected BoundaryMode boundaryMode;
-    
+
     @Override
     public void initialize(Defaults defaults) {
         // Initialize components
         transformState = new TransformState(createTransform());
         dataBridge = new DataSeriesBridge();
         coeffStore = new CoefficientStore();
-        
+
         // Setup common parameters
         setupCommonParameters(getDescriptor());
-        
+
         // Let subclass add specific parameters
         setupStudyParameters(getDescriptor());
     }
-    
+
     @Override
     public void calculate(int index, DataContext ctx) {
         // Efficient calculation pattern
         DataSeries series = ctx.getDataSeries();
-        
+
         // Skip if already calculated
         if (series.isCalculated(index, getSettings())) return;
-        
+
         // Extract data efficiently
         double[] data = dataBridge.extractWindow(
-            series, getInputValue(), index, windowSize);
-        
+                series, getInputValue(), index, windowSize);
+
         try {
             // Perform transform
             TransformResult result = calculateTransform(data, index);
-            
+
             // Store results
             storeResults(series, index, result);
-            
+
         } finally {
             // Always release buffer
             dataBridge.release(data);
         }
     }
-    
+
     /**
      * Optimized batch calculation for historical data
      */
@@ -274,38 +274,40 @@ public abstract class VectorWaveStudy extends Study {
         // Parallel processing for large ranges
         if (endIndex - startIndex > PARALLEL_THRESHOLD) {
             IntStream.range(startIndex, endIndex)
-                .parallel()
-                .forEach(i -> calculate(i, ctx));
+                    .parallel()
+                    .forEach(i -> calculate(i, ctx));
         } else {
             // Sequential for small ranges
             super.calculateBatch(ctx, startIndex, endIndex);
         }
     }
-    
+
     protected abstract Values getInputValue();
+
     protected abstract void setupStudyParameters(StudyDescriptor desc);
-    protected abstract void storeResults(DataSeries series, int index, 
-                                       TransformResult result);
+
+    protected abstract void storeResults(DataSeries series, int index,
+                                         TransformResult result);
 }
 ```
 
 ### 5. Utilities (`utils/MotiveWaveUtils.java`)
 
 ```java
-package com.prophetizo.vectorwave.motivewave.utils;
+package com.morphiqlabs.vectorwave.motivewave.utils;
 
 /**
  * MotiveWave-specific utilities
  */
 public class MotiveWaveUtils {
-    
+
     /**
      * Convert MotiveWave time to milliseconds
      */
     public static long toMillis(long motiveWaveTime) {
         return motiveWaveTime / 1000;
     }
-    
+
     /**
      * Smart window size selection based on bar size
      */
@@ -320,7 +322,7 @@ public class MotiveWaveUtils {
             default -> 100;    // Generic default
         };
     }
-    
+
     /**
      * Wavelet selection helper
      */
@@ -344,7 +346,7 @@ public class MotiveWaveUtils {
     <modelVersion>4.0.0</modelVersion>
     
     <parent>
-        <groupId>com.prophetizo</groupId>
+        <groupId>com.morphiqlabs</groupId>
         <artifactId>vectorwave-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
@@ -355,7 +357,7 @@ public class MotiveWaveUtils {
     <dependencies>
         <!-- VectorWave Core -->
         <dependency>
-            <groupId>com.prophetizo</groupId>
+            <groupId>com.morphiqlabs</groupId>
             <artifactId>vectorwave-core</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -397,25 +399,25 @@ public class MotiveWaveUtils {
 ## Usage Example
 
 ```java
-import com.prophetizo.vectorwave.motivewave.studies.VectorWaveStudy;
+import com.morphiqlabs.vectorwave.motivewave.studies.VectorWaveStudy;
 
 public class SimpleWaveletIndicator extends VectorWaveStudy {
-    
+
     @Override
     protected Values getInputValue() {
         return Values.CLOSE;
     }
-    
+
     @Override
     protected void setupStudyParameters(StudyDescriptor desc) {
         desc.setLabelSettings(InputLabels.INPUT);
         desc.addOutput(Values.VAL1, "Wavelet Trend", Colors.BLUE);
         desc.addOutput(Values.VAL2, "Wavelet Detail", Colors.RED);
     }
-    
+
     @Override
-    protected void storeResults(DataSeries series, int index, 
-                              TransformResult result) {
+    protected void storeResults(DataSeries series, int index,
+                                TransformResult result) {
         // Use compact storage
         CoefficientStore.MappingStrategy.COMPACT.store(series, index, result);
     }
