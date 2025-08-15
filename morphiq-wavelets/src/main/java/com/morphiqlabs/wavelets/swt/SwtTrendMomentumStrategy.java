@@ -805,6 +805,17 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
     }
     
     /**
+     * Check if momentum threshold was exceeded in the negative direction.
+     * This ensures short entries only occur when momentum is strongly negative,
+     * not when it's strongly positive.
+     */
+    private boolean isNegativeMomentumThresholdExceeded(List<StateChangeSignal> stateChanges) {
+        return stateChanges.stream()
+            .filter(s -> s.getType() == StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED)
+            .anyMatch(s -> s.getNewValue() < 0);
+    }
+    
+    /**
      * Handle state change signals from the study.
      * This implements the new separation of concerns where the study reports
      * state changes and the strategy decides how to react.
@@ -847,7 +858,7 @@ public class SwtTrendMomentumStrategy extends SwtTrendMomentumStudy {
         }
         
         // Strategy logic: Enter short when both slope and momentum align negatively  
-        else if (slopeNegative && (momentumNegative || momentumThresholdExceeded)) {
+        else if (slopeNegative && (momentumNegative || isNegativeMomentumThresholdExceeded(stateChanges))) {
             if (logger.isInfoEnabled()) {
                 logger.info("SHORT conditions met - Slope turned negative and momentum is favorable");
             }

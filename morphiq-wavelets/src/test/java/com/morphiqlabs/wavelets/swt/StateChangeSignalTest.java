@@ -104,24 +104,38 @@ class StateChangeSignalTest {
     @Test
     @DisplayName("Magnitude calculation with negative values")
     void testMagnitudeCalculation() {
-        // Test that magnitude is always positive
+        // Test convenience constructor - magnitude calculated automatically as absolute difference
         StateChangeSignal signal1 = new StateChangeSignal(
             StateChangeSignal.SignalType.SLOPE_TURNED_NEGATIVE,
             0.05, -0.10, System.currentTimeMillis()
         );
-        assertEquals(0.15, signal1.getMagnitude(), 0.001);
+        assertEquals(0.15, signal1.getMagnitude(), 0.001); // |(-0.10) - 0.05| = 0.15
         
         StateChangeSignal signal2 = new StateChangeSignal(
             StateChangeSignal.SignalType.MOMENTUM_CROSSED_NEGATIVE,
             2.0, -3.0, System.currentTimeMillis()
         );
-        assertEquals(5.0, signal2.getMagnitude(), 0.001);
+        assertEquals(5.0, signal2.getMagnitude(), 0.001); // |(-3.0) - 2.0| = 5.0
         
-        // Test explicit magnitude setting
+        // Test explicit positive magnitude (should remain unchanged)
         StateChangeSignal signal3 = new StateChangeSignal(
             StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED,
-            0.5, 2.0, -1.5, System.currentTimeMillis() // negative magnitude should become positive
+            0.5, 2.0, 1.5, System.currentTimeMillis()
         );
         assertEquals(1.5, signal3.getMagnitude(), 0.001);
+        
+        // Test explicit negative magnitude (should be converted to positive)
+        StateChangeSignal signal4 = new StateChangeSignal(
+            StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED,
+            0.5, 2.0, -2.5, System.currentTimeMillis()
+        );
+        assertEquals(2.5, signal4.getMagnitude(), 0.001); // Math.abs(-2.5) = 2.5
+        
+        // Test zero magnitude
+        StateChangeSignal signal5 = new StateChangeSignal(
+            StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_LOST,
+            1.0, 1.0, 0.0, System.currentTimeMillis()
+        );
+        assertEquals(0.0, signal5.getMagnitude(), 0.001);
     }
 }
