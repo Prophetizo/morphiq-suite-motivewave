@@ -1204,11 +1204,11 @@ public class SwtTrendMomentumStudy extends Study {
         if (currentMomentumAboveThreshold && !lastMomentumAboveThreshold) {
             stateChanges.add(new StateChangeSignal(
                 StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED,
-                lastMomentum, currentMomentum, Math.abs(currentMomentum), timestamp));
+                lastMomentum, currentMomentum, timestamp));
         } else if (!currentMomentumAboveThreshold && lastMomentumAboveThreshold) {
             stateChanges.add(new StateChangeSignal(
                 StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_LOST,
-                lastMomentum, currentMomentum, Math.abs(currentMomentum), timestamp));
+                lastMomentum, currentMomentum, timestamp));
         }
         
         // Emit state change signals if any occurred

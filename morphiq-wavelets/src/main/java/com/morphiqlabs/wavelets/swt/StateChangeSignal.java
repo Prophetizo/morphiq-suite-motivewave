@@ -7,6 +7,10 @@ package com.morphiqlabs.wavelets.swt;
  * 
  * This design follows separation of concerns - the study reports what changed,
  * the strategy decides what to do about it.
+ * 
+ * <p><strong>Note:</strong> The magnitude field always represents a positive value
+ * indicating the strength of the change. Direction information is captured by the
+ * signal type and can be determined using helper methods like {@link #isPositiveChange()}.
  */
 public class StateChangeSignal {
     
@@ -37,19 +41,26 @@ public class StateChangeSignal {
      * @param type The type of state change
      * @param oldValue The previous value before the change
      * @param newValue The current value after the change
-     * @param magnitude The magnitude/strength of the change (positive value)
+     * @param magnitude The magnitude/strength of the change (should be positive; 
+     *                  negative values will be converted to positive)
      * @param timestamp The timestamp when the change occurred
+     * @throws IllegalArgumentException if magnitude is NaN or infinite
      */
     public StateChangeSignal(SignalType type, double oldValue, double newValue, double magnitude, long timestamp) {
+        if (Double.isNaN(magnitude) || Double.isInfinite(magnitude)) {
+            throw new IllegalArgumentException("Magnitude cannot be NaN or infinite: " + magnitude);
+        }
+        
         this.type = type;
         this.oldValue = oldValue;
         this.newValue = newValue;
-        this.magnitude = Math.abs(magnitude);
+        this.magnitude = Math.abs(magnitude);  // Ensure magnitude is always positive
         this.timestamp = timestamp;
     }
     
     /**
      * Convenience constructor for threshold-based signals.
+     * Automatically calculates magnitude as the absolute difference between old and new values.
      * 
      * @param type The type of state change
      * @param oldValue The previous value before the change
