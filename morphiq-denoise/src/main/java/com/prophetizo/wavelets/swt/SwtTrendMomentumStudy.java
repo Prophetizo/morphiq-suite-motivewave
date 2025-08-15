@@ -4,7 +4,6 @@ import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.draw.Marker;
 import com.motivewave.platform.sdk.study.Plot;
-import com.motivewave.platform.sdk.study.RuntimeDescriptor;
 import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
 import com.prophetizo.LoggerConfig;
@@ -1220,33 +1219,29 @@ public class SwtTrendMomentumStudy extends Study {
         String scaleMethod = getSettings().getString(WATR_SCALE_METHOD, "SQRT"); // Default to Square Root
         double scaleFactor = getSettings().getDouble(WATR_SCALE_FACTOR, DEFAULT_SQRT_FACTOR);
         
-        double priceScaleFactor;
-        switch (scaleMethod) {
-            case "LINEAR":
+        double priceScaleFactor = switch (scaleMethod) {
+            case "LINEAR" ->
                 // Direct linear scaling: good for stable price ranges
-                priceScaleFactor = centerPrice / scaleFactor;
-                break;
-            case "SQRT":
+                    centerPrice / scaleFactor;
+            case "SQRT" ->
                 // Square root scaling: dampens effect at higher prices
                 // Good for indices like ES/NQ that range from 1000s to 10000s
-                priceScaleFactor = Math.sqrt(centerPrice) / scaleFactor;
-                break;
-            case "LOG":
+                    Math.sqrt(centerPrice) / scaleFactor;
+            case "LOG" ->
                 // Logarithmic scaling: for very wide price ranges
                 // Good for crypto or penny stocks to mega-caps
-                priceScaleFactor = Math.log(centerPrice) / scaleFactor;
-                break;
-            case "ADAPTIVE":
+                    Math.log(centerPrice) / scaleFactor;
+            case "ADAPTIVE" -> {
                 // Adaptive scaling based on recent price volatility
                 // Uses 20-period standard deviation as reference
                 double recentVol = series.std(index, 20, Enums.BarInput.CLOSE);
-                priceScaleFactor = recentVol > 0 ? centerPrice / (scaleFactor * recentVol) : 1.0;
-                break;
-            default:
+                yield recentVol > 0 ? centerPrice / (scaleFactor * recentVol) : 1.0;
+            }
+            default ->
                 // Default to square root scaling
-                priceScaleFactor = Math.sqrt(centerPrice) / scaleFactor;
-        }
-        
+                    Math.sqrt(centerPrice) / scaleFactor;
+        };
+
         double watr = rawWatr * priceScaleFactor;
         
         if (logger.isDebugEnabled()) {
