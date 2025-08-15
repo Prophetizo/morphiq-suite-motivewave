@@ -111,7 +111,7 @@ class ThreadSafeInitializationTest {
         for (Field field : fields) {
             if (field.getName().equals("cachedSettings")) {
                 hasCachedSettings = true;
-                if (field.toString().contains("volatile")) {
+                if (java.lang.reflect.Modifier.isVolatile(field.getModifiers())) {
                     volatileInitFields++;
                 }
             }
