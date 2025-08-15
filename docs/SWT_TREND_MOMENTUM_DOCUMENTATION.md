@@ -103,6 +103,8 @@ The strategy then decides whether to act on these states:
 | **Momentum Threshold** | 1.0 | 0-100 | Minimum momentum for signals (scaled by 100x) |
 | **Min Slope Threshold (Points)** | 0.05 | 0-5.0 | Minimum trend slope in absolute price points |
 | **Momentum Smoothing (α)** | 0.5 | 0.1-0.9 | EMA smoothing factor |
+| **Momentum Window (bars)** | 10 | 5-50 | Number of bars used for RMS energy calculation |
+| **Momentum Scaling Factor** | 100.0 | 1.0-1000.0 | Scaling factor to improve momentum visibility |
 | **Enable Trading Signals** | ✓ | On/Off | Generate trading signals |
 
 **Important Note on Min Slope Threshold**:
@@ -114,6 +116,11 @@ The strategy then decides whether to act on these states:
   - Stocks: 0.01-0.05 points (adjust for price level)
   - Forex: 0.0001-0.0005 points (4-5 decimal places)
   - Crypto: 1-50 points (depends on asset price)
+
+**New Configurable Settings** (Previously Hardcoded):
+- **Momentum Window**: Controls the number of recent bars used for RMS energy calculation. Smaller values (5-8) are more responsive but noisier; larger values (15-25) are smoother but less responsive.
+- **Momentum Scaling Factor**: Amplifies momentum values for better visibility. The default 100.0 makes small momentum values (0.01) visible as larger values (1.0). Adjust based on your chart scaling preferences.
+- **Level Weight Decay**: Shared with WATR calculation, controls how much weight is given to coarser wavelet scales. Lower values (0.3-0.4) emphasize coarser scales (trending markets), higher values (0.7-0.8) emphasize finer scales (volatile markets).
 
 ### Display Tab
 
@@ -739,8 +746,9 @@ Example for ES:
   - 0.1-0.3: Heavy smoothing (slow response, fewer false signals)
   - 0.4-0.6: Balanced smoothing (default range)
   - 0.7-0.9: Minimal smoothing (fast response, more noise)
-- Window size = 10 bars for RMS calculation
-- 100x scaling for visibility
+- Configurable window size (default 10 bars) for RMS calculation
+- Configurable scaling factor (default 100.0) for visibility
+- Level weight decay (shared with WATR, default 0.5) controls scale contribution
 - Volatile state for thread safety
 
 ### Signal State Machine
@@ -758,6 +766,15 @@ FLAT → SHORT_ENTER → SHORT → FLAT_EXIT → FLAT
 5. **JavaFX Fixes**: Resolved UI exceptions
 6. **Logging**: Comprehensive position sizing logs
 7. **Maven Shade**: Fixed overlapping class warnings
+
+### Latest Updates (2025)
+
+8. **Configurable Values**: Made previously hardcoded values configurable:
+   - Momentum Window Size (default: 10 bars, range: 5-50)
+   - Momentum Scaling Factor (default: 100.0, range: 1.0-1000.0)
+   - Level Weight Decay (uses existing WATR setting, default: 0.5, range: 0.1-1.0)
+9. **Enhanced Flexibility**: Users can now fine-tune momentum calculation parameters
+10. **Backward Compatibility**: Default values preserve existing behavior
 
 ## Version Information
 
