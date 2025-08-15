@@ -216,7 +216,6 @@ public class SwtTrendMomentumStudy extends Study {
                 // Only log warning if it's truly unexpected (not empty string)
                 // Order is intentional: isEmpty() is cheaper than isWarnEnabled()
                 // Empty string check filters out common cases before method call
-                // Avoids unnecessary string checks when logging is disabled
                 if (logger.isWarnEnabled() && !normalizedValue.isEmpty()) {
                     logger.warn("Unknown momentum type '{}', defaulting to SUM", value);
                 }
