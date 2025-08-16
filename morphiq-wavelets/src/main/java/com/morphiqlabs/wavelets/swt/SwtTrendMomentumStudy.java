@@ -2,6 +2,7 @@ package com.morphiqlabs.wavelets.swt;
 
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
+import com.motivewave.platform.sdk.common.Coordinate;
 import com.motivewave.platform.sdk.draw.Marker;
 import com.motivewave.platform.sdk.study.Plot;
 import com.motivewave.platform.sdk.study.Study;
@@ -26,6 +27,7 @@ import java.util.Map;
         desc = "Undecimated SWT/MODWT trend following with cross-scale momentum confirmation",
         menu = "MorphIQ | Wavelet Analysis",
         overlay = true,
+        signals = true,
         requiresBarUpdates = false
 )
 public class SwtTrendMomentumStudy extends Study {
@@ -660,6 +662,7 @@ public class SwtTrendMomentumStudy extends Study {
         // Signals - state based, not action based
         desc.declareSignal(Signals.LONG, "Long State");
         desc.declareSignal(Signals.SHORT, "Short State");
+        desc.declareSignal(Signals.STATE_CHANGE, "State Change");
     }
     
     
@@ -1214,6 +1217,42 @@ public class SwtTrendMomentumStudy extends Study {
             }
         }
         
+        // Generate LONG and SHORT state signals with markers and alerts
+        if (barComplete) {
+            Coordinate coord = new Coordinate(series.getStartTime(index), price);
+            
+            if (longFilter) {
+                // Add long marker
+                var longMarker = getSettings().getMarker(LONG_MARKER);
+                if (longMarker != null && longMarker.isEnabled()) {
+                    addFigure(new Marker(coord, Enums.Position.BOTTOM, longMarker, 
+                                        String.format("LONG: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                }
+                
+                // Trigger long alert
+                ctx.signal(index, Signals.LONG, "LONG Signal", price);
+                
+                if (logger.isDebugEnabled()) {
+                    logger.debug("LONG signal generated at index {}: price={}, trend={}, momentum={}", 
+                                index, price, trendValue, currentMomentum);
+                }
+            } else if (shortFilter) {
+                // Add short marker
+                var shortMarker = getSettings().getMarker(SHORT_MARKER);
+                if (shortMarker != null && shortMarker.isEnabled()) {
+                    addFigure(new Marker(coord, Enums.Position.TOP, shortMarker,
+                                        String.format("SHORT: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                }
+                
+                // Trigger short alert
+                ctx.signal(index, Signals.SHORT, "SHORT Signal", price);
+                
+                if (logger.isDebugEnabled()) {
+                    logger.debug("SHORT signal generated at index {}: price={}, trend={}, momentum={}", 
+                                index, price, trendValue, currentMomentum);
+                }
+            }
+        }
         
         // Update state for next iteration
         lastSlope = currentSlope;
