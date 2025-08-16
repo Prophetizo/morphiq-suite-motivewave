@@ -2,6 +2,7 @@ package com.morphiqlabs.wavelets.swt;
 
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
+import com.motivewave.platform.sdk.common.Coordinate;
 import com.motivewave.platform.sdk.draw.Marker;
 import com.motivewave.platform.sdk.study.Plot;
 import com.motivewave.platform.sdk.study.Study;
@@ -12,6 +13,7 @@ import com.morphiqlabs.wavelets.swt.core.*;
 import org.slf4j.Logger;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,6 +27,7 @@ import java.util.Map;
         desc = "Undecimated SWT/MODWT trend following with cross-scale momentum confirmation",
         menu = "MorphIQ | Wavelet Analysis",
         overlay = true,
+        signals = true,
         requiresBarUpdates = false
 )
 public class SwtTrendMomentumStudy extends Study {
@@ -121,7 +124,7 @@ public class SwtTrendMomentumStudy extends Study {
     
     // Signals - State-based trading signals (not action-based)
     public enum Signals {
-        LONG, SHORT
+        LONG, SHORT, STATE_CHANGE
     }
     
     // ========================================================================
@@ -136,8 +139,13 @@ public class SwtTrendMomentumStudy extends Study {
     private volatile String currentWaveletType = null;
     private volatile Integer currentLevels = null;
     private volatile Integer currentWindowLength = null;
-    private volatile boolean lastLongFilter = false;
-    private volatile boolean lastShortFilter = false;
+    
+    // State change tracking for new signal system
+    private volatile double lastSlope = 0.0;
+    private volatile double lastMomentum = 0.0;
+    private volatile boolean lastSlopePositive = false;
+    private volatile boolean lastMomentumPositive = false;
+    private volatile boolean lastMomentumAboveThreshold = false;
     
     // No need for marker tracking - SDK handles this when we follow the pattern:
     // Only add markers when series.isBarComplete(index) is true
@@ -451,8 +459,13 @@ public class SwtTrendMomentumStudy extends Study {
         currentWaveletType = null;
         currentLevels = null;
         currentWindowLength = null;
-        lastLongFilter = false;
-        lastShortFilter = false;
+        
+        // Reset state change tracking
+        lastSlope = 0.0;
+        lastMomentum = 0.0;
+        lastSlopePositive = false;
+        lastMomentumPositive = false;
+        lastMomentumAboveThreshold = false;
         
         // Clear components to force re-initialization
         swtAdapter = null;
@@ -649,6 +662,7 @@ public class SwtTrendMomentumStudy extends Study {
         // Signals - state based, not action based
         desc.declareSignal(Signals.LONG, "Long State");
         desc.declareSignal(Signals.SHORT, "Short State");
+        desc.declareSignal(Signals.STATE_CHANGE, "State Change");
     }
     
     
@@ -693,8 +707,6 @@ public class SwtTrendMomentumStudy extends Study {
                 }
                 
                 // Reset signal tracking on change
-                lastLongFilter = false;
-                lastShortFilter = false;
                 
                 logger.info("SWT adapter initialized/updated - wavelet: {} -> {}, levels: {}, window: {}", 
                            waveletType, vectorWaveType, levels, windowLength);
@@ -854,8 +866,8 @@ public class SwtTrendMomentumStudy extends Study {
             series.setDouble(index, Values.LONG_FILTER, longFilter ? 1.0 : 0.0);
             series.setDouble(index, Values.SHORT_FILTER, shortFilter ? 1.0 : 0.0);
             
-            // Generate signals
-            generateSignals(ctx, series, index, longFilter, shortFilter);
+            // Generate signals with current values for state change detection
+            generateSignals(ctx, series, index, longFilter, shortFilter, slope, momentumSum, momentumThreshold);
             
             // Calculate WATR (always calculate for strategy use, only display if enabled)
             // The Strategy subclass needs WATR for stop calculations even when not displayed
@@ -1142,7 +1154,8 @@ public class SwtTrendMomentumStudy extends Study {
         }
     }
     
-    private void generateSignals(DataContext ctx, DataSeries series, int index, boolean longFilter, boolean shortFilter) {
+    private void generateSignals(DataContext ctx, DataSeries series, int index, boolean longFilter, boolean shortFilter, 
+                                double currentSlope, double currentMomentum, double momentumThreshold) {
         if (!getSettings().getBoolean(ENABLE_SIGNALS, true)) {
             return;
         }
@@ -1151,62 +1164,102 @@ public class SwtTrendMomentumStudy extends Study {
         // This follows the MotiveWave SDK pattern and ensures markers persist
         boolean barComplete = series.isBarComplete(index);
         
-        // Detect transitions
-        boolean wasLongFilter = lastLongFilter;
-        boolean wasShortFilter = lastShortFilter;
-        
-        // Get current price for signal value
+        // Get current price and timestamp for signal value
         double price = series.getClose(index);
         double trendValue = series.getDouble(index, Values.AJ, price);
+        long timestamp = series.getStartTime(index);
         
-        // According to spec:
-        // Entry: slope > 0 AND momentum > 0 (long), slope < 0 AND momentum < 0 (short)
-        // Exit: slope loss OR momentum sign flip
+        // Detect state changes
+        List<StateChangeSignal> stateChanges = new ArrayList<>();
         
-        // Emit state signals - not entry decisions
-        if (longFilter) {
-            series.setBoolean(index, Signals.LONG, true);
+        // Check for slope direction changes
+        boolean currentSlopePositive = currentSlope > 0;
+        if (currentSlopePositive && !lastSlopePositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.SLOPE_TURNED_POSITIVE,
+                lastSlope, currentSlope, timestamp));
+        } else if (!currentSlopePositive && lastSlopePositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.SLOPE_TURNED_NEGATIVE,
+                lastSlope, currentSlope, timestamp));
+        }
+        
+        // Check for momentum zero crosses
+        boolean currentMomentumPositive = currentMomentum > 0;
+        if (currentMomentumPositive && !lastMomentumPositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_CROSSED_POSITIVE,
+                lastMomentum, currentMomentum, timestamp));
+        } else if (!currentMomentumPositive && lastMomentumPositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_CROSSED_NEGATIVE,
+                lastMomentum, currentMomentum, timestamp));
+        }
+        
+        // Check for momentum threshold crosses
+        boolean currentMomentumAboveThreshold = Math.abs(currentMomentum) > momentumThreshold;
+        if (currentMomentumAboveThreshold && !lastMomentumAboveThreshold) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED,
+                lastMomentum, currentMomentum, timestamp));
+        } else if (!currentMomentumAboveThreshold && lastMomentumAboveThreshold) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_LOST,
+                lastMomentum, currentMomentum, timestamp));
+        }
+        
+        // Emit state change signals if any occurred
+        if (!stateChanges.isEmpty() && barComplete) {
+            ctx.signal(index, Signals.STATE_CHANGE, "State Changes", stateChanges);
             
-            // Only add marker on state transition
-            if (barComplete && !wasLongFilter) {
-                try {
-                    var marker = getSettings().getMarker(LONG_MARKER);
-                    if (marker != null && marker.isEnabled()) {
-                        var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Long State @ %.2f", price);
-                        addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
-                    }
-                } catch (Exception e) {
-                    logger.trace("Could not add long marker: {}", e.getMessage());
-                }
-                
-                ctx.signal(index, Signals.LONG, "Long State", price);
-                logger.debug("Long state at index {} price {}", index, price);
-            }
-        } else if (shortFilter) {
-            series.setBoolean(index, Signals.SHORT, true);
-            
-            // Only add marker on state transition
-            if (barComplete && !wasShortFilter) {
-                try {
-                    var marker = getSettings().getMarker(SHORT_MARKER);
-                    if (marker != null && marker.isEnabled()) {
-                        var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Short State @ %.2f", price);
-                        addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
-                    }
-                } catch (Exception e) {
-                    logger.trace("Could not add short marker: {}", e.getMessage());
-                }
-                
-                ctx.signal(index, Signals.SHORT, "Short State", price);
-                logger.debug("Short state at index {} price {}", index, price);
+            if (logger.isDebugEnabled()) {
+                logger.debug("State changes detected at index {}: {}", index, stateChanges);
             }
         }
         
-        // Update state
-        lastLongFilter = longFilter;
-        lastShortFilter = shortFilter;
+        // Generate LONG and SHORT state signals with markers and alerts
+        if (barComplete) {
+            Coordinate coord = new Coordinate(series.getStartTime(index), price);
+            
+            if (longFilter) {
+                // Add long marker
+                var longMarker = getSettings().getMarker(LONG_MARKER);
+                if (longMarker != null && longMarker.isEnabled()) {
+                    addFigure(new Marker(coord, Enums.Position.BOTTOM, longMarker, 
+                                        String.format("LONG: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                }
+                
+                // Trigger long alert
+                ctx.signal(index, Signals.LONG, "LONG Signal", price);
+                
+                if (logger.isDebugEnabled()) {
+                    logger.debug("LONG signal generated at index {}: price={}, trend={}, momentum={}", 
+                                index, price, trendValue, currentMomentum);
+                }
+            } else if (shortFilter) {
+                // Add short marker
+                var shortMarker = getSettings().getMarker(SHORT_MARKER);
+                if (shortMarker != null && shortMarker.isEnabled()) {
+                    addFigure(new Marker(coord, Enums.Position.TOP, shortMarker,
+                                        String.format("SHORT: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                }
+                
+                // Trigger short alert
+                ctx.signal(index, Signals.SHORT, "SHORT Signal", price);
+                
+                if (logger.isDebugEnabled()) {
+                    logger.debug("SHORT signal generated at index {}: price={}, trend={}, momentum={}", 
+                                index, price, trendValue, currentMomentum);
+                }
+            }
+        }
+        
+        // Update state for next iteration
+        lastSlope = currentSlope;
+        lastMomentum = currentMomentum;
+        lastSlopePositive = currentSlopePositive;
+        lastMomentumPositive = currentMomentumPositive;
+        lastMomentumAboveThreshold = currentMomentumAboveThreshold;
     }
     
     private void calculateWatr(DataSeries series, int index, VectorWaveSwtAdapter.SwtResult swtResult, double centerPrice) {
