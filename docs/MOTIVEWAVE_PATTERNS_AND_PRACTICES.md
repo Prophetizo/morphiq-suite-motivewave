@@ -204,6 +204,106 @@ desc.setLabelSettings(Inputs.INPUT, Inputs.PERIOD);
 
 ---
 
+## Performance Optimization Patterns
+
+### Efficient Bar Processing
+```java
+@Override
+protected void calculateValues(DataContext ctx) {
+    DataSeries series = ctx.getDataSeries();
+    if (series == null) return;
+    
+    int size = series.size();
+    if (size == 0) return;
+    
+    // Find the first incomplete bar to start processing
+    int startIndex = size - 1;
+    for (int i = size - 1; i >= 0; i--) {
+        if (!series.isComplete(i)) {
+            startIndex = i;
+        } else {
+            // Found a complete bar, can stop looking backwards
+            break;
+        }
+    }
+    
+    // Process only incomplete bars
+    for (int i = startIndex; i < size; i++) {
+        if (!series.isComplete(i)) {
+            calculate(i, ctx);
+        }
+    }
+}
+```
+
+### Avoid Redundant Calculations
+```java
+@Override
+protected void calculate(int index, DataContext ctx) {
+    DataSeries series = ctx.getDataSeries();
+    
+    // Skip if already complete (avoid recalculation)
+    if (series.isComplete(index)) {
+        return;
+    }
+    
+    // Your calculation logic here
+    // ...
+    
+    // Mark as complete when done
+    series.setComplete(index);
+}
+```
+
+### Optimize Logging for Performance
+```java
+// BAD - Always constructs log message
+logger.info("Processing bar {} with value {}", index, calculateComplexValue());
+
+// GOOD - Only constructs message if logging is enabled
+if (logger.isDebugEnabled()) {
+    logger.debug("Processing bar {} with value {}", index, calculateComplexValue());
+}
+
+// Use appropriate log levels
+// - ERROR: Only for errors that need immediate attention
+// - WARN: For recoverable issues
+// - INFO: For important state changes (use sparingly)
+// - DEBUG: For development and troubleshooting
+// - TRACE: For detailed execution flow
+```
+
+### Minimize Logging in Hot Paths
+```java
+private void logCalculationParameters(int levels, int windowLength) {
+    // Guard with log level check
+    if (!logger.isDebugEnabled()) return;
+    
+    // Log only once, not on every bar
+    logger.debug("Parameters: levels={}, window={}", levels, windowLength);
+}
+
+// Call logging only on first valid calculation
+if (index == windowLength - 1 && logger.isDebugEnabled()) {
+    logCalculationParameters(levels, windowLength);
+}
+```
+
+### Cache Expensive Objects
+```java
+// Cache wavelets to avoid recreation
+private final Map<String, DiscreteWavelet> waveletCache = new ConcurrentHashMap<>();
+
+private DiscreteWavelet getOrCreateWavelet(String waveletName) {
+    return waveletCache.computeIfAbsent(waveletName, name -> {
+        // Expensive wavelet creation
+        return createWavelet(name);
+    });
+}
+```
+
+---
+
 ## Strategy Patterns
 
 ### Strategy Study Header

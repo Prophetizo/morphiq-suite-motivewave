@@ -276,19 +276,8 @@ public class Wavelets extends Study {
     
     @Override
     public void onLoad(Defaults defaults) {
-        logger.info("onLoad: Initializing wavelet components");
-        
-        // Log available wavelets for debugging
-        try {
-            int totalWavelets = WaveletRegistry.getAvailableWavelets().size();
-            logger.info("WaveletRegistry has {} wavelets available", totalWavelets);
-        } catch (Exception e) {
-            logger.error("Failed to get available wavelets", e);
-        }
-        
         // Get the wavelet type from settings and initialize
         String waveletType = getSettings().getString(WAVELET_TYPE, "db4");
-        logger.info("Initializing with wavelet type: {}", waveletType);
         
         // Force initialization
         lastWaveletType = null;
@@ -296,14 +285,16 @@ public class Wavelets extends Study {
         
         // If still not initialized, try default
         if (modwtTransform == null) {
-            logger.warn("Failed to initialize from settings, trying default wavelet");
             initializeDefaultWavelet();
         }
         
         // Set minimum bars based on current settings
         int minBars = currentWindowLength(getSettings());
         setMinBars(minBars);
-        logger.info("Set minimum bars to: {}", minBars);
+        
+        if (logger.isDebugEnabled()) {
+            logger.debug("onLoad: Initialized with wavelet={}, minBars={}", waveletType, minBars);
+        }
     }
     
     @Override
@@ -355,8 +346,22 @@ public class Wavelets extends Study {
         DataSeries series = ctx.getDataSeries();
         if (series == null) return;
         
-        // Process all bars
-        for (int i = 0; i < series.size(); i++) {
+        int size = series.size();
+        if (size == 0) return;
+        
+        // Find the first incomplete bar to start processing
+        int startIndex = size - 1;
+        for (int i = size - 1; i >= 0; i--) {
+            if (!series.isComplete(i)) {
+                startIndex = i;
+            } else {
+                // Found a complete bar, can stop looking backwards
+                break;
+            }
+        }
+        
+        // Process only incomplete bars starting from the first one found
+        for (int i = startIndex; i < size; i++) {
             if (!series.isComplete(i)) {
                 calculate(i, ctx);
             }
@@ -367,14 +372,16 @@ public class Wavelets extends Study {
     protected void calculate(int index, DataContext ctx) {
         DataSeries series = ctx.getDataSeries();
         if (series == null) {
-            logger.warn("calculate: DataSeries is null at index {}", index);
+            return;
+        }
+        
+        // Skip if already complete (avoid recalculation)
+        if (series.isComplete(index)) {
             return;
         }
         
         // Ensure wavelet components are initialized
         if (modwtTransform == null || currentWavelet == null) {
-            logger.warn("calculate: Wavelet not initialized at index {}. modwtTransform={}, currentWavelet={}", 
-                index, modwtTransform, currentWavelet);
             // Try to initialize
             checkAndUpdateSettings();
             if (modwtTransform == null || currentWavelet == null) {
@@ -384,8 +391,10 @@ public class Wavelets extends Study {
         }
         
         try {
-            // Check for wavelet type changes
-            checkAndUpdateSettings();
+            // Only check settings on first bar or settings update
+            if (index == 0 || lastWaveletType == null) {
+                checkAndUpdateSettings();
+            }
             
             // Get current settings
             int levels = getSettings().getInteger(DECOMPOSITION_LEVELS, DEFAULT_LEVELS);
@@ -395,9 +404,6 @@ public class Wavelets extends Study {
             
             // Check if we have enough data
             if (index < windowLength - 1) {
-                if (index == 0) {
-                    logger.debug("Not enough data yet. Index={}, windowLength={}", index, windowLength);
-                }
                 clearLevels(series, index);
                 return;
             }
@@ -409,15 +415,14 @@ public class Wavelets extends Study {
                 return;
             }
             
-            // Log parameters on first valid calculation
-            if (index == windowLength - 1) {
+            // Log parameters only once
+            if (index == windowLength - 1 && logger.isDebugEnabled()) {
                 logCalculationParameters(levels, windowLength);
             }
             
             // Perform MODWT decomposition
             MultiLevelMODWTResult result = modwtTransform.decompose(data, levels);
             if (result == null || !result.isValid()) {
-                logger.error("calculate: MODWT decomposition failed at index {}", index);
                 clearLevels(series, index);
                 return;
             }
@@ -465,12 +470,9 @@ public class Wavelets extends Study {
             }
         }
         
-        // Occasional logging for debugging
-        if (index == windowLength - 1 || index == series.size() - 1) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("Window at index {}: {} bars from {} to {}", 
-                    index, windowLength, Math.max(0, start), index);
-            }
+        // Only log in trace mode
+        if (logger.isTraceEnabled() && index == windowLength - 1) {
+            logger.trace("Window at index {}: {} bars", index, windowLength);
         }
         
         return window;
@@ -600,7 +602,9 @@ public class Wavelets extends Study {
                 currentWaveletName = waveletName;
                 modwtTransform = MODWTTransformFactory.createMultiLevel(
                     currentWavelet, BoundaryMode.PERIODIC);
-                logger.info("Successfully updated to wavelet: {}", waveletName);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Successfully updated to wavelet: {}", waveletName);
+                }
             } else {
                 logger.error("Failed to create wavelet: {}", waveletName);
                 // Try one more time with db4
@@ -650,8 +654,10 @@ public class Wavelets extends Study {
             
             // Cache and return
             waveletCache.put(waveletName, discrete);
-            logger.info("Created wavelet: {} (filter length: {})", 
-                       waveletName, discrete.lowPassDecomposition().length);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Created wavelet: {} (filter length: {})", 
+                           waveletName, discrete.lowPassDecomposition().length);
+            }
             return discrete;
             
         } catch (Exception e) {
@@ -673,7 +679,9 @@ public class Wavelets extends Study {
                 currentWaveletName = candidate;
                 modwtTransform = MODWTTransformFactory.createMultiLevel(
                     currentWavelet, BoundaryMode.PERIODIC);
-                logger.info("Initialized with default wavelet: {}", candidate);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Initialized with default wavelet: {}", candidate);
+                }
                 return;
             }
         }

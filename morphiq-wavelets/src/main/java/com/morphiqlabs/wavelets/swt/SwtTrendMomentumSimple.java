@@ -334,33 +334,35 @@ public class SwtTrendMomentumSimple extends Study {
     
     @Override
     public void onLoad(Defaults defaults) {
-        logger.info("onLoad: Initializing SWT Trend + Momentum study");
-        
         try {
             // Initialize wavelet adapter with current settings
             initializeAdapter();
             
             if (swtAdapter == null) {
-                logger.error("Failed to initialize SWT adapter on load");
                 // Try fallback initialization
                 swtAdapter = new VectorWaveSwtAdapter("db4");
                 lastWaveletType = "db4";
-                logger.info("Using fallback wavelet: db4");
             }
             
             // Set minimum bars based on current settings
             int minBars = calculateCurrentWindowLength();
             setMinBars(minBars);
-            logger.info("Set minimum bars to: {}", minBars);
+            
+            if (logger.isDebugEnabled()) {
+                logger.debug("onLoad: Initialized with wavelet={}, minBars={}", 
+                            lastWaveletType, minBars);
+            }
             
         } catch (Exception e) {
-            logger.error("Error during onLoad initialization", e);
             // Ensure we have at least a basic adapter
             if (swtAdapter == null) {
                 swtAdapter = new VectorWaveSwtAdapter("db4");
                 lastWaveletType = "db4";
             }
             setMinBars(DEFAULT_WINDOW);
+            if (logger.isDebugEnabled()) {
+                logger.debug("onLoad: Error during initialization, using defaults", e);
+            }
         }
     }
     
@@ -412,12 +414,22 @@ public class SwtTrendMomentumSimple extends Study {
         DataSeries series = ctx.getDataSeries();
         if (series == null) return;
         
-        if (logger.isDebugEnabled()) {
-            logger.debug("calculateValues: Processing {} bars", series.size());
+        int size = series.size();
+        if (size == 0) return;
+        
+        // Find the first incomplete bar to start processing
+        int startIndex = size - 1;
+        for (int i = size - 1; i >= 0; i--) {
+            if (!series.isComplete(i)) {
+                startIndex = i;
+            } else {
+                // Found a complete bar, can stop looking backwards
+                break;
+            }
         }
         
-        // Process all bars
-        for (int i = 0; i < series.size(); i++) {
+        // Process only incomplete bars starting from the first one found
+        for (int i = startIndex; i < size; i++) {
             if (!series.isComplete(i)) {
                 calculate(i, ctx);
             }
@@ -428,16 +440,19 @@ public class SwtTrendMomentumSimple extends Study {
     protected void calculate(int index, DataContext ctx) {
         DataSeries series = ctx.getDataSeries();
         if (series == null || series.size() == 0) {
-            logger.warn("calculate: DataSeries is null or empty at index {}", index);
+            return;
+        }
+        
+        // Skip if already complete (avoid recalculation)
+        if (series.isComplete(index)) {
             return;
         }
         
         // Ensure adapter is initialized
         if (swtAdapter == null) {
-            logger.warn("calculate: SWT adapter not initialized at index {}, initializing now", index);
             initializeAdapter();
             if (swtAdapter == null) {
-                logger.error("Failed to initialize SWT adapter, using fallback");
+                // Fallback initialization
                 swtAdapter = new VectorWaveSwtAdapter("db4");
                 lastWaveletType = "db4";
             }
@@ -455,9 +470,6 @@ public class SwtTrendMomentumSimple extends Study {
         
         // Check if we have enough data
         if (index < windowLength - 1) {
-            if (index == 0) {
-                logger.debug("Not enough data yet. Index={}, windowLength={}", index, windowLength);
-            }
             clearValues(series, index);
             return;
         }
@@ -469,8 +481,8 @@ public class SwtTrendMomentumSimple extends Study {
             return;
         }
         
-        // Log parameters on first valid calculation
-        if (index == windowLength - 1) {
+        // Log parameters only once
+        if (index == windowLength - 1 && logger.isDebugEnabled()) {
             logCalculationParameters(levels, windowLength, threshLookback);
         }
         
@@ -478,7 +490,6 @@ public class SwtTrendMomentumSimple extends Study {
             // Perform SWT/MODWT transform
             VectorWaveSwtAdapter.SwtResult swtResult = swtAdapter.transform(data, levels);
             if (swtResult == null) {
-                logger.error("SWT transform returned null at index {}", index);
                 clearValues(series, index);
                 return;
             }
@@ -535,8 +546,6 @@ public class SwtTrendMomentumSimple extends Study {
      */
     private double[] getWindowData(DataSeries series, int index, int windowLength, Object input) {
         if (series == null || windowLength <= 0) {
-            logger.error("Invalid parameters for getWindowData: series={}, windowLength={}", 
-                        series, windowLength);
             return null;
         }
         
@@ -568,7 +577,6 @@ public class SwtTrendMomentumSimple extends Study {
         }
         
         if (!hasValidData) {
-            logger.warn("No valid data found in window at index {}", index);
             return null;
         }
         
@@ -687,19 +695,17 @@ public class SwtTrendMomentumSimple extends Study {
      * Log calculation parameters for debugging
      */
     private void logCalculationParameters(int levels, int windowLength, int threshLookback) {
+        if (!logger.isDebugEnabled()) return;
+        
         String waveletType = getSettings().getString(WAVELET_TYPE, "db4");
         int filterLength = getFilterLength();
         int support = calculateEffectiveSupport(filterLength, levels);
         boolean useDenoised = getSettings().getBoolean(USE_DENOISED, DEFAULT_USE_DENOISED);
         
-        logger.info("SWT Parameters: wavelet={}, filterLength={}, levels={}, " +
-                   "effectiveSupport={}, window={}, threshLookback={}, denoised={}",
-                   waveletType, filterLength, levels, support, 
-                   windowLength, threshLookback, useDenoised);
-        
-        // Also log adapter state
-        logger.info("Adapter state: initialized={}, lastWaveletType={}", 
-                   swtAdapter != null, lastWaveletType);
+        logger.debug("SWT Parameters: wavelet={}, filterLength={}, levels={}, " +
+                    "effectiveSupport={}, window={}, threshLookback={}, denoised={}",
+                    waveletType, filterLength, levels, support, 
+                    windowLength, threshLookback, useDenoised);
     }
 
     // =============================================================================================
@@ -715,7 +721,9 @@ public class SwtTrendMomentumSimple extends Study {
         // Only recreate if wavelet type changed
         if (lastWaveletType == null || !waveletType.equals(lastWaveletType)) {
             try {
-                logger.info("Initializing SWT adapter with wavelet: {}", waveletType);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Initializing SWT adapter with wavelet: {}", waveletType);
+                }
                 VectorWaveSwtAdapter newAdapter = new VectorWaveSwtAdapter(waveletType);
                 
                 // Test the adapter to make sure it works
@@ -728,7 +736,9 @@ public class SwtTrendMomentumSimple extends Study {
                 // If test passes, use the new adapter
                 swtAdapter = newAdapter;
                 lastWaveletType = waveletType;
-                logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Successfully initialized SWT adapter with wavelet: {}", waveletType);
+                }
                 
             } catch (Exception e) {
                 logger.error("Failed to initialize SWT adapter with wavelet: {}", waveletType, e);
@@ -738,10 +748,14 @@ public class SwtTrendMomentumSimple extends Study {
                 for (String fallback : fallbacks) {
                     if (!fallback.equals(waveletType)) {
                         try {
-                            logger.info("Trying fallback wavelet: {}", fallback);
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("Trying fallback wavelet: {}", fallback);
+                            }
                             swtAdapter = new VectorWaveSwtAdapter(fallback);
                             lastWaveletType = fallback;
-                            logger.info("Successfully initialized with fallback wavelet: {}", fallback);
+                            if (logger.isDebugEnabled()) {
+                                logger.debug("Successfully initialized with fallback wavelet: {}", fallback);
+                            }
                             break;
                         } catch (Exception fe) {
                             logger.error("Fallback wavelet {} also failed", fallback, fe);
