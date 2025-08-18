@@ -160,6 +160,50 @@ mvn clean install
 5. **Sliding Window Buffers**: Efficient streaming updates for real-time processing
 6. **Logging Guards**: SLF4J `isDebugEnabled()`/`isTraceEnabled()` checks to avoid computation
 
+## MotiveWave Development Reference Documentation
+
+When developing MotiveWave studies and strategies, **ALWAYS consult these comprehensive reference documents**:
+
+### 📚 Required Reading for MotiveWave Development
+
+1. **`docs/MOTIVEWAVE_PATTERNS_AND_PRACTICES.md`**
+   - Study structure patterns and best practices
+   - Initialization, calculation, and settings patterns
+   - Strategy implementation patterns
+   - Common pitfalls and how to avoid them
+   - Signal generation and marker management
+   - State management best practices
+
+2. **`docs/MOTIVEWAVE_SDK_COMPLETE_REFERENCE.md`**
+   - Complete SDK API reference
+   - DataContext and DataSeries method signatures
+   - OrderContext for trading strategies
+   - All SDK enumerations (BarInput, MAMethod, etc.)
+   - Advanced calculation methods and optimizations
+   - Complete settings descriptors reference
+   - Performance optimization techniques
+   - Full study template with all features
+
+### ⚠️ Critical MotiveWave Rules (MUST FOLLOW)
+
+1. **NEVER call `clearFigures()`** - Causes JavaFX threading issues
+2. **NEVER override `clearState()` without calling `super.clearState()` first**
+3. **ALWAYS check for null** when using DataSeries calculation methods
+4. **ALWAYS use SDK enums** (Enums.BarInput, Enums.MAMethod, etc.) for type safety
+5. **ALWAYS use built-in calculations** from DataSeries when available (30+ methods)
+6. **NEVER use string literals for keys** - Use enums for Values and Signals
+
+### 🎯 Development Checklist for New Studies
+
+- [ ] Review both reference documents before starting
+- [ ] Use the complete study template from SDK reference as starting point
+- [ ] Follow the Tab → Group → Row pattern for settings organization
+- [ ] Implement proper null checking for all calculations
+- [ ] Use incremental calculation patterns for performance
+- [ ] Test with different bar sizes and data ranges
+- [ ] Verify signals fire correctly
+- [ ] Check memory usage with large datasets
+
 ### Dependencies
 - Java 23 - target platform
 - MotiveWave SDK (v20230627) - provided scope
