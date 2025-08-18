@@ -370,17 +370,26 @@ public class SwtTrendMomentumSimple extends Study {
     public void onSettingsUpdated(DataContext ctx) {
         logger.debug("onSettingsUpdated: Clearing state for recalculation");
         
-        // Clear cached state
+        // Clear cached state and force adapter reinitialization
         clearState();
+        
+        // Force wavelet type check on next calculation
+        lastWaveletType = null;
+        swtAdapter = null;
         
         // Update minimum bars
         setMinBars(calculateCurrentWindowLength());
         
-        // Mark all bars for recalculation
+        // Mark all bars for recalculation and clear values to force range recalculation
         DataSeries series = ctx.getDataSeries();
         if (series != null) {
+            // Clear all calculated values to ensure complete recalculation and range update
             for (int i = 0; i < series.size(); i++) {
                 series.setComplete(i, false);
+                // Clear all values - this forces MotiveWave to recalculate plot ranges
+                series.setDouble(i, Values.TREND, null);
+                series.setDouble(i, Values.MOMENTUM, null);
+                series.setDouble(i, Values.SLOPE, null);
             }
         }
         
@@ -390,7 +399,9 @@ public class SwtTrendMomentumSimple extends Study {
     
     @Override
     public void clearState() {
-        logger.debug("clearState: Resetting internal state");
+        if (logger.isDebugEnabled()) {
+            logger.debug("clearState: Resetting internal state");
+        }
         super.clearState();
         
         // Reset adapter and state
@@ -448,6 +459,18 @@ public class SwtTrendMomentumSimple extends Study {
             return;
         }
         
+        // Check if wavelet type has changed
+        String currentWaveletType = getSettings().getString(WAVELET_TYPE, "db4");
+        if (lastWaveletType == null || !currentWaveletType.equals(lastWaveletType)) {
+            // Wavelet type changed, force complete reinitialization
+            logger.info("Wavelet type changed from {} to {}, forcing reinitialization", 
+                       lastWaveletType, currentWaveletType);
+            swtAdapter = null;  // Clear old adapter
+            lastWaveletType = null;  // Force recreation
+            smoothedMomentum = null;  // Reset momentum state
+            initializeAdapter();
+        }
+        
         // Ensure adapter is initialized
         if (swtAdapter == null) {
             initializeAdapter();
@@ -492,6 +515,15 @@ public class SwtTrendMomentumSimple extends Study {
             if (swtResult == null) {
                 clearValues(series, index);
                 return;
+            }
+            
+            // Log transform details on first few bars for debugging
+            if (index < windowLength + 5 && logger.isDebugEnabled()) {
+                double[] approx = swtResult.getApproximation();
+                logger.debug("Transform at index {} with {}: approx length={}, last value={}",
+                           index, swtResult.getWaveletType(), 
+                           approx != null ? approx.length : 0,
+                           approx != null && approx.length > 0 ? approx[approx.length - 1] : "null");
             }
             
             // Calculate momentum from detail coefficients
@@ -651,16 +683,30 @@ public class SwtTrendMomentumSimple extends Study {
             // Reconstruct denoised signal from thresholded coefficients
             double[] reconstructed = swtResult.reconstruct(levels);
             if (reconstructed != null && reconstructed.length > 0) {
-                return reconstructed[reconstructed.length - 1];
+                double value = reconstructed[reconstructed.length - 1];
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Denoised trend value: {}", value);
+                }
+                return value;
             }
         } else {
             // Use raw approximation coefficients
             double[] approx = swtResult.getApproximation();
             if (approx != null && approx.length > 0) {
-                return approx[approx.length - 1];
+                double value = approx[approx.length - 1];
+                // Log the actual approximation value being used
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Extracted trend from {}: A[{}]={}, first 3=[{}, {}, {}]",
+                               swtResult.getWaveletType(), approx.length - 1, value,
+                               approx.length > 0 ? approx[0] : "N/A",
+                               approx.length > 1 ? approx[1] : "N/A", 
+                               approx.length > 2 ? approx[2] : "N/A");
+                }
+                return value;
             }
         }
         
+        logger.warn("Failed to extract trend value, returning 0.0");
         return 0.0;  // Fallback
     }
     
@@ -718,27 +764,44 @@ public class SwtTrendMomentumSimple extends Study {
     private void initializeAdapter() {
         String waveletType = getSettings().getString(WAVELET_TYPE, "db4");
         
-        // Only recreate if wavelet type changed
-        if (lastWaveletType == null || !waveletType.equals(lastWaveletType)) {
-            try {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Initializing SWT adapter with wavelet: {}", waveletType);
-                }
-                VectorWaveSwtAdapter newAdapter = new VectorWaveSwtAdapter(waveletType);
+        // Always create a new adapter to ensure wavelet is properly set
+        try {
+            logger.info("Creating new SWT adapter with wavelet: {} (was: {})", 
+                       waveletType, lastWaveletType);
+            
+            // Create completely new adapter
+            VectorWaveSwtAdapter newAdapter = new VectorWaveSwtAdapter(waveletType);
+            
+            // More comprehensive test with longer signal that works for all wavelets
+            double[] testData = new double[64];
+            for (int i = 0; i < testData.length; i++) {
+                testData[i] = Math.sin(2 * Math.PI * i / 16.0) + i * 0.1;
+            }
+            
+            VectorWaveSwtAdapter.SwtResult testResult = newAdapter.transform(testData, 2);
+            if (testResult == null) {
+                throw new RuntimeException("Adapter test failed - null result");
+            }
+            
+            // Verify we got different results for different wavelets
+            double[] testDetail = testResult.getDetail(1);
+            double[] testApprox = testResult.getApproximation();
+            if (testDetail != null && testDetail.length > 0 && testApprox != null && testApprox.length > 0) {
+                logger.info("Test transform for {}: D1[0]={}, D1[last]={}, A[0]={}, A[last]={}", 
+                           waveletType, testDetail[0], testDetail[testDetail.length - 1],
+                           testApprox[0], testApprox[testApprox.length - 1]);
                 
-                // Test the adapter to make sure it works
-                double[] testData = new double[]{1.0, 2.0, 3.0, 4.0};
-                VectorWaveSwtAdapter.SwtResult testResult = newAdapter.transform(testData, 1);
-                if (testResult == null) {
-                    throw new RuntimeException("Adapter test failed - null result");
+                // If we have a previous wavelet type, compare the results
+                if (lastWaveletType != null && !lastWaveletType.equals(waveletType)) {
+                    logger.info("Wavelet switch confirmed: {} -> {}, expecting different approximation values",
+                               lastWaveletType, waveletType);
                 }
-                
-                // If test passes, use the new adapter
-                swtAdapter = newAdapter;
-                lastWaveletType = waveletType;
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Successfully initialized SWT adapter with wavelet: {}", waveletType);
-                }
+            }
+            
+            // If test passes, use the new adapter
+            swtAdapter = newAdapter;
+            lastWaveletType = waveletType;
+            logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
                 
             } catch (Exception e) {
                 logger.error("Failed to initialize SWT adapter with wavelet: {}", waveletType, e);
@@ -770,7 +833,6 @@ public class SwtTrendMomentumSimple extends Study {
                     lastWaveletType = "db4";
                 }
             }
-        }
     }
     
     /**

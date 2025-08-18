@@ -307,11 +307,15 @@ public class Wavelets extends Study {
         // Update minimum bars
         setMinBars(currentWindowLength(getSettings()));
         
-        // Mark all bars for recalculation
+        // Mark all bars for recalculation and clear values to force range recalculation
         DataSeries series = ctx.getDataSeries();
         if (series != null) {
             for (int i = 0; i < series.size(); i++) {
                 series.setComplete(i, false);
+                // Clear all coefficient values to force range recalculation
+                for (Values v : Values.values()) {
+                    series.setDouble(i, v, null);
+                }
             }
         }
         
