@@ -31,9 +31,9 @@ class WaveletsTestSimplified {
         StudyHeader header = Wavelets.class.getAnnotation(StudyHeader.class);
         
         assertNotNull(header, "Should have StudyHeader annotation");
-        assertEquals("com.prophetizo.motivewave.studies", header.namespace());
-        assertEquals("WAVELETS", header.id());
-        assertEquals("Wavelets", header.name());
+        assertEquals("com.morphiqlabs", header.namespace());
+        assertEquals("WAVELETS_ANALYSIS", header.id());
+        assertEquals("Wavelet Analysis", header.name());
         assertFalse(header.overlay(), "Should not be an overlay");
         assertFalse(header.requiresBarUpdates(), "Should not require bar updates");
     }
@@ -74,12 +74,12 @@ class WaveletsTestSimplified {
     
     @Test
     @Order(4)
-    @DisplayName("Should have correct number of decomposition paths")
-    void testDecompositionPaths() {
-        Wavelets.Paths[] paths = Wavelets.Paths.values();
-        assertEquals(7, paths.length, "Should have 7 decomposition paths");
-        assertEquals(Wavelets.Paths.D1, paths[0], "First path should be D1");
-        assertEquals(Wavelets.Paths.D7, paths[6], "Last path should be D7");
+    @DisplayName("Should have correct number of decomposition values")
+    void testDecompositionValues() {
+        Wavelets.Values[] values = Wavelets.Values.values();
+        assertEquals(7, values.length, "Should have 7 decomposition values");
+        assertEquals(Wavelets.Values.D1, values[0], "First value should be D1");
+        assertEquals(Wavelets.Values.D7, values[6], "Last value should be D7");
     }
     
     @Test
@@ -147,10 +147,14 @@ class WaveletsTestSimplified {
         
         assertEquals(7, maxLevels, "MAX_DECOMPOSITION_LEVELS should be 7");
         
-        // Check setting keys
-        assertEquals("WAVELET_TYPE", Wavelets.WAVELET_TYPE);
-        assertEquals("DECOMPOSITION_LEVELS", Wavelets.DECOMPOSITION_LEVELS);
-        assertEquals("LOOKBACK_PERIOD", Wavelets.LOOKBACK_PERIOD);
+        // Check setting keys using reflection since they're private
+        Field waveletTypeField = Wavelets.class.getDeclaredField("WAVELET_TYPE");
+        waveletTypeField.setAccessible(true);
+        assertEquals("waveletType", waveletTypeField.get(null));
+        
+        Field decompLevelsField = Wavelets.class.getDeclaredField("DECOMPOSITION_LEVELS");
+        decompLevelsField.setAccessible(true);
+        assertEquals("decompositionLevels", decompLevelsField.get(null));
     }
     
     @Test

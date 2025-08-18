@@ -136,6 +136,16 @@ public class VectorWaveSwtAdapter {
     }
     
     /**
+     * Get the filter length for the current wavelet.
+     * The filter length is the number of coefficients in the wavelet's low-pass filter.
+     * 
+     * @return the filter length
+     */
+    public int getFilterLength() {
+        return wavelet.lowPassDecomposition().length;
+    }
+    
+    /**
      * Container for SWT transform results, holding both approximation and detail coefficients.
      * 
      * <p>This class provides methods to access and manipulate the wavelet coefficients
