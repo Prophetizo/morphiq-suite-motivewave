@@ -304,3 +304,12 @@ The `CUSTOM_WAVELET_DESIGN.md` outlines advanced features including:
 - Test thread safety with parallel execution
 - Verify Trade Lots multiplication
 - Check momentum scaling (100x factor)
+
+### Code Style and Documentation
+- **IMPORTANT: DO NOT ADD @version or @since JAVADOC TAGS**
+  - Version control is handled by Git/Maven
+  - These tags become outdated quickly and add no value
+  - Use Git history for version tracking
+- Keep JavaDoc comments focused on functionality
+- Use @author tag only for attribution
+- DO NOT ADD ANY COMMENTS unless asked

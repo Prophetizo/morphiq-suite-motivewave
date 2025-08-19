@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
  * - Real-time coefficient visualization across multiple scales
  * 
  * @author Morphiq Labs
- * @version 2.0
  */
 @StudyHeader(
     namespace = "com.morphiqlabs",

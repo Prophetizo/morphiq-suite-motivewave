@@ -37,8 +37,6 @@ import java.util.List;
  * - Threshold lookback: M = β * S (β = lookback margin, typically 4.0)
  * 
  * @author Morphiq Labs
- * @version 2.0
- * @since 2024
  */
 @StudyHeader(
     namespace = "com.morphiqlabs",
@@ -252,30 +250,37 @@ public class SwtTrendMomentumSimple extends Study {
         
         // Path configuration
         var pathsGroup = displayTab.addGroup("Paths");
+        // Store the blue color to ensure path and indicator use exact same color
+        Color trendColor = defaults.getBlue();
         pathsGroup.addRow(
             new PathDescriptor(Inputs.PATH, "Trend Line", 
-                defaults.getBlue(), 2.0f, null, true, true, true)
+                trendColor, 2.0f, null, true, true, true)
         );
         pathsGroup.addRow(
             new PathDescriptor(Inputs.PATH2, "Momentum", 
                 Color.CYAN, 1.5f, null, true, true, false)
         );
-        pathsGroup.addRow(
-            new PathDescriptor(Inputs.PATH3, "Slope", 
-                defaults.getYellow(), 1.0f, null, false, true, false)
-        );
+        // Slope path removed - slope is calculated internally for signals but not displayed
         
         // Indicator configuration
         var indicatorGroup = displayTab.addGroup("Indicators");
         indicatorGroup.addRow(
-            new IndicatorDescriptor(Inputs.IND, "Trend", null, null, false, true, true)
+            new IndicatorDescriptor(Inputs.IND, "Trend", 
+                trendColor,  // bgColor (background color) - blue background
+                Color.WHITE,  // txtColor (text color) - white text
+                false,  // showLine
+                false,  // enabled by default
+                true)   // supportsDisable
         );
         indicatorGroup.addRow(
-            new IndicatorDescriptor(MOMENTUM_IND, "Momentum", Color.CYAN, null, false, false, true)
+            new IndicatorDescriptor(MOMENTUM_IND, "Momentum", 
+                Color.CYAN,  // bgColor - cyan background
+                Color.BLACK,  // txtColor - black text for better contrast
+                false,  // showLine
+                false,  // enabled by default
+                true)   // supportsDisable
         );
-        indicatorGroup.addRow(
-            new IndicatorDescriptor(SLOPE_IND, "Slope", defaults.getYellow(), null, false, false, true)
-        );
+        // Slope indicator removed - slope is calculated internally for signals but not displayed
         
         // ---- Markers Tab ----
         var markersTab = sd.addTab("Markers");
@@ -302,7 +307,7 @@ public class SwtTrendMomentumSimple extends Study {
             new String[]{WAVELET_TYPE, DECOMPOSITION_LEVELS}));
         desc.exportValue(new ValueDescriptor(Values.MOMENTUM, "Momentum", 
             new String[]{DECOMPOSITION_LEVELS}));
-        desc.exportValue(new ValueDescriptor(Values.SLOPE, "Slope", new String[]{}));
+        // Slope is calculated internally for signals but not exported
         
         // Main plot configuration (overlay on price)
         desc.declarePath(Values.TREND, Inputs.PATH);
@@ -315,10 +320,10 @@ public class SwtTrendMomentumSimple extends Study {
         momentumPlot.setLabelSettings("Momentum");
         momentumPlot.setTabName("Momentum");
         momentumPlot.declarePath(Values.MOMENTUM, Inputs.PATH2);
-        momentumPlot.declarePath(Values.SLOPE, Inputs.PATH3);
+        // Slope path removed - calculated internally but not displayed
         momentumPlot.declareIndicator(Values.MOMENTUM, MOMENTUM_IND);
-        momentumPlot.declareIndicator(Values.SLOPE, SLOPE_IND);
-        momentumPlot.setRangeKeys(Values.MOMENTUM, Values.SLOPE);
+        // Slope indicator removed - calculated internally but not displayed
+        momentumPlot.setRangeKeys(Values.MOMENTUM);
         momentumPlot.addHorizontalLine(new LineInfo(0.0, null, 1.0f, new float[]{3, 3}));
         
         // Signal declarations
