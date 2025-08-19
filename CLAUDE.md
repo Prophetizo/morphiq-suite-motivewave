@@ -6,6 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced wavelet-based trading indicators for the MotiveWave platform. The project uses Java 23 and leverages parallel processing for high-performance signal analysis.
 
+### Important: VectorWave Dependency
+
+**VectorWave is maintained internally by our team.** When encountering issues or bugs in VectorWave:
+- **DO NOT work around VectorWave issues** - fix them directly in the VectorWave codebase
+- **DO NOT create workarounds** in Morphiq Suite - modify VectorWave source instead
+- **DO** fix bugs at their source in VectorWave for cleaner, more maintainable code
+- **DO** enhance VectorWave when new functionality is needed
+
+VectorWave source location: The VectorWave library is our internal wavelet processing engine. When issues are found (like duplicate wavelets in the registry), they should be fixed in VectorWave itself rather than worked around in consuming code.
+
 ## Recent Updates (August 2024)
 
 ### Module Consolidation (August 15, 2024)
@@ -207,7 +217,7 @@ When developing MotiveWave studies and strategies, **ALWAYS consult these compre
 ### Dependencies
 - Java 23 - target platform
 - MotiveWave SDK (v20230627) - provided scope
-- VectorWave (v1.0-SNAPSHOT) - high-performance wavelet transforms with financial analysis
+- VectorWave (v1.0-SNAPSHOT) - **INTERNAL LIBRARY** - high-performance wavelet transforms (fix issues at source, don't work around them)
 - SLF4J Simple (v2.0.17) - logging
 - JUnit 5 (v5.13.2) & Mockito (v5.14.2) - testing
 

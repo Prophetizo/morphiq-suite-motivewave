@@ -11,8 +11,14 @@ import com.motivewave.platform.sdk.study.StudyHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ai.prophetizo.wavelet.api.WaveletName;
+import ai.prophetizo.wavelet.api.WaveletRegistry;
+import ai.prophetizo.wavelet.api.TransformType;
+
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * SWT Trend + Momentum Study - Advanced trend following with momentum confirmation
@@ -168,12 +174,8 @@ public class SwtTrendMomentumSimple extends Study {
         // Wavelet configuration
         var waveletGroup = generalTab.addGroup("Wavelet Configuration");
         waveletGroup.addRow(
-            new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type", "db4",
-                Arrays.asList(
-                    new NVP("Haar", "haar"),
-                    new NVP("Daubechies 4", "db4"),
-                    new NVP("Daubechies 6", "db6")
-                ))
+            new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type", "DB4",
+                createSWTWaveletOptions())
         );
         waveletGroup.addRow(
             new IntegerDescriptor(DECOMPOSITION_LEVELS, "Decomposition Levels", 
@@ -762,7 +764,13 @@ public class SwtTrendMomentumSimple extends Study {
      * Initialize or reinitialize the SWT adapter
      */
     private void initializeAdapter() {
-        String waveletType = getSettings().getString(WAVELET_TYPE, "db4");
+        String waveletType = getSettings().getString(WAVELET_TYPE, "DB4");
+        
+        // Verify wavelet is compatible with SWT
+        if (!verifyWaveletCompatibility(waveletType)) {
+            logger.warn("Wavelet {} not compatible with SWT, using fallback DB4", waveletType);
+            waveletType = "DB4";
+        }
         
         // Always create a new adapter to ensure wavelet is properly set
         try {
@@ -911,5 +919,108 @@ public class SwtTrendMomentumSimple extends Study {
         }
         
         return settings.getInteger(THRESH_LOOKBACK, DEFAULT_THRESH_LOOKBACK);
+    }
+    
+    // =============================================================================================
+    // UI HELPERS
+    // =============================================================================================
+    
+    /**
+     * Create wavelet options for UI dropdown - only SWT-compatible wavelets
+     * Uses the new VectorWave API to get wavelets specifically compatible with SWT
+     */
+    private List<NVP> createSWTWaveletOptions() {
+        List<NVP> options = new ArrayList<>();
+        
+        try {
+            // Get wavelets specifically compatible with SWT transform
+            List<WaveletName> swtWavelets = WaveletRegistry.getWaveletsForTransform(TransformType.SWT);
+            
+            if (swtWavelets.isEmpty()) {
+                logger.warn("No SWT-compatible wavelets found, using fallbacks");
+                // Fallback options
+                options.add(new NVP("Daubechies 4", "DB4"));
+                options.add(new NVP("Haar", "HAAR"));
+                return options;
+            }
+            
+            // Use the new family-specific API methods for better organization
+            // Get wavelets by family and filter for SWT compatibility
+            List<WaveletName> daubechiesFamily = WaveletRegistry.getDaubechiesWavelets();
+            List<WaveletName> symletFamily = WaveletRegistry.getSymletWavelets();
+            List<WaveletName> coifletFamily = WaveletRegistry.getCoifletWavelets();
+            
+            // Add wavelets in family groups for better UI organization
+            // Start with Haar (simplest) - always compatible with SWT
+            if (swtWavelets.contains(WaveletName.HAAR)) {
+                options.add(new NVP("Haar", WaveletName.HAAR.name()));
+            }
+            
+            // Then Daubechies (most common) - only add if SWT compatible
+            for (WaveletName wavelet : daubechiesFamily) {
+                if (swtWavelets.contains(wavelet)) {
+                    options.add(new NVP(wavelet.getDescription(), wavelet.name()));
+                }
+            }
+            
+            // Then Symlets - only add if SWT compatible
+            for (WaveletName wavelet : symletFamily) {
+                if (swtWavelets.contains(wavelet)) {
+                    options.add(new NVP(wavelet.getDescription(), wavelet.name()));
+                }
+            }
+            
+            // Finally Coiflets - only add if SWT compatible
+            for (WaveletName wavelet : coifletFamily) {
+                if (swtWavelets.contains(wavelet)) {
+                    options.add(new NVP(wavelet.getDescription(), wavelet.name()));
+                }
+            }
+            
+            logger.info("Created {} SWT-compatible wavelet options", options.size());
+            
+            // Log family breakdown for debugging
+            if (logger.isDebugEnabled()) {
+                int haarCount = swtWavelets.contains(WaveletName.HAAR) ? 1 : 0;
+                int daubechiesCount = (int) daubechiesFamily.stream().filter(swtWavelets::contains).count();
+                int symletCount = (int) symletFamily.stream().filter(swtWavelets::contains).count();
+                int coifletCount = (int) coifletFamily.stream().filter(swtWavelets::contains).count();
+                logger.debug("SWT wavelets by family: Haar={}, Daubechies={}, Symlets={}, Coiflets={}",
+                           haarCount, daubechiesCount, symletCount, coifletCount);
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error creating SWT wavelet options", e);
+            // Provide fallback options
+            if (options.isEmpty()) {
+                options.add(new NVP("Haar", "HAAR"));
+                options.add(new NVP("Daubechies 2", "DB2"));
+                options.add(new NVP("Daubechies 4", "DB4"));
+                options.add(new NVP("Daubechies 6", "DB6"));
+                options.add(new NVP("Symlet 4", "SYM4"));
+            }
+        }
+        
+        return options;
+    }
+    
+    /**
+     * Verify wavelet compatibility with SWT before initialization
+     * This ensures we only use wavelets that are guaranteed to work with SWT
+     */
+    private boolean verifyWaveletCompatibility(String waveletName) {
+        try {
+            WaveletName wavelet = WaveletName.valueOf(waveletName.toUpperCase());
+            boolean compatible = WaveletRegistry.isCompatible(wavelet, TransformType.SWT);
+            
+            if (!compatible) {
+                logger.warn("Wavelet {} is not compatible with SWT transform", waveletName);
+            }
+            
+            return compatible;
+        } catch (Exception e) {
+            logger.error("Error verifying wavelet compatibility: {}", waveletName, e);
+            return false;
+        }
     }
 }

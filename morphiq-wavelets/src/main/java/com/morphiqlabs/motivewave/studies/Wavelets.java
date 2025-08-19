@@ -9,6 +9,7 @@ import com.motivewave.platform.sdk.study.StudyHeader;
 import ai.prophetizo.wavelet.api.BoundaryMode;
 import ai.prophetizo.wavelet.api.DiscreteWavelet;
 import ai.prophetizo.wavelet.api.Wavelet;
+import ai.prophetizo.wavelet.api.WaveletName;
 import ai.prophetizo.wavelet.api.WaveletRegistry;
 import ai.prophetizo.wavelet.modwt.MODWTTransformFactory;
 import ai.prophetizo.wavelet.modwt.MultiLevelMODWTResult;
@@ -21,6 +22,7 @@ import java.awt.*;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Wavelets Study - Multi-resolution analysis using MODWT (Maximal Overlap Discrete Wavelet Transform)
@@ -137,11 +139,11 @@ public class Wavelets extends Study {
     // Wavelet transform components
     private MultiLevelMODWTTransform modwtTransform;
     private DiscreteWavelet currentWavelet;
-    private String currentWaveletName;
-    private String lastWaveletType = null;
+    private WaveletName currentWaveletName;
+    private WaveletName lastWaveletType = null;
     
     // Performance optimization: cache wavelets to avoid recreation
-    private final Map<String, DiscreteWavelet> waveletCache = new ConcurrentHashMap<>();
+    private final Map<WaveletName, DiscreteWavelet> waveletCache = new ConcurrentHashMap<>();
     
     // =============================================================================================
     // INITIALIZATION - Following Tab → Group → Row pattern
@@ -571,7 +573,8 @@ public class Wavelets extends Study {
      * Check and update wavelet settings if changed
      */
     private void checkAndUpdateSettings() {
-        String waveletType = getSettings().getString(WAVELET_TYPE, "db4");
+        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, "DB4");
+        WaveletName waveletType = parseWaveletName(waveletTypeStr);
         boolean changed = (lastWaveletType == null) || !waveletType.equals(lastWaveletType);
         
         if (changed || currentWavelet == null) {
@@ -581,16 +584,36 @@ public class Wavelets extends Study {
     }
     
     /**
+     * Parse wavelet name string to WaveletName enum
+     */
+    private WaveletName parseWaveletName(String name) {
+        if (name == null) return WaveletName.DB4;
+        
+        // Convert common formats to enum names
+        String normalized = name.toUpperCase()
+            .replace("DAUBECHIES", "DB")
+            .replace("SYMLET", "SYM")
+            .replace("COIFLET", "COIF");
+        
+        try {
+            return WaveletName.valueOf(normalized);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Unknown wavelet name: {}, using DB4", name);
+            return WaveletName.DB4;
+        }
+    }
+    
+    /**
      * Update wavelet transform components
      */
-    private void updateWaveletComponents(String waveletName) {
+    private void updateWaveletComponents(WaveletName waveletName) {
         try {
             // Validate wavelet availability
             if (!WaveletRegistry.isWaveletAvailable(waveletName)) {
                 logger.warn("updateWaveletComponents: Wavelet {} not available, trying fallback", waveletName);
                 // Try fallback wavelets
-                String[] fallbacks = {"db4", "haar", "db2"};
-                for (String fallback : fallbacks) {
+                WaveletName[] fallbacks = {WaveletName.DB4, WaveletName.HAAR, WaveletName.DB2};
+                for (WaveletName fallback : fallbacks) {
                     if (WaveletRegistry.isWaveletAvailable(fallback)) {
                         logger.info("Using fallback wavelet: {}", fallback);
                         waveletName = fallback;
@@ -611,10 +634,10 @@ public class Wavelets extends Study {
                 }
             } else {
                 logger.error("Failed to create wavelet: {}", waveletName);
-                // Try one more time with db4
-                if (!"db4".equals(waveletName)) {
-                    logger.info("Attempting final fallback to db4");
-                    updateWaveletComponents("db4");
+                // Try one more time with DB4
+                if (waveletName != WaveletName.DB4) {
+                    logger.info("Attempting final fallback to DB4");
+                    updateWaveletComponents(WaveletName.DB4);
                 }
             }
         } catch (Exception e) {
@@ -625,8 +648,8 @@ public class Wavelets extends Study {
     /**
      * Get wavelet from cache or create new instance
      */
-    private DiscreteWavelet getOrCreateWavelet(String waveletName) {
-        if (waveletName == null || waveletName.trim().isEmpty()) {
+    private DiscreteWavelet getOrCreateWavelet(WaveletName waveletName) {
+        if (waveletName == null) {
             return null;
         }
         
@@ -674,9 +697,9 @@ public class Wavelets extends Study {
      * Initialize with default wavelet
      */
     private void initializeDefaultWavelet() {
-        String[] candidates = {"db4", "haar", "db2", "sym4"};
+        WaveletName[] candidates = {WaveletName.DB4, WaveletName.HAAR, WaveletName.DB2, WaveletName.SYM4};
         
-        for (String candidate : candidates) {
+        for (WaveletName candidate : candidates) {
             DiscreteWavelet wavelet = getOrCreateWavelet(candidate);
             if (wavelet != null) {
                 currentWavelet = wavelet;
@@ -757,11 +780,11 @@ public class Wavelets extends Study {
         }
         
         // Fallback based on known wavelets
-        return switch (currentWaveletName != null ? currentWaveletName.toLowerCase() : "") {
-            case "haar" -> 2;
-            case "db6" -> 12;
-            case "db8" -> 16;
-            case "sym8" -> 16;
+        return switch (currentWaveletName != null ? currentWaveletName : WaveletName.DB4) {
+            case HAAR -> 2;
+            case DB6 -> 12;
+            case DB8 -> 16;
+            case SYM8 -> 16;
             default -> 8;  // db4 default
         };
     }
@@ -904,37 +927,47 @@ public class Wavelets extends Study {
     
     /**
      * Create wavelet options for UI dropdown
+     * Following WaveletRegistry best practices - using type-specific queries
      */
     private List<NVP> createWaveletOptions() {
         List<NVP> options = new ArrayList<>();
-        Set<String> added = new HashSet<>();
+        Set<WaveletName> added = new HashSet<>();
         
         try {
-            List<String> available = WaveletRegistry.getOrthogonalWavelets();
+            // Use type-specific query as per best practices - now returns List<WaveletName>
+            List<WaveletName> available = WaveletRegistry.getOrthogonalWavelets();
             
             if (available.isEmpty()) {
                 // Fallback options
-                options.add(new NVP("Daubechies 4", "db4"));
-                options.add(new NVP("Haar", "haar"));
+                options.add(new NVP("Daubechies 4", "DB4"));
+                options.add(new NVP("Haar", "HAAR"));
                 return options;
             }
             
             // Preferred wavelets in order
-            String[] preferred = {"haar", "db2", "db4", "db6", "db8", 
-                                 "sym4", "sym6", "sym8", 
-                                 "coif1", "coif2", "coif3", "coif4"};
+            WaveletName[] preferred = {
+                WaveletName.HAAR, WaveletName.DB2, WaveletName.DB4, WaveletName.DB6, WaveletName.DB8, WaveletName.DB10,
+                WaveletName.SYM2, WaveletName.SYM3, WaveletName.SYM4, WaveletName.SYM5, 
+                WaveletName.SYM6, WaveletName.SYM7, WaveletName.SYM8, WaveletName.SYM10,
+                WaveletName.COIF1, WaveletName.COIF2, WaveletName.COIF3, WaveletName.COIF4, WaveletName.COIF5
+            };
             
             // Add preferred wavelets first
-            for (String wavelet : preferred) {
+            for (WaveletName wavelet : preferred) {
                 if (available.contains(wavelet) && added.add(wavelet)) {
-                    options.add(new NVP(getWaveletDisplayName(wavelet), wavelet));
+                    options.add(new NVP(getWaveletDisplayName(wavelet), wavelet.name()));
                 }
             }
             
-            // Add remaining wavelets
-            for (String wavelet : available) {
+            // Add remaining wavelets (excluding already added)
+            List<WaveletName> remaining = available.stream()
+                .filter(w -> !added.contains(w))
+                .sorted() // Sort alphabetically for consistency
+                .collect(Collectors.toList());
+                
+            for (WaveletName wavelet : remaining) {
                 if (added.add(wavelet)) {
-                    options.add(new NVP(getWaveletDisplayName(wavelet), wavelet));
+                    options.add(new NVP(getWaveletDisplayName(wavelet), wavelet.name()));
                 }
             }
             
@@ -943,8 +976,10 @@ public class Wavelets extends Study {
         } catch (Exception e) {
             logger.error("Error creating wavelet options", e);
             // Provide fallback options
-            options.add(new NVP("Daubechies 4", "db4"));
-            options.add(new NVP("Haar", "haar"));
+            if (options.isEmpty()) {
+                options.add(new NVP("Daubechies 4", "DB4"));
+                options.add(new NVP("Haar", "HAAR"));
+            }
         }
         
         return options;
@@ -953,27 +988,33 @@ public class Wavelets extends Study {
     /**
      * Get display name for wavelet
      */
-    private String getWaveletDisplayName(String waveletName) {
+    private String getWaveletDisplayName(WaveletName waveletName) {
         if (waveletName == null) return "Unknown";
         
-        return switch (waveletName.toLowerCase()) {
-            case "haar" -> "Haar";
-            case "db2" -> "Daubechies 2";
-            case "db4" -> "Daubechies 4";
-            case "db6" -> "Daubechies 6";
-            case "db8" -> "Daubechies 8";
-            case "db10" -> "Daubechies 10";
-            case "sym2" -> "Symlet 2";
-            case "sym4" -> "Symlet 4";
-            case "sym6" -> "Symlet 6";
-            case "sym8" -> "Symlet 8";
-            case "sym10" -> "Symlet 10";
-            case "coif1" -> "Coiflet 1";
-            case "coif2" -> "Coiflet 2";
-            case "coif3" -> "Coiflet 3";
-            case "coif4" -> "Coiflet 4";
-            case "coif5" -> "Coiflet 5";
-            default -> waveletName.toUpperCase();
+        return switch (waveletName) {
+            case HAAR -> "Haar";
+            case DB2 -> "Daubechies 2";
+            case DB4 -> "Daubechies 4";
+            case DB6 -> "Daubechies 6";
+            case DB8 -> "Daubechies 8";
+            case DB10 -> "Daubechies 10";
+            case SYM2 -> "Symlet 2";
+            case SYM3 -> "Symlet 3";
+            case SYM4 -> "Symlet 4";
+            case SYM5 -> "Symlet 5";
+            case SYM6 -> "Symlet 6";
+            case SYM7 -> "Symlet 7";
+            case SYM8 -> "Symlet 8";
+            case SYM10 -> "Symlet 10";
+            case SYM12 -> "Symlet 12";
+            case SYM15 -> "Symlet 15";
+            case SYM20 -> "Symlet 20";
+            case COIF1 -> "Coiflet 1";
+            case COIF2 -> "Coiflet 2";
+            case COIF3 -> "Coiflet 3";
+            case COIF4 -> "Coiflet 4";
+            case COIF5 -> "Coiflet 5";
+            default -> waveletName.name();
         };
     }
 }
