@@ -7,6 +7,7 @@ import com.morphiqlabs.wavelets.swt.core.Thresholds;
 import com.morphiqlabs.wavelets.swt.core.VectorWaveSwtAdapter;
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
+import com.motivewave.platform.sdk.draw.Marker;
 import com.motivewave.platform.sdk.study.Plot;
 import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
@@ -721,8 +722,14 @@ public class SwtTrendMomentumSimple extends Study {
         if (momentum > momentumThreshold && slope > minSlope) {
             MarkerInfo marker = getSettings().getMarker(Signals.LONG.name());
             if (marker != null && marker.isEnabled()) {
+                // Signal for strategies
                 ctx.signal(index, Signals.LONG, "Long Signal", series.getClose(index));
                 series.setBoolean(index, Signals.LONG, true);
+                
+                // Add visible marker to chart
+                double price = series.getClose(index);
+                Coordinate coord = new Coordinate(series.getStartTime(index), price);
+                addFigure(new Marker(coord, Enums.Position.BOTTOM, marker));
             }
         }
         
@@ -730,8 +737,14 @@ public class SwtTrendMomentumSimple extends Study {
         if (momentum < -momentumThreshold && slope < -minSlope) {
             MarkerInfo marker = getSettings().getMarker(Signals.SHORT.name());
             if (marker != null && marker.isEnabled()) {
+                // Signal for strategies
                 ctx.signal(index, Signals.SHORT, "Short Signal", series.getClose(index));
                 series.setBoolean(index, Signals.SHORT, true);
+                
+                // Add visible marker to chart
+                double price = series.getClose(index);
+                Coordinate coord = new Coordinate(series.getStartTime(index), price);
+                addFigure(new Marker(coord, Enums.Position.TOP, marker));
             }
         }
     }
@@ -763,75 +776,12 @@ public class SwtTrendMomentumSimple extends Study {
     private void initializeAdapter() {
         String waveletType = getSettings().getString(WAVELET_TYPE, "DB4");
         
-        // Always create a new adapter to ensure wavelet is properly set
-        try {
-            logger.info("Creating new SWT adapter with wavelet: {} (was: {})", 
-                       waveletType, lastWaveletType);
-            
-            // Create completely new adapter
-            VectorWaveSwtAdapter newAdapter = new VectorWaveSwtAdapter(waveletType);
-            
-            // More comprehensive test with longer signal that works for all wavelets
-            double[] testData = new double[64];
-            for (int i = 0; i < testData.length; i++) {
-                testData[i] = Math.sin(2 * Math.PI * i / 16.0) + i * 0.1;
-            }
-            
-            VectorWaveSwtAdapter.SwtResult testResult = newAdapter.transform(testData, 2);
-            if (testResult == null) {
-                throw new RuntimeException("Adapter test failed - null result");
-            }
-            
-            // Verify we got different results for different wavelets
-            double[] testDetail = testResult.getDetail(1);
-            double[] testApprox = testResult.getApproximation();
-            if (testDetail != null && testDetail.length > 0 && testApprox != null && testApprox.length > 0) {
-                logger.info("Test transform for {}: D1[0]={}, D1[last]={}, A[0]={}, A[last]={}", 
-                           waveletType, testDetail[0], testDetail[testDetail.length - 1],
-                           testApprox[0], testApprox[testApprox.length - 1]);
-                
-                // If we have a previous wavelet type, compare the results
-                if (lastWaveletType != null && !lastWaveletType.equals(waveletType)) {
-                    logger.info("Wavelet switch confirmed: {} -> {}, expecting different approximation values",
-                               lastWaveletType, waveletType);
-                }
-            }
-            
-            // If test passes, use the new adapter
-            swtAdapter = newAdapter;
-            lastWaveletType = waveletType;
-            logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
-                
-            } catch (Exception e) {
-                logger.error("Failed to initialize SWT adapter with wavelet: {}", waveletType, e);
-                
-                // Try fallback wavelets
-                String[] fallbacks = {"db4", "haar", "db6"};
-                for (String fallback : fallbacks) {
-                    if (!fallback.equals(waveletType)) {
-                        try {
-                            if (logger.isDebugEnabled()) {
-                                logger.debug("Trying fallback wavelet: {}", fallback);
-                            }
-                            swtAdapter = new VectorWaveSwtAdapter(fallback);
-                            lastWaveletType = fallback;
-                            if (logger.isDebugEnabled()) {
-                                logger.debug("Successfully initialized with fallback wavelet: {}", fallback);
-                            }
-                            break;
-                        } catch (Exception fe) {
-                            logger.error("Fallback wavelet {} also failed", fallback, fe);
-                        }
-                    }
-                }
-                
-                // If all fallbacks fail, ensure we have something
-                if (swtAdapter == null) {
-                    logger.error("All wavelet initializations failed, using final fallback");
-                    swtAdapter = new VectorWaveSwtAdapter("db4");
-                    lastWaveletType = "db4";
-                }
-            }
+        logger.info("Creating new SWT adapter with wavelet: {} (was: {})", 
+                   waveletType, lastWaveletType);
+        
+        swtAdapter = new VectorWaveSwtAdapter(waveletType);
+        lastWaveletType = waveletType;
+        logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
     }
     
     /**
