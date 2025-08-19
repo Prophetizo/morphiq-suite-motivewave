@@ -57,8 +57,10 @@ public class StateChangeSignal {
         if (magnitude < 0) {
             // Log a warning for negative magnitude since it will be converted to positive
             // This helps developers catch potential logic errors
-            logger.warn("Negative magnitude provided ({}), converting to positive: {}", 
-                magnitude, Math.abs(magnitude));
+            if (logger.isWarnEnabled()) {
+                logger.warn("Negative magnitude provided ({}), converting to positive: {}", 
+                    magnitude, Math.abs(magnitude));
+            }
         }
         
         this.type = type;

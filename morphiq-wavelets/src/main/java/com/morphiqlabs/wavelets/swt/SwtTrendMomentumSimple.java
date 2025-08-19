@@ -1,23 +1,20 @@
 package com.morphiqlabs.wavelets.swt;
 
+import ai.prophetizo.wavelet.api.TransformType;
+import ai.prophetizo.wavelet.api.WaveletName;
+import ai.prophetizo.wavelet.api.WaveletRegistry;
 import com.morphiqlabs.wavelets.swt.core.Thresholds;
 import com.morphiqlabs.wavelets.swt.core.VectorWaveSwtAdapter;
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.study.Plot;
-import com.motivewave.platform.sdk.study.RuntimeDescriptor;
 import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ai.prophetizo.wavelet.api.WaveletName;
-import ai.prophetizo.wavelet.api.WaveletRegistry;
-import ai.prophetizo.wavelet.api.TransformType;
-
 import java.awt.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -45,7 +42,7 @@ import java.util.List;
 @StudyHeader(
     namespace = "com.morphiqlabs",
     id = "SWT_TREND_MOMENTUM_SIMPLE",
-    name = "SWT Trend + Momentum",
+    name = "SWT Trend + Momentum - SIMPLE",
     desc = "Advanced trend following with SWT/MODWT and momentum confirmation",
     menu = "Morphiq Labs",
     overlay = true,
@@ -463,7 +460,7 @@ public class SwtTrendMomentumSimple extends Study {
         
         // Check if wavelet type has changed
         String currentWaveletType = getSettings().getString(WAVELET_TYPE, "db4");
-        if (lastWaveletType == null || !currentWaveletType.equals(lastWaveletType)) {
+        if (!currentWaveletType.equals(lastWaveletType)) {
             // Wavelet type changed, force complete reinitialization
             logger.info("Wavelet type changed from {} to {}, forcing reinitialization", 
                        lastWaveletType, currentWaveletType);
