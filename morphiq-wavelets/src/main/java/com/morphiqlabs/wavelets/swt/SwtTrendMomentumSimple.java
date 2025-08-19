@@ -763,12 +763,6 @@ public class SwtTrendMomentumSimple extends Study {
     private void initializeAdapter() {
         String waveletType = getSettings().getString(WAVELET_TYPE, "DB4");
         
-        // Verify wavelet is compatible with SWT
-        if (!verifyWaveletCompatibility(waveletType)) {
-            logger.warn("Wavelet {} not compatible with SWT, using fallback DB4", waveletType);
-            waveletType = "DB4";
-        }
-        
         // Always create a new adapter to ensure wavelet is properly set
         try {
             logger.info("Creating new SWT adapter with wavelet: {} (was: {})", 
@@ -983,25 +977,5 @@ public class SwtTrendMomentumSimple extends Study {
         }
         
         return options;
-    }
-    
-    /**
-     * Verify wavelet compatibility with SWT before initialization
-     * This ensures we only use wavelets that are guaranteed to work with SWT
-     */
-    private boolean verifyWaveletCompatibility(String waveletName) {
-        try {
-            WaveletName wavelet = WaveletName.valueOf(waveletName.toUpperCase());
-            boolean compatible = WaveletRegistry.isCompatible(wavelet, TransformType.SWT);
-            
-            if (!compatible) {
-                logger.warn("Wavelet {} is not compatible with SWT transform", waveletName);
-            }
-            
-            return compatible;
-        } catch (Exception e) {
-            logger.error("Error verifying wavelet compatibility: {}", waveletName, e);
-            return false;
-        }
     }
 }
