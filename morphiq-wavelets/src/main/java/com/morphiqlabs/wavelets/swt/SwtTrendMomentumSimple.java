@@ -933,14 +933,6 @@ public class SwtTrendMomentumSimple extends Study {
             // Get wavelets specifically compatible with SWT transform
             List<WaveletName> swtWavelets = WaveletRegistry.getWaveletsForTransform(TransformType.SWT);
             
-            if (swtWavelets.isEmpty()) {
-                logger.warn("No SWT-compatible wavelets found, using fallbacks");
-                // Fallback options
-                options.add(new NVP("Daubechies 4", "DB4"));
-                options.add(new NVP("Haar", "HAAR"));
-                return options;
-            }
-            
             // Use the new family-specific API methods for better organization
             // Get wavelets by family and filter for SWT compatibility
             List<WaveletName> daubechiesFamily = WaveletRegistry.getDaubechiesWavelets();
@@ -988,14 +980,6 @@ public class SwtTrendMomentumSimple extends Study {
             
         } catch (Exception e) {
             logger.error("Error creating SWT wavelet options", e);
-            // Provide fallback options
-            if (options.isEmpty()) {
-                options.add(new NVP("Haar", "HAAR"));
-                options.add(new NVP("Daubechies 2", "DB2"));
-                options.add(new NVP("Daubechies 4", "DB4"));
-                options.add(new NVP("Daubechies 6", "DB6"));
-                options.add(new NVP("Symlet 4", "SYM4"));
-            }
         }
         
         return options;
