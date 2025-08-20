@@ -102,7 +102,6 @@ public class SwtTrendMomentumSimple extends Study {
     // Plot and indicator keys
     private static final String MOMENTUM_PLOT = "momentumPlot";
     private static final String MOMENTUM_IND = "momentumInd";
-    private static final String SLOPE_IND = "slopeInd";
 
     // =============================================================================================
     // DEFAULTS AND LIMITS
