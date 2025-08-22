@@ -543,12 +543,12 @@ public class SwtTrendMomentumStudy extends Study {
         
         // General settings
         var generalTab = sd.addTab("General");
-        var waveletGroup = generalTab.addGroup("Wavelet Configuration");
+        var inputsGroup = generalTab.addGroup("Inputs");
         
         List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
-        waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE, "db4", waveletOptions));
-        waveletGroup.addRow(new IntegerDescriptor(LEVELS, "Decomposition Levels", 5, 2, 8, 1));
-        waveletGroup.addRow(new IntegerDescriptor(WINDOW_LENGTH, "Window Length (bars)", 512, 256, 4096, 256));
+        inputsGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE, "db4", waveletOptions));
+        inputsGroup.addRow(new IntegerDescriptor(LEVELS, "Decomposition Levels", 5, 2, 8, 1));
+        inputsGroup.addRow(new IntegerDescriptor(WINDOW_LENGTH, "Window Length (bars)", 512, 256, 4096, 256));
         
         var thresholdGroup = generalTab.addGroup("Thresholding");
         thresholdGroup.addRow(new DiscreteDescriptor(THRESHOLD_METHOD, "Threshold Method", "Universal",
@@ -564,24 +564,24 @@ public class SwtTrendMomentumStudy extends Study {
                 )));
         thresholdGroup.addRow(new BooleanDescriptor(USE_DENOISED, "Use Denoised Signal", false));
         
-        var signalGroup = generalTab.addGroup("Signal Configuration");
-        signalGroup.addRow(new IntegerDescriptor(DETAIL_CONFIRM_K, "Detail Confirmation (k)", 2, 1, 3, 1));
-        signalGroup.addRow(new DiscreteDescriptor(MOMENTUM_TYPE, "Momentum Calculation", "SUM",
+        // Signals tab - consolidated signal generation settings
+        var signalsTab = sd.addTab("Signals");
+        var signalGenGroup = signalsTab.addGroup("Signal Generation");
+        signalGenGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
+        signalGenGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
+        signalGenGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
+        signalGenGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
+        
+        var momentumGroup = signalsTab.addGroup("Momentum Configuration");
+        momentumGroup.addRow(new IntegerDescriptor(DETAIL_CONFIRM_K, "Detail Confirmation (k)", 2, 1, 3, 1));
+        momentumGroup.addRow(new DiscreteDescriptor(MOMENTUM_TYPE, "Momentum Calculation", "SUM",
                 Arrays.asList(
                         new NVP("SUM", "Sum of Details (D₁ + D₂ + ...)"),
                         new NVP("SIGN", "Sign Count (±1 per level)"),
-                        new NVP("SIMPLE", "Simple (Level 1 only, no weighting)")
+                        new NVP("SIMPLE", "Simple (Level 1 only)")
                 )));
-        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
-        signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
-        // Note: Min Slope Threshold is in absolute price points (0.05 = 0.05 point minimum move, NOT percentage)
-        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
-        // Note: Momentum smoothing alpha - 0.1 = heavy smoothing, 0.5 = balanced, 0.9 = minimal smoothing
-        signalGroup.addRow(new IntegerDescriptor(MOMENTUM_WINDOW, "Momentum Window (bars)", DEFAULT_MOMENTUM_WINDOW, 5, 50, 1));
-        // Note: Number of bars used for RMS energy calculation
-        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SCALING_FACTOR, "Momentum Scaling Factor", DEFAULT_MOMENTUM_SCALING_FACTOR, 1.0, 1000.0, 1.0));
-        // Note: Scaling factor to improve momentum visibility (100.0 = 100x amplification)
-        signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
+        momentumGroup.addRow(new IntegerDescriptor(MOMENTUM_WINDOW, "Momentum Window (bars)", DEFAULT_MOMENTUM_WINDOW, 5, 50, 1));
+        momentumGroup.addRow(new DoubleDescriptor(MOMENTUM_SCALING_FACTOR, "Momentum Scaling Factor", DEFAULT_MOMENTUM_SCALING_FACTOR, 1.0, 1000.0, 1.0));
         
         // Display settings
         var displayTab = sd.addTab("Display");
@@ -592,25 +592,7 @@ public class SwtTrendMomentumStudy extends Study {
         
         var watrGroup = displayTab.addGroup("Wavelet ATR");
         watrGroup.addRow(new BooleanDescriptor(SHOW_WATR, "Show WATR Bands", false));
-        watrGroup.addRow(new IntegerDescriptor(WATR_K, "WATR Detail Levels", 2, 1, 3, 1));
         watrGroup.addRow(new DoubleDescriptor(WATR_MULTIPLIER, "WATR Multiplier", 2.0, 1.0, 5.0, 0.1));
-        
-        // Add scaling configuration
-        watrGroup.addRow(new DiscreteDescriptor(WATR_SCALE_METHOD, "WATR Scaling Method", "SQRT",
-                Arrays.asList(
-                        new NVP("LINEAR", "Linear (direct multiplication)"),
-                        new NVP("SQRT", "Square Root (dampened scaling)"),
-                        new NVP("LOG", "Logarithmic (compressed scaling)"),
-                        new NVP("ADAPTIVE", "Adaptive (volatility-based)")
-                )));
-        watrGroup.addRow(new DoubleDescriptor(WATR_SCALE_FACTOR, "WATR Scale Factor", 
-                DEFAULT_SQRT_FACTOR, 0.01, 1000.0, 0.1));
-        watrGroup.addRow(new DoubleDescriptor(WATR_LEVEL_DECAY, "WATR Level Weight Decay", 
-                0.5, 0.1, 1.0, 0.05));
-        // Note: Level Weight Decay controls contribution of coarser scales
-        // - 0.3-0.4: More weight on coarser scales (trending markets)
-        // - 0.5-0.6: Balanced weighting (default)
-        // - 0.7-0.8: More weight on finer scales (volatile/choppy markets)
         
         watrGroup.addRow(new PathDescriptor(WATR_UPPER_PATH, "WATR Upper Band",
                 new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
@@ -618,21 +600,36 @@ public class SwtTrendMomentumStudy extends Study {
                 new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
         
         // Momentum plot paths
-        var momentumGroup = displayTab.addGroup("Momentum Display");
-        momentumGroup.addRow(new PathDescriptor(MOMENTUM_SUM_PATH, "Cross-Scale Momentum",
+        var momentumPlotGroup = displayTab.addGroup("Momentum Plot");
+        momentumPlotGroup.addRow(new PathDescriptor(MOMENTUM_SUM_PATH, "Momentum Line",
                 new Color(0, 200, 150), 2.0f, null, true, true, true));
-        momentumGroup.addRow(new PathDescriptor(SLOPE_PATH, "Trend Slope",
+        momentumPlotGroup.addRow(new PathDescriptor(SLOPE_PATH, "Slope Line",
                 new Color(200, 150, 0), 1.5f, null, true, false, true));
         
-        // Markers tab
-        var markersTab = sd.addTab("Markers");
-        var markersGroup = markersTab.addGroup("State Markers");
-        markersGroup.addRow(new MarkerDescriptor(LONG_MARKER, "Long State", 
+        // Add markers to Display tab instead of separate tab
+        var markersGroup = displayTab.addGroup("Markers");
+        markersGroup.addRow(new MarkerDescriptor(LONG_MARKER, "Long Signal", 
                 Enums.MarkerType.TRIANGLE, Enums.Size.SMALL, 
                 new Color(0, 200, 0), new Color(0, 150, 0), true, true));
-        markersGroup.addRow(new MarkerDescriptor(SHORT_MARKER, "Short State",
+        markersGroup.addRow(new MarkerDescriptor(SHORT_MARKER, "Short Signal",
                 Enums.MarkerType.TRIANGLE, Enums.Size.SMALL,
                 new Color(200, 0, 0), new Color(150, 0, 0), true, true));
+        
+        // Advanced settings tab
+        var advancedTab = sd.addTab("Advanced");
+        var watrAdvancedGroup = advancedTab.addGroup("WATR Configuration");
+        watrAdvancedGroup.addRow(new IntegerDescriptor(WATR_K, "WATR Detail Levels", 2, 1, 3, 1));
+        watrAdvancedGroup.addRow(new DiscreteDescriptor(WATR_SCALE_METHOD, "WATR Scaling Method", "SQRT",
+                Arrays.asList(
+                        new NVP("LINEAR", "Linear"),
+                        new NVP("SQRT", "Square Root"),
+                        new NVP("LOG", "Logarithmic"),
+                        new NVP("ADAPTIVE", "Adaptive")
+                )));
+        watrAdvancedGroup.addRow(new DoubleDescriptor(WATR_SCALE_FACTOR, "WATR Scale Factor", 
+                DEFAULT_SQRT_FACTOR, 0.01, 1000.0, 0.1));
+        watrAdvancedGroup.addRow(new DoubleDescriptor(WATR_LEVEL_DECAY, "Level Weight Decay", 
+                0.5, 0.1, 1.0, 0.05));
         
         // Create Runtime Descriptor using the standard pattern
         var desc = createRD();

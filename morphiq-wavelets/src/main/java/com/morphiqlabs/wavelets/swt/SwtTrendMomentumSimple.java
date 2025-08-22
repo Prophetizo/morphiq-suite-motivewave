@@ -43,7 +43,7 @@ import java.util.List;
     id = "SWT_TREND_MOMENTUM_SIMPLE",
     name = "SWT Trend + Momentum - SIMPLE",
     desc = "Advanced trend following with SWT/MODWT and momentum confirmation",
-    menu = "Morphiq Labs",
+    menu = "MorphIQ Labs",
     overlay = true,
     signals = true,
     requiresBarUpdates = true,
@@ -175,11 +175,11 @@ public class SwtTrendMomentumSimple extends Study {
         var generalTab = sd.addTab("General");
 
         // Input configuration
-        var inputGroup = generalTab.addGroup("Input");
-        inputGroup.addRow(new InputDescriptor(Inputs.INPUT, "Input", Enums.BarInput.CLOSE));
+        var inputsGroup = generalTab.addGroup("Inputs");
+        inputsGroup.addRow(new InputDescriptor(Inputs.INPUT, "Input", Enums.BarInput.CLOSE));
 
         // Wavelet configuration
-        var waveletGroup = generalTab.addGroup("Wavelet Configuration");
+        var waveletGroup = generalTab.addGroup("Wavelet Transform");
         waveletGroup.addRow(
             new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type", "DB4",
                 createSWTWaveletOptions())
@@ -193,7 +193,7 @@ public class SwtTrendMomentumSimple extends Study {
         );
 
         // Window configuration
-        var windowGroup = generalTab.addGroup("Window Configuration");
+        var windowGroup = generalTab.addGroup("Window Settings");
         windowGroup.addRow(
             new BooleanDescriptor(AUTO_WINDOW, "Auto Window Size", DEFAULT_AUTO_WINDOW)
         );
@@ -210,11 +210,11 @@ public class SwtTrendMomentumSimple extends Study {
         sd.addDependency(new EnabledDependency(false, AUTO_WINDOW, WINDOW_LENGTH));
         sd.addDependency(new EnabledDependency(true, AUTO_WINDOW, GAMMA_MARGIN));
 
-        // ---- Signals Tab ----
-        var signalsTab = sd.addTab("Signals");
+        // ---- Advanced Tab ----
+        var advancedTab = sd.addTab("Advanced");
 
         // Signal configuration
-        var signalGroup = signalsTab.addGroup("Signal Generation");
+        var signalGroup = advancedTab.addGroup("Signal Generation");
         signalGroup.addRow(
             new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true)
         );
@@ -235,11 +235,8 @@ public class SwtTrendMomentumSimple extends Study {
         sd.addDependency(new EnabledDependency(ENABLE_SIGNALS,
             MOMENTUM_THRESHOLD, MIN_SLOPE_THRESHOLD, MOMENTUM_SMOOTHING));
 
-        // ---- Advanced Tab ----
-        var advancedTab = sd.addTab("Advanced");
-
         // Threshold lookback configuration
-        var thresholdGroup = advancedTab.addGroup("Threshold Lookback");
+        var thresholdGroup = advancedTab.addGroup("Denoising Configuration");
         thresholdGroup.addRow(
             new BooleanDescriptor(AUTO_THRESH_LOOKBACK, "Auto Lookback", DEFAULT_AUTO_THRESH_LOOKBACK)
         );
@@ -260,7 +257,7 @@ public class SwtTrendMomentumSimple extends Study {
         var displayTab = sd.addTab("Display");
 
         // Path configuration
-        var pathsGroup = displayTab.addGroup("Paths");
+        var pathsGroup = displayTab.addGroup("Lines");
         // Store the blue color to ensure path and indicator use exact same color
         Color trendColor = defaults.getBlue();
         pathsGroup.addRow(
@@ -274,8 +271,8 @@ public class SwtTrendMomentumSimple extends Study {
         // Slope path removed - slope is calculated internally for signals but not displayed
 
         // Indicator configuration
-        var indicatorGroup = displayTab.addGroup("Indicators");
-        indicatorGroup.addRow(
+        var indicatorsGroup = displayTab.addGroup("Indicators");
+        indicatorsGroup.addRow(
             new IndicatorDescriptor(Inputs.IND, "Trend",
                 trendColor,  // bgColor (background color) - blue background
                 Color.WHITE,  // txtColor (text color) - white text
@@ -283,7 +280,7 @@ public class SwtTrendMomentumSimple extends Study {
                 false,  // enabled by default
                 true)   // supportsDisable
         );
-        indicatorGroup.addRow(
+        indicatorsGroup.addRow(
             new IndicatorDescriptor(MOMENTUM_IND, "Momentum",
                 Color.CYAN,  // bgColor - cyan background
                 Color.BLACK,  // txtColor - black text for better contrast
@@ -293,9 +290,8 @@ public class SwtTrendMomentumSimple extends Study {
         );
         // Slope indicator removed - slope is calculated internally for signals but not displayed
 
-        // ---- Markers Tab ----
-        var markersTab = sd.addTab("Markers");
-        var markersGroup = markersTab.addGroup("Signal Markers");
+        // Add markers to Display tab
+        var markersGroup = displayTab.addGroup("Markers");
         markersGroup.addRow(
             new MarkerDescriptor(Signals.LONG.name(), "Long Signal",
                 Enums.MarkerType.TRIANGLE, Enums.Size.MEDIUM,

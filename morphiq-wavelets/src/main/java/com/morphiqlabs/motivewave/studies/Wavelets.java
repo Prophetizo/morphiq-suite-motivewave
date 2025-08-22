@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
     id = "WAVELETS_ANALYSIS",
     name = "Wavelet Analysis",
     desc = "Multi-resolution wavelet decomposition with adaptive windowing and denoising",
-    menu = "Morphiq Labs",
+    menu = "MorphIQ Labs",
     overlay = false,
     requiresBarUpdates = false,
     signals = false
