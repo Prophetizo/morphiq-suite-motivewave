@@ -144,6 +144,10 @@ public class SwtTrendMomentumSimple extends Study {
 
     // Momentum state
     private Double smoothedMomentum = null;  // null = uninitialized, enables proper EMA initialization
+    
+    // Track last marker indices to prevent duplicates
+    private int lastLongMarkerIndex = -1;
+    private int lastShortMarkerIndex = -1;
 
     // Cache for wavelet type
     private String lastWaveletType = null;
@@ -437,6 +441,10 @@ public class SwtTrendMomentumSimple extends Study {
         swtAdapter = null;
         smoothedMomentum = null;
         lastWaveletType = null;
+        
+        // Reset marker tracking
+        lastLongMarkerIndex = -1;
+        lastShortMarkerIndex = -1;
     }
 
     /**
@@ -810,10 +818,13 @@ public class SwtTrendMomentumSimple extends Study {
                 ctx.signal(index, Signals.LONG, "Long Signal", series.getClose(index));
                 series.setBoolean(index, Signals.LONG, true);
 
-                // Add visible marker to chart
-                double price = series.getClose(index);
-                Coordinate coord = new Coordinate(series.getStartTime(index), price);
-                addFigure(new Marker(coord, Enums.Position.BOTTOM, marker));
+                // Add visible marker to chart only if we haven't already added one at this index
+                if (lastLongMarkerIndex != index) {
+                    double price = series.getClose(index);
+                    Coordinate coord = new Coordinate(series.getStartTime(index), price);
+                    addFigure(new Marker(coord, Enums.Position.BOTTOM, marker));
+                    lastLongMarkerIndex = index;
+                }
             }
         }
 
@@ -825,10 +836,13 @@ public class SwtTrendMomentumSimple extends Study {
                 ctx.signal(index, Signals.SHORT, "Short Signal", series.getClose(index));
                 series.setBoolean(index, Signals.SHORT, true);
 
-                // Add visible marker to chart
-                double price = series.getClose(index);
-                Coordinate coord = new Coordinate(series.getStartTime(index), price);
-                addFigure(new Marker(coord, Enums.Position.TOP, marker));
+                // Add visible marker to chart only if we haven't already added one at this index
+                if (lastShortMarkerIndex != index) {
+                    double price = series.getClose(index);
+                    Coordinate coord = new Coordinate(series.getStartTime(index), price);
+                    addFigure(new Marker(coord, Enums.Position.TOP, marker));
+                    lastShortMarkerIndex = index;
+                }
             }
         }
     }

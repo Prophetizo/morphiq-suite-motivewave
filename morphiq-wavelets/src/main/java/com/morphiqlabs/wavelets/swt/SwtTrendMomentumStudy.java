@@ -147,8 +147,9 @@ public class SwtTrendMomentumStudy extends Study {
     private volatile boolean lastMomentumPositive = false;
     private volatile boolean lastMomentumAboveThreshold = false;
     
-    // No need for marker tracking - SDK handles this when we follow the pattern:
-    // Only add markers when series.isBarComplete(index) is true
+    // Track the last index where we added a marker to prevent duplicates
+    private int lastLongMarkerIndex = -1;
+    private int lastShortMarkerIndex = -1;
     
     // ========================================================================
     // BUFFER MANAGEMENT - Sliding window for streaming updates
@@ -466,6 +467,10 @@ public class SwtTrendMomentumStudy extends Study {
         lastSlopePositive = false;
         lastMomentumPositive = false;
         lastMomentumAboveThreshold = false;
+        
+        // Reset marker tracking
+        lastLongMarkerIndex = -1;
+        lastShortMarkerIndex = -1;
         
         // Clear components to force re-initialization
         swtAdapter = null;
@@ -1222,11 +1227,14 @@ public class SwtTrendMomentumStudy extends Study {
             Coordinate coord = new Coordinate(series.getStartTime(index), price);
             
             if (longFilter) {
-                // Add long marker
-                var longMarker = getSettings().getMarker(LONG_MARKER);
-                if (longMarker != null && longMarker.isEnabled()) {
-                    addFigure(new Marker(coord, Enums.Position.BOTTOM, longMarker, 
-                                        String.format("LONG: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                // Add long marker only if we haven't already added one at this index
+                if (lastLongMarkerIndex != index) {
+                    var longMarker = getSettings().getMarker(LONG_MARKER);
+                    if (longMarker != null && longMarker.isEnabled()) {
+                        addFigure(new Marker(coord, Enums.Position.BOTTOM, longMarker, 
+                                            String.format("LONG: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                        lastLongMarkerIndex = index;
+                    }
                 }
                 
                 // Trigger long alert
@@ -1237,11 +1245,14 @@ public class SwtTrendMomentumStudy extends Study {
                                 index, price, trendValue, currentMomentum);
                 }
             } else if (shortFilter) {
-                // Add short marker
-                var shortMarker = getSettings().getMarker(SHORT_MARKER);
-                if (shortMarker != null && shortMarker.isEnabled()) {
-                    addFigure(new Marker(coord, Enums.Position.TOP, shortMarker,
-                                        String.format("SHORT: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                // Add short marker only if we haven't already added one at this index
+                if (lastShortMarkerIndex != index) {
+                    var shortMarker = getSettings().getMarker(SHORT_MARKER);
+                    if (shortMarker != null && shortMarker.isEnabled()) {
+                        addFigure(new Marker(coord, Enums.Position.TOP, shortMarker,
+                                            String.format("SHORT: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                        lastShortMarkerIndex = index;
+                    }
                 }
                 
                 // Trigger short alert
