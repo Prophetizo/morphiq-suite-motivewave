@@ -25,15 +25,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * Wavelets Study - Multi-resolution analysis using MODWT (Maximal Overlap Discrete Wavelet Transform)
+ * Wavelets Study - Multi-resolution analysis using configurable wavelet transforms
  * 
  * This study performs wavelet decomposition on price data to extract multi-scale features:
+ * - Transform selection (MODWT, SWT, CWT) with transform-specific wavelet families
  * - Detail coefficients (D1-D7) representing different frequency components
  * - Optional denoising using BayesShrink or Universal thresholding
  * - Auto-windowing based on wavelet effective support
  * - Decoupled threshold lookback for adaptive denoising
  * 
  * Key Features:
+ * - Configurable transform types with appropriate wavelet family filtering
  * - Supports multiple wavelet families (Daubechies, Symlets, Coiflets, Haar)
  * - Automatic window size calculation based on wavelet properties
  * - Performance-optimized with wavelet caching
@@ -45,7 +47,7 @@ import java.util.stream.Collectors;
     namespace = "com.morphiqlabs",
     id = "WAVELETS_ANALYSIS",
     name = "Wavelet Analysis",
-    desc = "Multi-resolution wavelet decomposition with adaptive windowing and denoising",
+    desc = "Multi-resolution wavelet decomposition with configurable transforms and adaptive windowing",
     menu = "MorphIQ Labs",
     overlay = false,
     requiresBarUpdates = false,
@@ -197,11 +199,6 @@ public class Wavelets extends Study {
         // Enable manual window only when auto is disabled
         sd.addDependency(new EnabledDependency(false, AUTO_WINDOW, WINDOW_LENGTH));
         sd.addDependency(new EnabledDependency(true, AUTO_WINDOW, GAMMA_MARGIN));
-        
-        // Update wavelet options when transform type changes
-        sd.addDependency(new VisibilityDependency(TRANSFORM_TYPE, "CWT", WAVELET_TYPE));
-        sd.addDependency(new VisibilityDependency(TRANSFORM_TYPE, "MODWT", WAVELET_TYPE));
-        sd.addDependency(new VisibilityDependency(TRANSFORM_TYPE, "SWT", WAVELET_TYPE));
         
         // ---- Denoising Tab ----
         var denoisingTab = sd.addTab("Denoising");
