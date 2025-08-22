@@ -2,6 +2,7 @@ package com.morphiqlabs.wavelets.swt.core;
 
 import ai.prophetizo.wavelet.api.BoundaryMode;
 import ai.prophetizo.wavelet.api.Wavelet;
+import ai.prophetizo.wavelet.api.WaveletName;
 import ai.prophetizo.wavelet.api.WaveletRegistry;
 import ai.prophetizo.wavelet.modwt.MutableMultiLevelMODWTResult;
 import com.morphiqlabs.common.LoggerConfig;
@@ -43,7 +44,9 @@ public class VectorWaveSwtAdapter {
     public VectorWaveSwtAdapter(String waveletType) {
         this.waveletType = waveletType;
         this.boundaryMode = BoundaryMode.PERIODIC; // Default boundary mode
-        this.wavelet = WaveletRegistry.getWavelet(waveletType);
+        // Convert string to WaveletName enum
+        WaveletName waveletName = WaveletName.valueOf(waveletType.toUpperCase());
+        this.wavelet = WaveletRegistry.getWavelet(waveletName);
         this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
         logger.info("VectorWave SWT adapter initialized with wavelet: {}", waveletType);
     }
@@ -58,7 +61,9 @@ public class VectorWaveSwtAdapter {
     public VectorWaveSwtAdapter(String waveletType, BoundaryMode boundaryMode) {
         this.waveletType = waveletType;
         this.boundaryMode = boundaryMode;
-        this.wavelet = WaveletRegistry.getWavelet(waveletType);
+        // Convert string to WaveletName enum
+        WaveletName waveletName = WaveletName.valueOf(waveletType.toUpperCase());
+        this.wavelet = WaveletRegistry.getWavelet(waveletName);
         this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
         logger.info("VectorWave SWT adapter initialized with wavelet: {}, boundary: {}", waveletType, boundaryMode);
     }
@@ -133,6 +138,16 @@ public class VectorWaveSwtAdapter {
      */
     public double[] inverse(MutableMultiLevelMODWTResult result) {
         return swtAdapter.inverse(result);
+    }
+    
+    /**
+     * Get the filter length for the current wavelet.
+     * The filter length is the number of coefficients in the wavelet's low-pass filter.
+     * 
+     * @return the filter length
+     */
+    public int getFilterLength() {
+        return wavelet.lowPassDecomposition().length;
     }
     
     /**

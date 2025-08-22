@@ -2,6 +2,7 @@ package com.morphiqlabs.wavelets.swt;
 
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
+import com.motivewave.platform.sdk.common.Coordinate;
 import com.motivewave.platform.sdk.draw.Marker;
 import com.motivewave.platform.sdk.study.Plot;
 import com.motivewave.platform.sdk.study.Study;
@@ -12,6 +13,7 @@ import com.morphiqlabs.wavelets.swt.core.*;
 import org.slf4j.Logger;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -25,6 +27,7 @@ import java.util.Map;
         desc = "Undecimated SWT/MODWT trend following with cross-scale momentum confirmation",
         menu = "MorphIQ | Wavelet Analysis",
         overlay = true,
+        signals = true,
         requiresBarUpdates = false
 )
 public class SwtTrendMomentumStudy extends Study {
@@ -121,7 +124,7 @@ public class SwtTrendMomentumStudy extends Study {
     
     // Signals - State-based trading signals (not action-based)
     public enum Signals {
-        LONG, SHORT
+        LONG, SHORT, STATE_CHANGE
     }
     
     // ========================================================================
@@ -136,11 +139,17 @@ public class SwtTrendMomentumStudy extends Study {
     private volatile String currentWaveletType = null;
     private volatile Integer currentLevels = null;
     private volatile Integer currentWindowLength = null;
-    private volatile boolean lastLongFilter = false;
-    private volatile boolean lastShortFilter = false;
     
-    // No need for marker tracking - SDK handles this when we follow the pattern:
-    // Only add markers when series.isBarComplete(index) is true
+    // State change tracking for new signal system
+    private volatile double lastSlope = 0.0;
+    private volatile double lastMomentum = 0.0;
+    private volatile boolean lastSlopePositive = false;
+    private volatile boolean lastMomentumPositive = false;
+    private volatile boolean lastMomentumAboveThreshold = false;
+    
+    // Track the last index where we added a marker to prevent duplicates
+    private int lastLongMarkerIndex = -1;
+    private int lastShortMarkerIndex = -1;
     
     // ========================================================================
     // BUFFER MANAGEMENT - Sliding window for streaming updates
@@ -451,8 +460,17 @@ public class SwtTrendMomentumStudy extends Study {
         currentWaveletType = null;
         currentLevels = null;
         currentWindowLength = null;
-        lastLongFilter = false;
-        lastShortFilter = false;
+        
+        // Reset state change tracking
+        lastSlope = 0.0;
+        lastMomentum = 0.0;
+        lastSlopePositive = false;
+        lastMomentumPositive = false;
+        lastMomentumAboveThreshold = false;
+        
+        // Reset marker tracking
+        lastLongMarkerIndex = -1;
+        lastShortMarkerIndex = -1;
         
         // Clear components to force re-initialization
         swtAdapter = null;
@@ -525,12 +543,12 @@ public class SwtTrendMomentumStudy extends Study {
         
         // General settings
         var generalTab = sd.addTab("General");
-        var waveletGroup = generalTab.addGroup("Wavelet Configuration");
+        var inputsGroup = generalTab.addGroup("Inputs");
         
         List<NVP> waveletOptions = StudyUIHelper.createWaveletOptions();
-        waveletGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE, "db4", waveletOptions));
-        waveletGroup.addRow(new IntegerDescriptor(LEVELS, "Decomposition Levels", 5, 2, 8, 1));
-        waveletGroup.addRow(new IntegerDescriptor(WINDOW_LENGTH, "Window Length (bars)", 512, 256, 4096, 256));
+        inputsGroup.addRow(StudyUIHelper.createWaveletTypeDescriptor(WAVELET_TYPE, "db4", waveletOptions));
+        inputsGroup.addRow(new IntegerDescriptor(LEVELS, "Decomposition Levels", 5, 2, 8, 1));
+        inputsGroup.addRow(new IntegerDescriptor(WINDOW_LENGTH, "Window Length (bars)", 512, 256, 4096, 256));
         
         var thresholdGroup = generalTab.addGroup("Thresholding");
         thresholdGroup.addRow(new DiscreteDescriptor(THRESHOLD_METHOD, "Threshold Method", "Universal",
@@ -546,24 +564,24 @@ public class SwtTrendMomentumStudy extends Study {
                 )));
         thresholdGroup.addRow(new BooleanDescriptor(USE_DENOISED, "Use Denoised Signal", false));
         
-        var signalGroup = generalTab.addGroup("Signal Configuration");
-        signalGroup.addRow(new IntegerDescriptor(DETAIL_CONFIRM_K, "Detail Confirmation (k)", 2, 1, 3, 1));
-        signalGroup.addRow(new DiscreteDescriptor(MOMENTUM_TYPE, "Momentum Calculation", "SUM",
+        // Signals tab - consolidated signal generation settings
+        var signalsTab = sd.addTab("Signals");
+        var signalGenGroup = signalsTab.addGroup("Signal Generation");
+        signalGenGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
+        signalGenGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
+        signalGenGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
+        signalGenGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
+        
+        var momentumGroup = signalsTab.addGroup("Momentum Configuration");
+        momentumGroup.addRow(new IntegerDescriptor(DETAIL_CONFIRM_K, "Detail Confirmation (k)", 2, 1, 3, 1));
+        momentumGroup.addRow(new DiscreteDescriptor(MOMENTUM_TYPE, "Momentum Calculation", "SUM",
                 Arrays.asList(
                         new NVP("SUM", "Sum of Details (D₁ + D₂ + ...)"),
                         new NVP("SIGN", "Sign Count (±1 per level)"),
-                        new NVP("SIMPLE", "Simple (Level 1 only, no weighting)")
+                        new NVP("SIMPLE", "Simple (Level 1 only)")
                 )));
-        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_THRESHOLD, "Momentum Threshold", 1.0, 0.0, 100.0, 0.1));
-        signalGroup.addRow(new DoubleDescriptor(MIN_SLOPE_THRESHOLD, "Min Slope Threshold (Points)", DEFAULT_MIN_SLOPE_THRESHOLD, 0.0, 5.0, 0.01));
-        // Note: Min Slope Threshold is in absolute price points (0.05 = 0.05 point minimum move, NOT percentage)
-        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SMOOTHING, "Momentum Smoothing (α)", DEFAULT_MOMENTUM_SMOOTHING, 0.1, 0.9, 0.05));
-        // Note: Momentum smoothing alpha - 0.1 = heavy smoothing, 0.5 = balanced, 0.9 = minimal smoothing
-        signalGroup.addRow(new IntegerDescriptor(MOMENTUM_WINDOW, "Momentum Window (bars)", DEFAULT_MOMENTUM_WINDOW, 5, 50, 1));
-        // Note: Number of bars used for RMS energy calculation
-        signalGroup.addRow(new DoubleDescriptor(MOMENTUM_SCALING_FACTOR, "Momentum Scaling Factor", DEFAULT_MOMENTUM_SCALING_FACTOR, 1.0, 1000.0, 1.0));
-        // Note: Scaling factor to improve momentum visibility (100.0 = 100x amplification)
-        signalGroup.addRow(new BooleanDescriptor(ENABLE_SIGNALS, "Enable Trading Signals", true));
+        momentumGroup.addRow(new IntegerDescriptor(MOMENTUM_WINDOW, "Momentum Window (bars)", DEFAULT_MOMENTUM_WINDOW, 5, 50, 1));
+        momentumGroup.addRow(new DoubleDescriptor(MOMENTUM_SCALING_FACTOR, "Momentum Scaling Factor", DEFAULT_MOMENTUM_SCALING_FACTOR, 1.0, 1000.0, 1.0));
         
         // Display settings
         var displayTab = sd.addTab("Display");
@@ -574,25 +592,7 @@ public class SwtTrendMomentumStudy extends Study {
         
         var watrGroup = displayTab.addGroup("Wavelet ATR");
         watrGroup.addRow(new BooleanDescriptor(SHOW_WATR, "Show WATR Bands", false));
-        watrGroup.addRow(new IntegerDescriptor(WATR_K, "WATR Detail Levels", 2, 1, 3, 1));
         watrGroup.addRow(new DoubleDescriptor(WATR_MULTIPLIER, "WATR Multiplier", 2.0, 1.0, 5.0, 0.1));
-        
-        // Add scaling configuration
-        watrGroup.addRow(new DiscreteDescriptor(WATR_SCALE_METHOD, "WATR Scaling Method", "SQRT",
-                Arrays.asList(
-                        new NVP("LINEAR", "Linear (direct multiplication)"),
-                        new NVP("SQRT", "Square Root (dampened scaling)"),
-                        new NVP("LOG", "Logarithmic (compressed scaling)"),
-                        new NVP("ADAPTIVE", "Adaptive (volatility-based)")
-                )));
-        watrGroup.addRow(new DoubleDescriptor(WATR_SCALE_FACTOR, "WATR Scale Factor", 
-                DEFAULT_SQRT_FACTOR, 0.01, 1000.0, 0.1));
-        watrGroup.addRow(new DoubleDescriptor(WATR_LEVEL_DECAY, "WATR Level Weight Decay", 
-                0.5, 0.1, 1.0, 0.05));
-        // Note: Level Weight Decay controls contribution of coarser scales
-        // - 0.3-0.4: More weight on coarser scales (trending markets)
-        // - 0.5-0.6: Balanced weighting (default)
-        // - 0.7-0.8: More weight on finer scales (volatile/choppy markets)
         
         watrGroup.addRow(new PathDescriptor(WATR_UPPER_PATH, "WATR Upper Band",
                 new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
@@ -600,21 +600,36 @@ public class SwtTrendMomentumStudy extends Study {
                 new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
         
         // Momentum plot paths
-        var momentumGroup = displayTab.addGroup("Momentum Display");
-        momentumGroup.addRow(new PathDescriptor(MOMENTUM_SUM_PATH, "Cross-Scale Momentum",
+        var momentumPlotGroup = displayTab.addGroup("Momentum Plot");
+        momentumPlotGroup.addRow(new PathDescriptor(MOMENTUM_SUM_PATH, "Momentum Line",
                 new Color(0, 200, 150), 2.0f, null, true, true, true));
-        momentumGroup.addRow(new PathDescriptor(SLOPE_PATH, "Trend Slope",
+        momentumPlotGroup.addRow(new PathDescriptor(SLOPE_PATH, "Slope Line",
                 new Color(200, 150, 0), 1.5f, null, true, false, true));
         
-        // Markers tab
-        var markersTab = sd.addTab("Markers");
-        var markersGroup = markersTab.addGroup("State Markers");
-        markersGroup.addRow(new MarkerDescriptor(LONG_MARKER, "Long State", 
+        // Add markers to Display tab instead of separate tab
+        var markersGroup = displayTab.addGroup("Markers");
+        markersGroup.addRow(new MarkerDescriptor(LONG_MARKER, "Long Signal", 
                 Enums.MarkerType.TRIANGLE, Enums.Size.SMALL, 
                 new Color(0, 200, 0), new Color(0, 150, 0), true, true));
-        markersGroup.addRow(new MarkerDescriptor(SHORT_MARKER, "Short State",
+        markersGroup.addRow(new MarkerDescriptor(SHORT_MARKER, "Short Signal",
                 Enums.MarkerType.TRIANGLE, Enums.Size.SMALL,
                 new Color(200, 0, 0), new Color(150, 0, 0), true, true));
+        
+        // Advanced settings tab
+        var advancedTab = sd.addTab("Advanced");
+        var watrAdvancedGroup = advancedTab.addGroup("WATR Configuration");
+        watrAdvancedGroup.addRow(new IntegerDescriptor(WATR_K, "WATR Detail Levels", 2, 1, 3, 1));
+        watrAdvancedGroup.addRow(new DiscreteDescriptor(WATR_SCALE_METHOD, "WATR Scaling Method", "SQRT",
+                Arrays.asList(
+                        new NVP("LINEAR", "Linear"),
+                        new NVP("SQRT", "Square Root"),
+                        new NVP("LOG", "Logarithmic"),
+                        new NVP("ADAPTIVE", "Adaptive")
+                )));
+        watrAdvancedGroup.addRow(new DoubleDescriptor(WATR_SCALE_FACTOR, "WATR Scale Factor", 
+                DEFAULT_SQRT_FACTOR, 0.01, 1000.0, 0.1));
+        watrAdvancedGroup.addRow(new DoubleDescriptor(WATR_LEVEL_DECAY, "Level Weight Decay", 
+                0.5, 0.1, 1.0, 0.05));
         
         // Create Runtime Descriptor using the standard pattern
         var desc = createRD();
@@ -649,6 +664,7 @@ public class SwtTrendMomentumStudy extends Study {
         // Signals - state based, not action based
         desc.declareSignal(Signals.LONG, "Long State");
         desc.declareSignal(Signals.SHORT, "Short State");
+        desc.declareSignal(Signals.STATE_CHANGE, "State Change");
     }
     
     
@@ -693,8 +709,6 @@ public class SwtTrendMomentumStudy extends Study {
                 }
                 
                 // Reset signal tracking on change
-                lastLongFilter = false;
-                lastShortFilter = false;
                 
                 logger.info("SWT adapter initialized/updated - wavelet: {} -> {}, levels: {}, window: {}", 
                            waveletType, vectorWaveType, levels, windowLength);
@@ -854,8 +868,8 @@ public class SwtTrendMomentumStudy extends Study {
             series.setDouble(index, Values.LONG_FILTER, longFilter ? 1.0 : 0.0);
             series.setDouble(index, Values.SHORT_FILTER, shortFilter ? 1.0 : 0.0);
             
-            // Generate signals
-            generateSignals(ctx, series, index, longFilter, shortFilter);
+            // Generate signals with current values for state change detection
+            generateSignals(ctx, series, index, longFilter, shortFilter, slope, momentumSum, momentumThreshold);
             
             // Calculate WATR (always calculate for strategy use, only display if enabled)
             // The Strategy subclass needs WATR for stop calculations even when not displayed
@@ -1142,7 +1156,8 @@ public class SwtTrendMomentumStudy extends Study {
         }
     }
     
-    private void generateSignals(DataContext ctx, DataSeries series, int index, boolean longFilter, boolean shortFilter) {
+    private void generateSignals(DataContext ctx, DataSeries series, int index, boolean longFilter, boolean shortFilter, 
+                                double currentSlope, double currentMomentum, double momentumThreshold) {
         if (!getSettings().getBoolean(ENABLE_SIGNALS, true)) {
             return;
         }
@@ -1151,62 +1166,108 @@ public class SwtTrendMomentumStudy extends Study {
         // This follows the MotiveWave SDK pattern and ensures markers persist
         boolean barComplete = series.isBarComplete(index);
         
-        // Detect transitions
-        boolean wasLongFilter = lastLongFilter;
-        boolean wasShortFilter = lastShortFilter;
-        
-        // Get current price for signal value
+        // Get current price and timestamp for signal value
         double price = series.getClose(index);
         double trendValue = series.getDouble(index, Values.AJ, price);
+        long timestamp = series.getStartTime(index);
         
-        // According to spec:
-        // Entry: slope > 0 AND momentum > 0 (long), slope < 0 AND momentum < 0 (short)
-        // Exit: slope loss OR momentum sign flip
+        // Detect state changes
+        List<StateChangeSignal> stateChanges = new ArrayList<>();
         
-        // Emit state signals - not entry decisions
-        if (longFilter) {
-            series.setBoolean(index, Signals.LONG, true);
+        // Check for slope direction changes
+        boolean currentSlopePositive = currentSlope > 0;
+        if (currentSlopePositive && !lastSlopePositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.SLOPE_TURNED_POSITIVE,
+                lastSlope, currentSlope, timestamp));
+        } else if (!currentSlopePositive && lastSlopePositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.SLOPE_TURNED_NEGATIVE,
+                lastSlope, currentSlope, timestamp));
+        }
+        
+        // Check for momentum zero crosses
+        boolean currentMomentumPositive = currentMomentum > 0;
+        if (currentMomentumPositive && !lastMomentumPositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_CROSSED_POSITIVE,
+                lastMomentum, currentMomentum, timestamp));
+        } else if (!currentMomentumPositive && lastMomentumPositive) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_CROSSED_NEGATIVE,
+                lastMomentum, currentMomentum, timestamp));
+        }
+        
+        // Check for momentum threshold crosses
+        boolean currentMomentumAboveThreshold = Math.abs(currentMomentum) > momentumThreshold;
+        if (currentMomentumAboveThreshold && !lastMomentumAboveThreshold) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_EXCEEDED,
+                lastMomentum, currentMomentum, timestamp));
+        } else if (!currentMomentumAboveThreshold && lastMomentumAboveThreshold) {
+            stateChanges.add(new StateChangeSignal(
+                StateChangeSignal.SignalType.MOMENTUM_THRESHOLD_LOST,
+                lastMomentum, currentMomentum, timestamp));
+        }
+        
+        // Emit state change signals if any occurred
+        if (!stateChanges.isEmpty() && barComplete) {
+            ctx.signal(index, Signals.STATE_CHANGE, "State Changes", stateChanges);
             
-            // Only add marker on state transition
-            if (barComplete && !wasLongFilter) {
-                try {
-                    var marker = getSettings().getMarker(LONG_MARKER);
-                    if (marker != null && marker.isEnabled()) {
-                        var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Long State @ %.2f", price);
-                        addFigure(new Marker(coord, Enums.Position.BOTTOM, marker, msg));
-                    }
-                } catch (Exception e) {
-                    logger.trace("Could not add long marker: {}", e.getMessage());
-                }
-                
-                ctx.signal(index, Signals.LONG, "Long State", price);
-                logger.debug("Long state at index {} price {}", index, price);
-            }
-        } else if (shortFilter) {
-            series.setBoolean(index, Signals.SHORT, true);
-            
-            // Only add marker on state transition
-            if (barComplete && !wasShortFilter) {
-                try {
-                    var marker = getSettings().getMarker(SHORT_MARKER);
-                    if (marker != null && marker.isEnabled()) {
-                        var coord = new Coordinate(series.getStartTime(index), trendValue);
-                        String msg = String.format("Short State @ %.2f", price);
-                        addFigure(new Marker(coord, Enums.Position.TOP, marker, msg));
-                    }
-                } catch (Exception e) {
-                    logger.trace("Could not add short marker: {}", e.getMessage());
-                }
-                
-                ctx.signal(index, Signals.SHORT, "Short State", price);
-                logger.debug("Short state at index {} price {}", index, price);
+            if (logger.isDebugEnabled()) {
+                logger.debug("State changes detected at index {}: {}", index, stateChanges);
             }
         }
         
-        // Update state
-        lastLongFilter = longFilter;
-        lastShortFilter = shortFilter;
+        // Generate LONG and SHORT state signals with markers and alerts
+        if (barComplete) {
+            Coordinate coord = new Coordinate(series.getStartTime(index), price);
+            
+            if (longFilter) {
+                // Add long marker only if we haven't already added one at this index
+                if (lastLongMarkerIndex != index) {
+                    var longMarker = getSettings().getMarker(LONG_MARKER);
+                    if (longMarker != null && longMarker.isEnabled()) {
+                        addFigure(new Marker(coord, Enums.Position.BOTTOM, longMarker, 
+                                            String.format("LONG: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                        lastLongMarkerIndex = index;
+                    }
+                }
+                
+                // Trigger long alert
+                ctx.signal(index, Signals.LONG, "LONG Signal", price);
+                
+                if (logger.isDebugEnabled()) {
+                    logger.debug("LONG signal generated at index {}: price={}, trend={}, momentum={}", 
+                                index, price, trendValue, currentMomentum);
+                }
+            } else if (shortFilter) {
+                // Add short marker only if we haven't already added one at this index
+                if (lastShortMarkerIndex != index) {
+                    var shortMarker = getSettings().getMarker(SHORT_MARKER);
+                    if (shortMarker != null && shortMarker.isEnabled()) {
+                        addFigure(new Marker(coord, Enums.Position.TOP, shortMarker,
+                                            String.format("SHORT: Trend=%.2f, Momentum=%.2f", trendValue, currentMomentum)));
+                        lastShortMarkerIndex = index;
+                    }
+                }
+                
+                // Trigger short alert
+                ctx.signal(index, Signals.SHORT, "SHORT Signal", price);
+                
+                if (logger.isDebugEnabled()) {
+                    logger.debug("SHORT signal generated at index {}: price={}, trend={}, momentum={}", 
+                                index, price, trendValue, currentMomentum);
+                }
+            }
+        }
+        
+        // Update state for next iteration
+        lastSlope = currentSlope;
+        lastMomentum = currentMomentum;
+        lastSlopePositive = currentSlopePositive;
+        lastMomentumPositive = currentMomentumPositive;
+        lastMomentumAboveThreshold = currentMomentumAboveThreshold;
     }
     
     private void calculateWatr(DataSeries series, int index, VectorWaveSwtAdapter.SwtResult swtResult, double centerPrice) {

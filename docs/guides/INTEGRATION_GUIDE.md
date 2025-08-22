@@ -288,6 +288,116 @@ public class MultiLevelStudy extends VectorWaveStudy {
 ### Adaptive Wavelet Selection
 
 ```java
+// Adaptive wavelet selection based on market conditions
+public class AdaptiveWaveletStudy extends VectorWaveStudy {
+    
+    @Override
+    protected String selectWavelet(DataSeries series, int index) {
+        double volatility = calculateVolatility(series, index);
+        
+        if (volatility > HIGH_VOLATILITY_THRESHOLD) {
+            return "db8"; // More coefficients for complex patterns
+        } else {
+            return "db4"; // Fewer coefficients for simpler patterns
+        }
+    }
+}
+```
+
+## State-Based Signal System
+
+The new state-based signal system provides rich market information to strategies while maintaining proper separation of concerns.
+
+### Signal Generation (Study Side)
+
+```java
+public class StateAwareStudy extends Study {
+    
+    @Override
+    protected void calculate(int index, DataContext ctx) {
+        // Calculate market metrics
+        double currentSlope = calculateSlope(index);
+        double currentMomentum = calculateMomentum(index);
+        
+        // Detect state changes
+        List<StateChangeSignal> stateChanges = new ArrayList<>();
+        
+        // Check for slope direction changes
+        if (currentSlope > 0 && lastSlope <= 0) {
+            stateChanges.add(new StateChangeSignal(
+                SignalType.SLOPE_TURNED_POSITIVE,
+                lastSlope, currentSlope, 
+                ctx.getDataSeries().getStartTime(index)
+            ));
+        }
+        
+        // Check for momentum threshold crosses
+        if (Math.abs(currentMomentum) > threshold && 
+            Math.abs(lastMomentum) <= threshold) {
+            stateChanges.add(new StateChangeSignal(
+                SignalType.MOMENTUM_THRESHOLD_EXCEEDED,
+                lastMomentum, currentMomentum, 
+                Math.abs(currentMomentum),
+                ctx.getDataSeries().getStartTime(index)
+            ));
+        }
+        
+        // Emit state changes if any occurred
+        if (!stateChanges.isEmpty() && ctx.getDataSeries().isBarComplete(index)) {
+            ctx.signal(index, stateChanges);
+        }
+        
+        // Update state for next iteration
+        lastSlope = currentSlope;
+        lastMomentum = currentMomentum;
+    }
+}
+```
+
+### Signal Handling (Strategy Side)
+
+```java
+public class StateAwareStrategy extends Study {
+    
+    @Override
+    public void onSignal(OrderContext ctx, Object signal) {
+        if (signal instanceof List<?>) {
+            @SuppressWarnings("unchecked")
+            List<StateChangeSignal> stateChanges = (List<StateChangeSignal>) signal;
+            
+            // Analyze state changes for trading decisions
+            boolean slopePositive = stateChanges.stream()
+                .anyMatch(s -> s.getType() == SignalType.SLOPE_TURNED_POSITIVE);
+            boolean momentumStrong = stateChanges.stream()
+                .anyMatch(s -> s.getType() == SignalType.MOMENTUM_THRESHOLD_EXCEEDED);
+            
+            // Conservative strategy: require both slope and momentum alignment
+            if (slopePositive && momentumStrong && !hasPosition(ctx)) {
+                enterLong(ctx);
+            }
+            
+            // Aggressive strategy might act on slope change alone
+            // Scalping strategy might focus only on momentum crosses
+        }
+    }
+    
+    private void enterLong(OrderContext ctx) {
+        // Strategy-specific entry logic
+        // Calculate position size, stops, targets
+        // Submit bracket orders
+    }
+}
+```
+
+### Benefits of State-Based Signals
+
+1. **Separation of Concerns**: Study reports what happened, strategy decides what to do
+2. **Strategy Flexibility**: Different strategies can interpret the same signals differently
+3. **Rich Information**: Strategies get magnitude, direction, and timing data
+4. **Multiple Signals**: Can detect simultaneous state changes on one bar
+5. **Better Testing**: Can unit test state detection separately from trading logic
+
+```java
 public class AdaptiveWaveletStudy extends VectorWaveStudy {
     
     enum MarketRegime { TRENDING, RANGING, VOLATILE }
