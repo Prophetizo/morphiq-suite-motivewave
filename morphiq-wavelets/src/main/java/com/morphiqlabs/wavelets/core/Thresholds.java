@@ -1,4 +1,4 @@
-package com.morphiqlabs.wavelets.swt.core;
+package com.morphiqlabs.wavelets.core;
 
 import com.morphiqlabs.common.LoggerConfig;
 import org.slf4j.Logger;
