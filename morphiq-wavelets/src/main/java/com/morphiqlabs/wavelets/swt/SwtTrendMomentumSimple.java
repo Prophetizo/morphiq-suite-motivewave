@@ -5,6 +5,7 @@ import ai.prophetizo.wavelet.api.WaveletName;
 import ai.prophetizo.wavelet.api.WaveletRegistry;
 import com.morphiqlabs.wavelets.swt.core.Thresholds;
 import com.morphiqlabs.wavelets.swt.core.VectorWaveSwtAdapter;
+import com.morphiqlabs.wavelets.swt.core.WaveletAtr;
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.draw.Marker;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -63,7 +65,10 @@ public class SwtTrendMomentumSimple extends Study {
     public enum Values {
         TREND,        // Wavelet approximation (A_J) - the smoothed trend
         MOMENTUM,     // Momentum oscillator from detail coefficients
-        SLOPE         // Rate of change of trend (ΔA_J)
+        SLOPE,        // Rate of change of trend (ΔA_J)
+        WATR,         // Wavelet ATR - volatility measurement
+        WATR_UPPER,   // WATR upper band
+        WATR_LOWER    // WATR lower band
     }
 
     /**
@@ -98,6 +103,16 @@ public class SwtTrendMomentumSimple extends Study {
     private static final String AUTO_THRESH_LOOKBACK = "autoThreshLookback";
     private static final String THRESH_LOOKBACK = "threshLookback";
     private static final String BETA_MARGIN = "betaMargin";
+
+    // WATR (Wavelet ATR) settings
+    private static final String SHOW_WATR = "showWatr";
+    private static final String WATR_K = "watrK";
+    private static final String WATR_MULTIPLIER = "watrMultiplier";
+    private static final String WATR_SCALE_METHOD = "watrScaleMethod";
+    private static final String WATR_SCALE_FACTOR = "watrScaleFactor";
+    private static final String WATR_LEVEL_DECAY = "watrLevelDecay";
+    private static final String WATR_UPPER_PATH = "watrUpperPath";
+    private static final String WATR_LOWER_PATH = "watrLowerPath";
 
     // Plot and indicator keys
     private static final String MOMENTUM_PLOT = "momentumPlot";
@@ -135,12 +150,26 @@ public class SwtTrendMomentumSimple extends Study {
     // Momentum calculation
     private static final int MOMENTUM_LEVELS = 2;  // Use D1 and D2 for momentum
 
+    // WATR defaults
+    private static final boolean DEFAULT_SHOW_WATR = false;
+    private static final int DEFAULT_WATR_K = 2;
+    private static final double DEFAULT_WATR_MULTIPLIER = 2.0;
+    private static final String DEFAULT_WATR_SCALE_METHOD = "SQRT";
+    private static final double DEFAULT_WATR_SCALE_FACTOR = 10.0;  // Default for SQRT scaling
+    private static final double DEFAULT_LINEAR_FACTOR = 100.0;  // For LINEAR scaling
+    private static final double DEFAULT_SQRT_FACTOR = 10.0;    // For SQRT scaling
+    private static final double DEFAULT_LOG_FACTOR = 5.0;      // For LOG scaling
+    private static final double DEFAULT_WATR_LEVEL_DECAY = 0.5;
+
     // =============================================================================================
     // STATE MANAGEMENT
     // =============================================================================================
 
     // Wavelet adapter
     private VectorWaveSwtAdapter swtAdapter;
+
+    // WATR component
+    private WaveletAtr waveletAtr;
 
     // Momentum state
     private Double smoothedMomentum = null;  // null = uninitialized, enables proper EMA initialization
@@ -253,6 +282,23 @@ public class SwtTrendMomentumSimple extends Study {
         sd.addDependency(new EnabledDependency(false, AUTO_THRESH_LOOKBACK, THRESH_LOOKBACK));
         sd.addDependency(new EnabledDependency(true, AUTO_THRESH_LOOKBACK, BETA_MARGIN));
 
+        // WATR advanced configuration
+        var watrAdvancedGroup = advancedTab.addGroup("WATR Configuration");
+        watrAdvancedGroup.addRow(new IntegerDescriptor(WATR_K, "WATR Detail Levels", 
+            DEFAULT_WATR_K, 1, 3, 1));
+        watrAdvancedGroup.addRow(new DiscreteDescriptor(WATR_SCALE_METHOD, "WATR Scaling Method", 
+            DEFAULT_WATR_SCALE_METHOD,
+            Arrays.asList(
+                new NVP("LINEAR", "Linear"),
+                new NVP("SQRT", "Square Root"),
+                new NVP("LOG", "Logarithmic"),
+                new NVP("ADAPTIVE", "Adaptive")
+            )));
+        watrAdvancedGroup.addRow(new DoubleDescriptor(WATR_SCALE_FACTOR, "WATR Scale Factor", 
+            DEFAULT_WATR_SCALE_FACTOR, 0.01, 1000.0, 0.1));
+        watrAdvancedGroup.addRow(new DoubleDescriptor(WATR_LEVEL_DECAY, "Level Weight Decay", 
+            DEFAULT_WATR_LEVEL_DECAY, 0.1, 1.0, 0.05));
+
         // ---- Display Tab ----
         var displayTab = sd.addTab("Display");
 
@@ -290,6 +336,16 @@ public class SwtTrendMomentumSimple extends Study {
         );
         // Slope indicator removed - slope is calculated internally for signals but not displayed
 
+        // WATR configuration
+        var watrGroup = displayTab.addGroup("Wavelet ATR");
+        watrGroup.addRow(new BooleanDescriptor(SHOW_WATR, "Show WATR Bands", DEFAULT_SHOW_WATR));
+        watrGroup.addRow(new DoubleDescriptor(WATR_MULTIPLIER, "WATR Multiplier", 
+            DEFAULT_WATR_MULTIPLIER, 1.0, 5.0, 0.1));
+        watrGroup.addRow(new PathDescriptor(WATR_UPPER_PATH, "WATR Upper Band",
+            new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
+        watrGroup.addRow(new PathDescriptor(WATR_LOWER_PATH, "WATR Lower Band",
+            new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
+
         // Add markers to Display tab
         var markersGroup = displayTab.addGroup("Markers");
         markersGroup.addRow(
@@ -318,6 +374,8 @@ public class SwtTrendMomentumSimple extends Study {
 
         // Main plot configuration (overlay on price)
         desc.declarePath(Values.TREND, Inputs.PATH);
+        desc.declarePath(Values.WATR_UPPER, WATR_UPPER_PATH);
+        desc.declarePath(Values.WATR_LOWER, WATR_LOWER_PATH);
         desc.declareIndicator(Values.TREND, Inputs.IND);
         desc.setRangeKeys(Values.TREND);
 
@@ -362,13 +420,17 @@ public class SwtTrendMomentumSimple extends Study {
                 lastWaveletType = "db4";
             }
 
+            // Initialize WATR component
+            double levelDecay = getSettings().getDouble(WATR_LEVEL_DECAY, DEFAULT_WATR_LEVEL_DECAY);
+            this.waveletAtr = new WaveletAtr(14, levelDecay); // 14-period smoothing with configurable decay
+
             // Set minimum bars based on current settings
             int minBars = calculateCurrentWindowLength();
             setMinBars(minBars);
 
             if (logger.isDebugEnabled()) {
-                logger.debug("onLoad: Initialized with wavelet={}, minBars={}",
-                            lastWaveletType, minBars);
+                logger.debug("onLoad: Initialized with wavelet={}, minBars={}, WATR decay={}",
+                            lastWaveletType, minBars, levelDecay);
             }
 
         } catch (Exception e) {
@@ -435,6 +497,7 @@ public class SwtTrendMomentumSimple extends Study {
 
         // Reset adapter and state
         swtAdapter = null;
+        waveletAtr = null;
         smoothedMomentum = null;
         lastWaveletType = null;
         
@@ -534,6 +597,13 @@ public class SwtTrendMomentumSimple extends Study {
             }
         }
 
+        // Ensure WATR is initialized
+        if (waveletAtr == null) {
+            double levelDecay = getSettings().getDouble(WATR_LEVEL_DECAY, DEFAULT_WATR_LEVEL_DECAY);
+            this.waveletAtr = new WaveletAtr(14, levelDecay);
+            logger.debug("Initialized WATR component with level decay: {}", levelDecay);
+        }
+
         // Get current settings
         int levels = getSettings().getInteger(DECOMPOSITION_LEVELS, DEFAULT_LEVELS);
         boolean useDenoised = getSettings().getBoolean(USE_DENOISED, DEFAULT_USE_DENOISED);
@@ -608,6 +678,9 @@ public class SwtTrendMomentumSimple extends Study {
                 }
             }
 
+            // Calculate WATR (always calculate for strategy use, only display if enabled)
+            calculateWatr(series, index, swtResult, currentTrend);
+
             // Mark as complete
             series.setComplete(index);
 
@@ -618,7 +691,7 @@ public class SwtTrendMomentumSimple extends Study {
     }
 
     /**
-     * Clears all calculated values (Trend, Momentum, Slope) for a given bar index.
+     * Clears all calculated values (Trend, Momentum, Slope, WATR) for a given bar index.
      *
      * @param series The data series.
      * @param index  The index of the bar to clear.
@@ -627,6 +700,9 @@ public class SwtTrendMomentumSimple extends Study {
         series.setDouble(index, Values.TREND, null);
         series.setDouble(index, Values.MOMENTUM, null);
         series.setDouble(index, Values.SLOPE, null);
+        series.setDouble(index, Values.WATR, null);
+        series.setDouble(index, Values.WATR_UPPER, null);
+        series.setDouble(index, Values.WATR_LOWER, null);
     }
 
     /**
@@ -975,6 +1051,98 @@ public class SwtTrendMomentumSimple extends Study {
         }
 
         return settings.getInteger(THRESH_LOOKBACK, DEFAULT_THRESH_LOOKBACK);
+    }
+
+    // =============================================================================================
+    // WATR CALCULATION
+    // =============================================================================================
+
+    /**
+     * Calculates Wavelet ATR (WATR) for volatility measurement.
+     * This provides a multi-scale volatility measure based on wavelet detail coefficients.
+     * 
+     * @param series The data series to store results
+     * @param index The current bar index
+     * @param swtResult The SWT transform result containing detail coefficients
+     * @param centerPrice The center price for band calculation (trend value)
+     */
+    private void calculateWatr(DataSeries series, int index, VectorWaveSwtAdapter.SwtResult swtResult, double centerPrice) {
+        int watrK = getSettings().getInteger(WATR_K, DEFAULT_WATR_K);
+        double watrMultiplier = getSettings().getDouble(WATR_MULTIPLIER, DEFAULT_WATR_MULTIPLIER);
+        
+        double rawWatr = waveletAtr.calculate(swtResult, watrK);
+        
+        // Scale WATR based on configured method and factor
+        String scaleMethod = getSettings().getString(WATR_SCALE_METHOD, DEFAULT_WATR_SCALE_METHOD);
+        double scaleFactor = getSettings().getDouble(WATR_SCALE_FACTOR, DEFAULT_WATR_SCALE_FACTOR);
+        
+        // Use appropriate default factor based on scale method if factor is at default
+        if (scaleFactor == DEFAULT_WATR_SCALE_FACTOR) {
+            switch (scaleMethod) {
+                case "LINEAR":
+                    scaleFactor = DEFAULT_LINEAR_FACTOR;
+                    break;
+                case "SQRT":
+                    scaleFactor = DEFAULT_SQRT_FACTOR;
+                    break;
+                case "LOG":
+                    scaleFactor = DEFAULT_LOG_FACTOR;
+                    break;
+            }
+        }
+        
+        double priceScaleFactor;
+        switch (scaleMethod) {
+            case "LINEAR":
+                // Direct linear scaling: good for stable price ranges
+                priceScaleFactor = centerPrice / scaleFactor;
+                break;
+            case "SQRT":
+                // Square root scaling: dampens effect at higher prices
+                // Good for indices like ES/NQ that range from 1000s to 10000s
+                priceScaleFactor = Math.sqrt(centerPrice) / scaleFactor;
+                break;
+            case "LOG":
+                // Logarithmic scaling: for very wide price ranges
+                // Good for crypto or penny stocks to mega-caps
+                priceScaleFactor = Math.log(centerPrice) / scaleFactor;
+                break;
+            case "ADAPTIVE":
+                // Adaptive scaling based on recent price volatility
+                // Uses 20-period standard deviation as reference
+                double recentVol = series.std(index, 20, Enums.BarInput.CLOSE);
+                priceScaleFactor = recentVol > 0 ? centerPrice / (scaleFactor * recentVol) : 1.0;
+                break;
+            default:
+                // Default to square root scaling
+                priceScaleFactor = Math.sqrt(centerPrice) / scaleFactor;
+        }
+        
+        double watr = rawWatr * priceScaleFactor;
+        
+        if (logger.isDebugEnabled()) {
+            if (index % 50 == 0) {
+                logger.debug("WATR Calculation: method={}, rawWatr={}, scaleFactor={}, priceScale={}, scaledWatr={}, centerPrice={}", 
+                            scaleMethod,
+                            String.format("%.6f", rawWatr),
+                            String.format("%.2f", scaleFactor),
+                            String.format("%.2f", priceScaleFactor),
+                            String.format("%.2f", watr),
+                            String.format("%.2f", centerPrice));
+            }
+        }
+        
+        // Always store WATR value (needed by Strategy for stops)
+        series.setDouble(index, Values.WATR, watr);
+        
+        // Only calculate and store bands if display is enabled
+        if (getSettings().getBoolean(SHOW_WATR, DEFAULT_SHOW_WATR)) {
+            double upperBand = centerPrice + watr * watrMultiplier;
+            double lowerBand = centerPrice - watr * watrMultiplier;
+            
+            series.setDouble(index, Values.WATR_UPPER, upperBand);
+            series.setDouble(index, Values.WATR_LOWER, lowerBand);
+        }
     }
 
     // =============================================================================================
