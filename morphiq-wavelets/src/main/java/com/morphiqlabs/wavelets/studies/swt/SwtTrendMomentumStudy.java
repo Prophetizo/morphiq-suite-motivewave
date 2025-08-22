@@ -1,4 +1,4 @@
-package com.morphiqlabs.wavelets.swt;
+package com.morphiqlabs.wavelets.studies.swt;
 
 import ai.prophetizo.wavelet.api.TransformType;
 import ai.prophetizo.wavelet.api.WaveletName;
@@ -42,8 +42,8 @@ import java.util.List;
  */
 @StudyHeader(
     namespace = "com.morphiqlabs",
-    id = "SWT_TREND_MOMENTUM_SIMPLE",
-    name = "SWT Trend + Momentum - SIMPLE",
+    id = "SWT_TREND_MOMENTUM",
+    name = "SWT Trend + Momentum",
     desc = "Advanced trend following with SWT/MODWT and momentum confirmation",
     menu = "MorphIQ Labs",
     overlay = true,
@@ -52,7 +52,7 @@ import java.util.List;
     helpLink = "https://docs.morphiqlabs.com/swt-trend-momentum"
 )
 public class SwtTrendMomentumStudy extends Study {
-    private static final Logger logger = LoggerFactory.getLogger(com.morphiqlabs.wavelets.swt.SwtTrendMomentumStudy.class);
+    private static final Logger logger = LoggerFactory.getLogger(SwtTrendMomentumStudy.class);
 
     // =============================================================================================
     // ENUMS - Type-safe keys following best practices
@@ -65,10 +65,7 @@ public class SwtTrendMomentumStudy extends Study {
     public enum Values {
         TREND,        // Wavelet approximation (A_J) - the smoothed trend
         MOMENTUM,     // Momentum oscillator from detail coefficients
-        SLOPE,        // Rate of change of trend (ΔA_J)
-        WATR,         // Wavelet ATR - volatility measurement
-        WATR_UPPER,   // WATR upper band
-        WATR_LOWER    // WATR lower band
+        SLOPE         // Rate of change of trend (ΔA_J)
     }
 
     /**
@@ -89,10 +86,10 @@ public class SwtTrendMomentumStudy extends Study {
     private static final String USE_DENOISED = "useDenoised";
 
     // Signal generation settings
-    private static final String MOMENTUM_THRESHOLD = "momentumThreshold";
+    protected static final String MOMENTUM_THRESHOLD = "momentumThreshold";
     private static final String MIN_SLOPE_THRESHOLD = "minSlopeThreshold";
     private static final String MOMENTUM_SMOOTHING = "momentumSmoothing";
-    private static final String ENABLE_SIGNALS = "enableSignals";
+    protected static final String ENABLE_SIGNALS = "enableSignals";
 
     // Window configuration
     private static final String AUTO_WINDOW = "autoWindow";
@@ -374,8 +371,6 @@ public class SwtTrendMomentumStudy extends Study {
 
         // Main plot configuration (overlay on price)
         desc.declarePath(Values.TREND, Inputs.PATH);
-        desc.declarePath(Values.WATR_UPPER, WATR_UPPER_PATH);
-        desc.declarePath(Values.WATR_LOWER, WATR_LOWER_PATH);
         desc.declareIndicator(Values.TREND, Inputs.IND);
         desc.setRangeKeys(Values.TREND);
 
@@ -678,9 +673,6 @@ public class SwtTrendMomentumStudy extends Study {
                 }
             }
 
-            // Calculate WATR (always calculate for strategy use, only display if enabled)
-            calculateWatr(series, index, swtResult, currentTrend);
-
             // Mark as complete
             series.setComplete(index);
 
@@ -700,9 +692,6 @@ public class SwtTrendMomentumStudy extends Study {
         series.setDouble(index, Values.TREND, null);
         series.setDouble(index, Values.MOMENTUM, null);
         series.setDouble(index, Values.SLOPE, null);
-        series.setDouble(index, Values.WATR, null);
-        series.setDouble(index, Values.WATR_UPPER, null);
-        series.setDouble(index, Values.WATR_LOWER, null);
     }
 
     /**
@@ -1053,97 +1042,6 @@ public class SwtTrendMomentumStudy extends Study {
         return settings.getInteger(THRESH_LOOKBACK, DEFAULT_THRESH_LOOKBACK);
     }
 
-    // =============================================================================================
-    // WATR CALCULATION
-    // =============================================================================================
-
-    /**
-     * Calculates Wavelet ATR (WATR) for volatility measurement.
-     * This provides a multi-scale volatility measure based on wavelet detail coefficients.
-     * 
-     * @param series The data series to store results
-     * @param index The current bar index
-     * @param swtResult The SWT transform result containing detail coefficients
-     * @param centerPrice The center price for band calculation (trend value)
-     */
-    private void calculateWatr(DataSeries series, int index, VectorWaveSwtAdapter.SwtResult swtResult, double centerPrice) {
-        int watrK = getSettings().getInteger(WATR_K, DEFAULT_WATR_K);
-        double watrMultiplier = getSettings().getDouble(WATR_MULTIPLIER, DEFAULT_WATR_MULTIPLIER);
-        
-        double rawWatr = waveletAtr.calculate(swtResult, watrK);
-        
-        // Scale WATR based on configured method and factor
-        String scaleMethod = getSettings().getString(WATR_SCALE_METHOD, DEFAULT_WATR_SCALE_METHOD);
-        double scaleFactor = getSettings().getDouble(WATR_SCALE_FACTOR, DEFAULT_WATR_SCALE_FACTOR);
-        
-        // Use appropriate default factor based on scale method if factor is at default
-        if (scaleFactor == DEFAULT_WATR_SCALE_FACTOR) {
-            switch (scaleMethod) {
-                case "LINEAR":
-                    scaleFactor = DEFAULT_LINEAR_FACTOR;
-                    break;
-                case "SQRT":
-                    scaleFactor = DEFAULT_SQRT_FACTOR;
-                    break;
-                case "LOG":
-                    scaleFactor = DEFAULT_LOG_FACTOR;
-                    break;
-            }
-        }
-        
-        double priceScaleFactor;
-        switch (scaleMethod) {
-            case "LINEAR":
-                // Direct linear scaling: good for stable price ranges
-                priceScaleFactor = centerPrice / scaleFactor;
-                break;
-            case "SQRT":
-                // Square root scaling: dampens effect at higher prices
-                // Good for indices like ES/NQ that range from 1000s to 10000s
-                priceScaleFactor = Math.sqrt(centerPrice) / scaleFactor;
-                break;
-            case "LOG":
-                // Logarithmic scaling: for very wide price ranges
-                // Good for crypto or penny stocks to mega-caps
-                priceScaleFactor = Math.log(centerPrice) / scaleFactor;
-                break;
-            case "ADAPTIVE":
-                // Adaptive scaling based on recent price volatility
-                // Uses 20-period standard deviation as reference
-                double recentVol = series.std(index, 20, Enums.BarInput.CLOSE);
-                priceScaleFactor = recentVol > 0 ? centerPrice / (scaleFactor * recentVol) : 1.0;
-                break;
-            default:
-                // Default to square root scaling
-                priceScaleFactor = Math.sqrt(centerPrice) / scaleFactor;
-        }
-        
-        double watr = rawWatr * priceScaleFactor;
-        
-        if (logger.isDebugEnabled()) {
-            if (index % 50 == 0) {
-                logger.debug("WATR Calculation: method={}, rawWatr={}, scaleFactor={}, priceScale={}, scaledWatr={}, centerPrice={}", 
-                            scaleMethod,
-                            String.format("%.6f", rawWatr),
-                            String.format("%.2f", scaleFactor),
-                            String.format("%.2f", priceScaleFactor),
-                            String.format("%.2f", watr),
-                            String.format("%.2f", centerPrice));
-            }
-        }
-        
-        // Always store WATR value (needed by Strategy for stops)
-        series.setDouble(index, Values.WATR, watr);
-        
-        // Only calculate and store bands if display is enabled
-        if (getSettings().getBoolean(SHOW_WATR, DEFAULT_SHOW_WATR)) {
-            double upperBand = centerPrice + watr * watrMultiplier;
-            double lowerBand = centerPrice - watr * watrMultiplier;
-            
-            series.setDouble(index, Values.WATR_UPPER, upperBand);
-            series.setDouble(index, Values.WATR_LOWER, lowerBand);
-        }
-    }
 
     // =============================================================================================
     // UI HELPERS
