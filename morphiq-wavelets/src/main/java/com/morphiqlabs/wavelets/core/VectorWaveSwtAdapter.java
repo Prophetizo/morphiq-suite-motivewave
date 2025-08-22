@@ -1,4 +1,4 @@
-package com.morphiqlabs.wavelets.swt.core;
+package com.morphiqlabs.wavelets.core;
 
 import ai.prophetizo.wavelet.api.BoundaryMode;
 import ai.prophetizo.wavelet.api.Wavelet;

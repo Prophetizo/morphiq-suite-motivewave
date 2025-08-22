@@ -1,4 +1,4 @@
-package com.morphiqlabs.wavelets.swt;
+package com.morphiqlabs.wavelets.strategies.swt;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

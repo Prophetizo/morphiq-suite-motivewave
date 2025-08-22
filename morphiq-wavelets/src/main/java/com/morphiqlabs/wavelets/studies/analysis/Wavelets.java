@@ -1,4 +1,4 @@
-package com.morphiqlabs.motivewave.studies;
+package com.morphiqlabs.wavelets.studies.analysis;
 
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;

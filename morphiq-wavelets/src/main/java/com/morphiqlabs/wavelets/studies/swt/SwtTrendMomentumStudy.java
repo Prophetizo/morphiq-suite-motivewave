@@ -3,9 +3,9 @@ package com.morphiqlabs.wavelets.swt;
 import ai.prophetizo.wavelet.api.TransformType;
 import ai.prophetizo.wavelet.api.WaveletName;
 import ai.prophetizo.wavelet.api.WaveletRegistry;
-import com.morphiqlabs.wavelets.swt.core.Thresholds;
-import com.morphiqlabs.wavelets.swt.core.VectorWaveSwtAdapter;
-import com.morphiqlabs.wavelets.swt.core.WaveletAtr;
+import com.morphiqlabs.wavelets.core.Thresholds;
+import com.morphiqlabs.wavelets.core.VectorWaveSwtAdapter;
+import com.morphiqlabs.wavelets.core.WaveletAtr;
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.draw.Marker;
@@ -51,8 +51,8 @@ import java.util.List;
     requiresBarUpdates = true,
     helpLink = "https://docs.morphiqlabs.com/swt-trend-momentum"
 )
-public class SwtTrendMomentumSimple extends Study {
-    private static final Logger logger = LoggerFactory.getLogger(SwtTrendMomentumSimple.class);
+public class SwtTrendMomentumStudy extends Study {
+    private static final Logger logger = LoggerFactory.getLogger(com.morphiqlabs.wavelets.swt.SwtTrendMomentumStudy.class);
 
     // =============================================================================================
     // ENUMS - Type-safe keys following best practices
