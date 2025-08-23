@@ -155,7 +155,7 @@ public class WaveletATRStudy extends Study {
     private static final int MAX_THRESH_LOOKBACK = 512;
     
     private static final int DEFAULT_WATR_K = 2;
-    private static final double DEFAULT_WATR_MULTIPLIER = 2.0;
+    private static final double DEFAULT_WATR_MULTIPLIER = 1.0;  // Reduced since bands are now properly scaled
     private static final ScalingMethod DEFAULT_WATR_SCALE_METHOD = ScalingMethod.SQUARE_ROOT;
     private static final double DEFAULT_WATR_SCALE_FACTOR = 10.0;
     private static final double DEFAULT_LINEAR_FACTOR = 10.0;     // Standard band width
@@ -260,7 +260,7 @@ public class WaveletATRStudy extends Study {
         );
         bandsGroup.addRow(
             new DoubleDescriptor(WATR_MULTIPLIER, "Band Multiplier",
-                DEFAULT_WATR_MULTIPLIER, 0.5, 5.0, 0.1)
+                DEFAULT_WATR_MULTIPLIER, 0.5, 3.0, 0.1)
         );
         bandsGroup.addRow(
             new BooleanDescriptor(SHOW_PERCENTAGE, "Show Percentage", false)
@@ -546,14 +546,15 @@ public class WaveletATRStudy extends Study {
                 bandScaleFactor = 1.0;
                 break;
             case SQUARE_ROOT:
-                // Square root: scale bands by square root of price ratio
-                // Higher prices get wider bands (but not linearly)
-                bandScaleFactor = Math.sqrt(centerPrice / 1000.0);  // Normalized to 1000 base price
+                // Square root: mild scaling based on price level
+                // ES at 6450 -> sqrt(6450/6450) = 1.0
+                // ES at 3225 -> sqrt(3225/6450) = 0.707
+                bandScaleFactor = Math.sqrt(centerPrice / 6450.0);  // Normalized to ES typical price
                 break;
             case LOGARITHMIC:
-                // Logarithmic: scale bands by log of price
-                // Very gradual increase in band width with price
-                bandScaleFactor = Math.log10(centerPrice) / 3.0;  // Normalized so 1000 price = ~1.0
+                // Logarithmic: very gradual scaling with price
+                // ES at 6450 -> log(6450/1000) / log(10) = 0.81
+                bandScaleFactor = Math.log(centerPrice / 1000.0) / Math.log(10.0);
                 break;
             case ADAPTIVE:
                 // Adaptive: scale bands based on recent volatility
@@ -576,10 +577,10 @@ public class WaveletATRStudy extends Study {
         // Apply user's scale factor adjustment
         bandScaleFactor *= (scaleFactor / 10.0);  // Normalize around 10.0 as the default
         
-        // Store raw WATR for display (unscaled)
+        // Store WATR for display
         series.setDouble(index, Values.WATR, rawWatr);
         
-        // Calculate and store bands using SCALED band width
+        // Calculate and store bands using band-specific scaling
         if (showBands) {
             // Scale the band width based on the scaling method
             double scaledBandWidth = rawWatr * bandScaleFactor * watrMultiplier;
@@ -600,7 +601,7 @@ public class WaveletATRStudy extends Study {
             }
         }
         
-        // Calculate and store percentage using RAW WATR
+        // Calculate and store percentage using display WATR
         if (showPercentage) {
             double watrPct = (rawWatr / centerPrice) * 100.0;
             series.setDouble(index, Values.WATR_PCT, watrPct);
@@ -608,10 +609,11 @@ public class WaveletATRStudy extends Study {
         
         // Always log for the last bar to see current values
         if (index == series.size() - 1 || (logger.isDebugEnabled() && index % 50 == 0)) {
-            logger.info("WATR[{}]: method={}, raw={}, bandScale={}, price={}",
+            logger.info("WATR[{}]: method={}, display={}, bandBase={}, bandScale={}, price={}",
                         index,
                         scaleMethod.name(), 
-                        String.format("%.6f", rawWatr),
+                        String.format("%.2f", rawWatr),
+                        String.format("%.2f", rawWatr),
                         String.format("%.4f", bandScaleFactor),
                         String.format("%.2f", centerPrice));
         }
