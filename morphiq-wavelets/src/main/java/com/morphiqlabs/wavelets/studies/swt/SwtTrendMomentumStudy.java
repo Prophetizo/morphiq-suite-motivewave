@@ -1,8 +1,8 @@
 package com.morphiqlabs.wavelets.studies.swt;
 
-import ai.prophetizo.wavelet.api.TransformType;
-import ai.prophetizo.wavelet.api.WaveletName;
-import ai.prophetizo.wavelet.api.WaveletRegistry;
+import com.morphiqlabs.wavelet.api.TransformType;
+import com.morphiqlabs.wavelet.api.WaveletName;
+import com.morphiqlabs.wavelet.api.WaveletRegistry;
 import com.morphiqlabs.wavelets.core.Thresholds;
 import com.morphiqlabs.wavelets.core.VectorWaveSwtAdapter;
 import com.morphiqlabs.wavelets.core.WaveletAtr;

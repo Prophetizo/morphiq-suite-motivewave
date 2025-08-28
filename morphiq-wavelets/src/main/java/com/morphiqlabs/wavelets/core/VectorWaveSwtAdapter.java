@@ -1,10 +1,10 @@
 package com.morphiqlabs.wavelets.core;
 
-import ai.prophetizo.wavelet.api.BoundaryMode;
-import ai.prophetizo.wavelet.api.Wavelet;
-import ai.prophetizo.wavelet.api.WaveletName;
-import ai.prophetizo.wavelet.api.WaveletRegistry;
-import ai.prophetizo.wavelet.modwt.MutableMultiLevelMODWTResult;
+import com.morphiqlabs.wavelet.api.BoundaryMode;
+import com.morphiqlabs.wavelet.api.Wavelet;
+import com.morphiqlabs.wavelet.api.WaveletName;
+import com.morphiqlabs.wavelet.api.WaveletRegistry;
+import com.morphiqlabs.wavelet.modwt.MutableMultiLevelMODWTResult;
 import com.morphiqlabs.common.LoggerConfig;
 import org.slf4j.Logger;
 import java.util.Arrays;
@@ -25,14 +25,14 @@ import java.util.Arrays;
  * maintains the same data length at each decomposition level, making it 
  * shift-invariant and suitable for financial time series analysis.
  *
- * @see ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter
+ * @see com.morphiqlabs.wavelet.swt.VectorWaveSwtAdapter
  */
 public class VectorWaveSwtAdapter {
     private static final Logger logger = LoggerConfig.getLogger(VectorWaveSwtAdapter.class);
     
     private final String waveletType;
     private final BoundaryMode boundaryMode;
-    private final ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter swtAdapter;
+    private final com.morphiqlabs.wavelet.swt.VectorWaveSwtAdapter swtAdapter;
     private final Wavelet wavelet;
     
     /**
@@ -47,7 +47,7 @@ public class VectorWaveSwtAdapter {
         // Convert string to WaveletName enum
         WaveletName waveletName = WaveletName.valueOf(waveletType.toUpperCase());
         this.wavelet = WaveletRegistry.getWavelet(waveletName);
-        this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
+        this.swtAdapter = new com.morphiqlabs.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
         logger.info("VectorWave SWT adapter initialized with wavelet: {}", waveletType);
     }
     
@@ -64,7 +64,7 @@ public class VectorWaveSwtAdapter {
         // Convert string to WaveletName enum
         WaveletName waveletName = WaveletName.valueOf(waveletType.toUpperCase());
         this.wavelet = WaveletRegistry.getWavelet(waveletName);
-        this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
+        this.swtAdapter = new com.morphiqlabs.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
         logger.info("VectorWave SWT adapter initialized with wavelet: {}, boundary: {}", waveletType, boundaryMode);
     }
     
