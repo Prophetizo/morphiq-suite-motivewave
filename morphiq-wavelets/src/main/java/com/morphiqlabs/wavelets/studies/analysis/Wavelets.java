@@ -6,14 +6,14 @@ import com.motivewave.platform.sdk.study.RuntimeDescriptor;
 import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
 
-import ai.prophetizo.wavelet.api.BoundaryMode;
-import ai.prophetizo.wavelet.api.DiscreteWavelet;
-import ai.prophetizo.wavelet.api.Wavelet;
-import ai.prophetizo.wavelet.api.WaveletName;
-import ai.prophetizo.wavelet.api.WaveletRegistry;
-import ai.prophetizo.wavelet.modwt.MODWTTransformFactory;
-import ai.prophetizo.wavelet.modwt.MultiLevelMODWTResult;
-import ai.prophetizo.wavelet.modwt.MultiLevelMODWTTransform;
+import com.morphiqlabs.wavelet.api.BoundaryMode;
+import com.morphiqlabs.wavelet.api.DiscreteWavelet;
+import com.morphiqlabs.wavelet.api.Wavelet;
+import com.morphiqlabs.wavelet.api.WaveletName;
+import com.morphiqlabs.wavelet.api.WaveletRegistry;
+import com.morphiqlabs.wavelet.modwt.MODWTTransformFactory;
+import com.morphiqlabs.wavelet.modwt.MultiLevelMODWTResult;
+import com.morphiqlabs.wavelet.modwt.MultiLevelMODWTTransform;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
