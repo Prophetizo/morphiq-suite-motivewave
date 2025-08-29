@@ -169,16 +169,5 @@
                 <enabled>true</enabled>
             </snapshots>
         </repository>
-        <repository>
-            <id>github-morphiq-vectorwave</id>
-            <name>GitHub Packages - Morphiq Labs</name>
-            <url>https://maven.pkg.github.com/morphiq-labs/vectorwave</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
     </repositories>
 </project>
