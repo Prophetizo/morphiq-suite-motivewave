@@ -344,34 +344,33 @@ public class WaveletATR extends Study {
     }
     
     private double[] getWindowData(DataSeries series, int index, int windowLength, Object input) {
-        if (series == null || windowLength <= 0) {
+        if (series == null || windowLength <= 0 || series.size() == 0) {
             return null;
         }
         
-        double[] window = new double[windowLength];
+        // The guard `if (index < windowLength - 1)` in `calculate` ensures `start >= 0`.
         int start = index - windowLength + 1;
-        boolean hasValidData = false;
+        if (start < 0) {
+            // This should not happen, but as a safeguard:
+            logger.warn("getWindowData called with insufficient history. index={}, windowLength={}", index, windowLength);
+            return null;
+        }
+
+        double[] window = new double[windowLength];
         
         for (int i = 0; i < windowLength; i++) {
             int dataIndex = start + i;
-            if (dataIndex < 0 || dataIndex >= series.size()) {
-                window[i] = (dataIndex < 0) ? series.getClose(0) : series.getClose(series.size() - 1);
-                continue;
-            }
             
             Double value = series.getDouble(dataIndex, input);
             if (value != null) {
                 window[i] = value;
-                hasValidData = true;
             } else {
+                // Fallback to close price if input is not available or is null
                 window[i] = series.getClose(dataIndex);
-                if (window[i] != 0.0) {
-                    hasValidData = true;
-                }
             }
         }
         
-        return hasValidData ? window : null;
+        return window;
     }
     
     private void initializeAdapter() {

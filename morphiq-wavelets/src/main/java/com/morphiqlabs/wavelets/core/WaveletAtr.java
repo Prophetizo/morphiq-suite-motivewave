@@ -91,11 +91,12 @@ public class WaveletAtr {
     private static final int MAX_CACHED_LEVELS = 10; // Most decompositions use <= 10 levels
     private final double[] cachedLevelWeights;
     
-    // Circular buffer for smoothing - requires synchronization for thread safety
+    // Circular buffer for storing recent raw values for stats - not used for smoothing
     private double[] buffer;
     private int bufferIndex = 0;
     private boolean bufferFilled = false;
     private double ema = 0.0;
+    private boolean emaInitialized = false;
     
     // Lock object for synchronizing mutable state
     private final Object stateLock = new Object();
@@ -269,9 +270,10 @@ public class WaveletAtr {
         }
         
         // Use EMA for smoothing
-        if (ema == 0.0) {
+        if (!emaInitialized) {
             // Initialize EMA with first value
             ema = value;
+            emaInitialized = true;
         } else {
             // Update EMA
             ema = alpha * value + (1.0 - alpha) * ema;
@@ -290,6 +292,7 @@ public class WaveletAtr {
             bufferIndex = 0;
             bufferFilled = false;
             ema = 0.0;
+            emaInitialized = false;
         }
         
         if (logger.isDebugEnabled()) {
