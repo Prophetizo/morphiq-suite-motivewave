@@ -15,7 +15,6 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -46,55 +45,6 @@ import java.util.List;
 public class WaveletATRChannel extends Study {
     private static final Logger logger = LoggerFactory.getLogger(WaveletATRChannel.class);
     
-    /**
-     * Enum for WATR scaling methods
-     */
-    public enum ScalingMethod {
-        LINEAR("Linear", "Fixed band width regardless of price level"),
-        SQUARE_ROOT("Square Root", "Band width scales with square root of price"),
-        LOGARITHMIC("Logarithmic", "Band width scales logarithmically with price"),
-        ADAPTIVE("Adaptive", "Band width adapts to recent market volatility");
-        
-        private final String displayName;
-        private final String description;
-        
-        ScalingMethod(String displayName, String description) {
-            this.displayName = displayName;
-            this.description = description;
-        }
-        
-        public String getDisplayName() {
-            return displayName;
-        }
-        
-        public String getDescription() {
-            return description;
-        }
-        
-        @Override
-        public String toString() {
-            return displayName;
-        }
-        
-        public static ScalingMethod fromString(String value) {
-            if (value == null) return SQUARE_ROOT;
-            
-            try {
-                return ScalingMethod.valueOf(value);
-            } catch (IllegalArgumentException e) {
-            }
-            
-            for (ScalingMethod method : values()) {
-                if (method.displayName.equalsIgnoreCase(value)) {
-                    return method;
-                }
-            }
-            
-            logger.warn("Unknown scaling method: {}, using SQUARE_ROOT", value);
-            return SQUARE_ROOT;
-        }
-    }
-
     public enum Values {
         WATR_UPPER,
         WATR_LOWER,
@@ -109,8 +59,6 @@ public class WaveletATRChannel extends Study {
     
     private static final String WATR_K = "watrK";
     private static final String WATR_MULTIPLIER = "watrMultiplier";
-    private static final String WATR_SCALE_METHOD = "watrScaleMethod";
-    private static final String WATR_SCALE_FACTOR = "watrScaleFactor";
     private static final String WATR_LEVEL_DECAY = "watrLevelDecay";
     private static final String SMOOTHING_PERIOD = "smoothingPeriod";
     private static final String SHOW_CENTER = "showCenter";
@@ -130,11 +78,6 @@ public class WaveletATRChannel extends Study {
     
     private static final int DEFAULT_WATR_K = 2;
     private static final double DEFAULT_WATR_MULTIPLIER = 1.0;
-    private static final ScalingMethod DEFAULT_WATR_SCALE_METHOD = ScalingMethod.SQUARE_ROOT;
-    private static final double DEFAULT_WATR_SCALE_FACTOR = 10.0;
-    private static final double DEFAULT_LINEAR_FACTOR = 10.0;
-    private static final double DEFAULT_SQRT_FACTOR = 10.0;
-    private static final double DEFAULT_LOG_FACTOR = 10.0;
     private static final double DEFAULT_WATR_LEVEL_DECAY = 0.5;
     private static final int DEFAULT_SMOOTHING = 14;
     
@@ -190,24 +133,6 @@ public class WaveletATRChannel extends Study {
         watrGroup.addRow(
             new IntegerDescriptor(SMOOTHING_PERIOD, "Smoothing Period",
                 DEFAULT_SMOOTHING, 1, 50, 1)
-        );
-        
-        var scalingTab = sd.addTab("Scaling");
-        
-        var scaleGroup = scalingTab.addGroup("Scale Configuration");
-        scaleGroup.addRow(
-            new DiscreteDescriptor(WATR_SCALE_METHOD, "Scaling Method",
-                DEFAULT_WATR_SCALE_METHOD.name(),
-                Arrays.asList(
-                    new NVP(ScalingMethod.LINEAR.name(), ScalingMethod.LINEAR.getDisplayName()),
-                    new NVP(ScalingMethod.SQUARE_ROOT.name(), ScalingMethod.SQUARE_ROOT.getDisplayName()),
-                    new NVP(ScalingMethod.LOGARITHMIC.name(), ScalingMethod.LOGARITHMIC.getDisplayName()),
-                    new NVP(ScalingMethod.ADAPTIVE.name(), ScalingMethod.ADAPTIVE.getDisplayName())
-                ))
-        );
-        scaleGroup.addRow(
-            new DoubleDescriptor(WATR_SCALE_FACTOR, "Scale Factor",
-                DEFAULT_WATR_SCALE_FACTOR, 0.01, 1000.0, 0.1)
         );
         
         var displayTab = sd.addTab("Display");
@@ -295,39 +220,6 @@ public class WaveletATRChannel extends Study {
         }
     }
     
-    @Override
-    public void onSettingsUpdated(DataContext ctx) {
-        String scaleMethodStr = getSettings().getString(WATR_SCALE_METHOD, DEFAULT_WATR_SCALE_METHOD.name());
-        ScalingMethod newScaleMethod = ScalingMethod.fromString(scaleMethodStr);
-        double newScaleFactor = getSettings().getDouble(WATR_SCALE_FACTOR, DEFAULT_WATR_SCALE_FACTOR);
-        
-        logger.info("=== onSettingsUpdated Called ===");
-        logger.info("New Scale Method: {} ({})", newScaleMethod.name(), newScaleMethod.getDisplayName());
-        logger.info("New Scale Factor: {}", newScaleFactor);
-        logger.info("================================");
-        
-        clearState();
-        
-        lastWaveletType = null;
-        swtAdapter = null;
-        waveletAtr = null;
-        
-        setMinBars(getSettings().getInteger(WINDOW_LENGTH, DEFAULT_WINDOW));
-        
-        DataSeries series = ctx.getDataSeries();
-        if (series != null) {
-            logger.info("Marking {} bars for recalculation", series.size());
-            
-            for (int i = 0; i < series.size(); i++) {
-                series.setComplete(i, false);
-                series.setDouble(i, Values.WATR_UPPER, null);
-                series.setDouble(i, Values.WATR_LOWER, null);
-                series.setDouble(i, Values.WATR_CENTER, null);
-            }
-        }
-        
-        super.onSettingsUpdated(ctx);
-    }
     
     @Override
     public void clearState() {
@@ -416,58 +308,13 @@ public class WaveletATRChannel extends Study {
         
         double centerPrice = series.getClose(index);
         
+        // Calculate raw WATR value
         double rawWatr = waveletAtr.calculate(swtResult, watrK);
         
-        String scaleMethodStr = getSettings().getString(WATR_SCALE_METHOD, DEFAULT_WATR_SCALE_METHOD.name());
-        ScalingMethod scaleMethod = ScalingMethod.fromString(scaleMethodStr);
-        double scaleFactor = getSettings().getDouble(WATR_SCALE_FACTOR, DEFAULT_WATR_SCALE_FACTOR);
-        
-        if (index == series.size() - 1) {
-            logger.info("Settings retrieved - Method: {} ({}), Factor: {}", 
-                scaleMethod.name(), scaleMethod.getDisplayName(), scaleFactor);
-        }
-        
-        double methodDefaultFactor = getDefaultScaleFactorForMethod(scaleMethod);
-        
-        if (scaleFactor == DEFAULT_WATR_SCALE_FACTOR || 
-            scaleFactor == DEFAULT_LINEAR_FACTOR || 
-            scaleFactor == DEFAULT_SQRT_FACTOR || 
-            scaleFactor == DEFAULT_LOG_FACTOR) {
-            scaleFactor = methodDefaultFactor;
-        }
-        
-        double bandScaleFactor;
-        
-        switch (scaleMethod) {
-            case LINEAR:
-                bandScaleFactor = 1.0;
-                break;
-            case SQUARE_ROOT:
-                bandScaleFactor = Math.sqrt(centerPrice / 6450.0);
-                break;
-            case LOGARITHMIC:
-                bandScaleFactor = Math.log(centerPrice / 1000.0) / Math.log(10.0);
-                break;
-            case ADAPTIVE:
-                double recentVol = series.std(index, 20, Enums.BarInput.CLOSE);
-                Double avgPriceObj = series.sma(index, 20, Enums.BarInput.CLOSE);
-                if (avgPriceObj != null && avgPriceObj > 0 && recentVol > 0) {
-                    double volPct = recentVol / avgPriceObj;
-                    bandScaleFactor = 1.0 + (volPct * 10.0);
-                } else {
-                    bandScaleFactor = 1.0;
-                }
-                break;
-            default:
-                logger.error("Unexpected scale method enum: {}", scaleMethod);
-                bandScaleFactor = 1.0;
-        }
-        
-        bandScaleFactor *= (scaleFactor / 10.0);
-        
-        double scaledBandWidth = rawWatr * bandScaleFactor * watrMultiplier;
-        double upperBand = centerPrice + scaledBandWidth;
-        double lowerBand = centerPrice - scaledBandWidth;
+        // Simple band calculation: WATR * multiplier
+        double bandWidth = rawWatr * watrMultiplier;
+        double upperBand = centerPrice + bandWidth;
+        double lowerBand = centerPrice - bandWidth;
         
         series.setDouble(index, Values.WATR_UPPER, upperBand);
         series.setDouble(index, Values.WATR_LOWER, lowerBand);
@@ -476,13 +323,13 @@ public class WaveletATRChannel extends Study {
             series.setDouble(index, Values.WATR_CENTER, centerPrice);
         }
         
-        if (index == series.size() - 1) {
-            logger.info("Bands: Upper={}, Lower={}, Width={}, Method={}, BandScale={}, Center={}",
+        if (index == series.size() - 1 || (logger.isDebugEnabled() && index % 50 == 0)) {
+            logger.info("Bands[{}]: Upper={}, Lower={}, Width={}, Multiplier={}, Center={}",
+                index,
                 String.format("%.2f", upperBand),
                 String.format("%.2f", lowerBand),
-                String.format("%.4f", scaledBandWidth),
-                scaleMethod.name(),
-                String.format("%.4f", bandScaleFactor),
+                String.format("%.4f", bandWidth),
+                String.format("%.2f", watrMultiplier),
                 String.format("%.2f", centerPrice));
         }
     }
@@ -543,21 +390,6 @@ public class WaveletATRChannel extends Study {
         }
         
         return hasValidData ? window : null;
-    }
-    
-    private double getDefaultScaleFactorForMethod(ScalingMethod scaleMethod) {
-        switch (scaleMethod) {
-            case LINEAR:
-                return DEFAULT_LINEAR_FACTOR;
-            case SQUARE_ROOT:
-                return DEFAULT_SQRT_FACTOR;
-            case LOGARITHMIC:
-                return DEFAULT_LOG_FACTOR;
-            case ADAPTIVE:
-                return DEFAULT_SQRT_FACTOR;
-            default:
-                return DEFAULT_SQRT_FACTOR;
-        }
     }
     
     private void initializeAdapter() {
