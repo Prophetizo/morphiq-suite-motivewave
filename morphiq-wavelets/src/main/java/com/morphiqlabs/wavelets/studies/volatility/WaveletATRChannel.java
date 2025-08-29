@@ -323,14 +323,30 @@ public class WaveletATRChannel extends Study {
             series.setDouble(index, Values.WATR_CENTER, centerPrice);
         }
         
-        if (index == series.size() - 1 || (logger.isDebugEnabled() && index % 50 == 0)) {
-            logger.info("Bands[{}]: Upper={}, Lower={}, Width={}, Multiplier={}, Center={}",
-                index,
-                String.format("%.2f", upperBand),
-                String.format("%.2f", lowerBand),
-                String.format("%.4f", bandWidth),
-                String.format("%.2f", watrMultiplier),
-                String.format("%.2f", centerPrice));
+        // Enhanced logging to show exact values with high precision
+        if (index == series.size() - 1) {
+            logger.info("=== WaveletATRChannel Exact Values ===");
+            logger.info("Raw WATR: {}", rawWatr);
+            logger.info("Band Width: {} (WATR {} * Multiplier {})", 
+                bandWidth, rawWatr, watrMultiplier);
+            logger.info("Center Price: {}", centerPrice);
+            logger.info("Upper Band: {} (exact: {})", 
+                String.format("%.2f", upperBand), upperBand);
+            logger.info("Lower Band: {} (exact: {})", 
+                String.format("%.2f", lowerBand), lowerBand);
+            
+            // Check if values appear to be rounded to tick size
+            double tickSize = 0.25; // ES tick size
+            boolean upperRounded = (upperBand % tickSize) == 0;
+            boolean lowerRounded = (lowerBand % tickSize) == 0;
+            
+            if (upperRounded && lowerRounded) {
+                logger.info("WARNING: Band values appear to align with {}-point tick size", tickSize);
+            }
+            logger.info("=====================================");
+        } else if (logger.isDebugEnabled() && index % 50 == 0) {
+            logger.debug("Bands[{}]: Upper={}, Lower={}, Width={}",
+                index, upperBand, lowerBand, bandWidth);
         }
     }
     
