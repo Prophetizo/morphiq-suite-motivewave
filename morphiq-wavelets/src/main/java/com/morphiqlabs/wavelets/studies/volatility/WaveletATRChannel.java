@@ -235,6 +235,16 @@ public class WaveletATRChannel extends Study {
                 new Color(200, 200, 200, 100), 1.0f, new float[]{3, 3}, false, false, true)
         );
         
+        var indicatorsGroup = displayTab.addGroup("Indicators");
+        indicatorsGroup.addRow(
+            new IndicatorDescriptor(Inputs.IND, "Upper Band",
+                new Color(255, 100, 100), Color.WHITE, false, true, true)
+        );
+        indicatorsGroup.addRow(
+            new IndicatorDescriptor(Inputs.IND2, "Lower Band",
+                new Color(255, 100, 100), Color.WHITE, false, true, true)
+        );
+        
         var desc = createRD();
         
         desc.setLabelSettings(WAVELET_TYPE, WATR_K);
@@ -247,6 +257,9 @@ public class WaveletATRChannel extends Study {
         desc.declarePath(Values.WATR_UPPER, WATR_UPPER_PATH);
         desc.declarePath(Values.WATR_LOWER, WATR_LOWER_PATH);
         desc.declarePath(Values.WATR_CENTER, WATR_CENTER_PATH);
+        
+        desc.declareIndicator(Values.WATR_UPPER, Inputs.IND);
+        desc.declareIndicator(Values.WATR_LOWER, Inputs.IND2);
         
         desc.setRangeKeys(Values.WATR_UPPER, Values.WATR_LOWER);
         
