@@ -193,7 +193,9 @@ public class WaveletATR extends Study {
     
     @Override
     public void onSettingsUpdated(DataContext ctx) {
-        logger.info("=== onSettingsUpdated Called ===");
+        if (logger.isDebugEnabled()) {
+            logger.debug("onSettingsUpdated: Resetting study state");
+        }
         
         clearState();
         
@@ -205,7 +207,9 @@ public class WaveletATR extends Study {
         
         DataSeries series = ctx.getDataSeries();
         if (series != null) {
-            logger.info("Marking {} bars for recalculation", series.size());
+            if (logger.isDebugEnabled()) {
+                logger.debug("Marking {} bars for recalculation", series.size());
+            }
             
             for (int i = 0; i < series.size(); i++) {
                 series.setComplete(i, false);
@@ -238,7 +242,7 @@ public class WaveletATR extends Study {
         
         String currentWaveletType = getSettings().getString(WAVELET_TYPE, "db4");
         if (!currentWaveletType.equals(lastWaveletType)) {
-            logger.info("Wavelet type changed from {} to {}", lastWaveletType, currentWaveletType);
+            logger.debug("Wavelet type changed from {} to {}", lastWaveletType, currentWaveletType);
             swtAdapter = null;
             lastWaveletType = null;
             initializeAdapter();
@@ -371,7 +375,7 @@ public class WaveletATR extends Study {
     
     private void initializeAdapter() {
         String waveletType = getSettings().getString(WAVELET_TYPE, "DB4");
-        logger.info("Creating new SWT adapter with wavelet: {}", waveletType);
+        logger.debug("Creating new SWT adapter with wavelet: {}", waveletType);
         swtAdapter = new VectorWaveSwtAdapter(waveletType);
         lastWaveletType = waveletType;
     }
@@ -408,7 +412,7 @@ public class WaveletATR extends Study {
                 }
             }
             
-            logger.info("Created {} SWT-compatible wavelet options", options.size());
+            logger.debug("Created {} SWT-compatible wavelet options", options.size());
             
         } catch (Exception e) {
             logger.error("Error creating SWT wavelet options", e);

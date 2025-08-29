@@ -243,7 +243,7 @@ public class WaveletATRChannel extends Study {
         
         String currentWaveletType = getSettings().getString(WAVELET_TYPE, "db4");
         if (!currentWaveletType.equals(lastWaveletType)) {
-            logger.info("Wavelet type changed from {} to {}", lastWaveletType, currentWaveletType);
+            logger.debug("Wavelet type changed from {} to {}", lastWaveletType, currentWaveletType);
             swtAdapter = null;
             lastWaveletType = null;
             initializeAdapter();
@@ -324,26 +324,17 @@ public class WaveletATRChannel extends Study {
         }
         
         // Enhanced logging to show exact values with high precision
-        if (index == series.size() - 1) {
-            logger.info("=== WaveletATRChannel Exact Values ===");
-            logger.info("Raw WATR: {}", rawWatr);
-            logger.info("Band Width: {} (WATR {} * Multiplier {})", 
+        if (logger.isDebugEnabled() && index == series.size() - 1) {
+            logger.debug("=== WaveletATRChannel Exact Values ===");
+            logger.debug("Raw WATR: {}", rawWatr);
+            logger.debug("Band Width: {} (WATR {} * Multiplier {})", 
                 bandWidth, rawWatr, watrMultiplier);
-            logger.info("Center Price: {}", centerPrice);
-            logger.info("Upper Band: {} (exact: {})", 
+            logger.debug("Center Price: {}", centerPrice);
+            logger.debug("Upper Band: {} (exact: {})", 
                 String.format("%.2f", upperBand), upperBand);
-            logger.info("Lower Band: {} (exact: {})", 
+            logger.debug("Lower Band: {} (exact: {})", 
                 String.format("%.2f", lowerBand), lowerBand);
-            
-            // Check if values appear to be rounded to tick size
-            double tickSize = 0.25; // ES tick size
-            boolean upperRounded = (upperBand % tickSize) == 0;
-            boolean lowerRounded = (lowerBand % tickSize) == 0;
-            
-            if (upperRounded && lowerRounded) {
-                logger.info("WARNING: Band values appear to align with {}-point tick size", tickSize);
-            }
-            logger.info("=====================================");
+            logger.debug("=====================================");
         } else if (logger.isDebugEnabled() && index % 50 == 0) {
             logger.debug("Bands[{}]: Upper={}, Lower={}, Width={}",
                 index, upperBand, lowerBand, bandWidth);
@@ -410,7 +401,7 @@ public class WaveletATRChannel extends Study {
     
     private void initializeAdapter() {
         String waveletType = getSettings().getString(WAVELET_TYPE, "DB4");
-        logger.info("Creating new SWT adapter with wavelet: {}", waveletType);
+        logger.debug("Creating new SWT adapter with wavelet: {}", waveletType);
         swtAdapter = new VectorWaveSwtAdapter(waveletType);
         lastWaveletType = waveletType;
     }
@@ -447,7 +438,7 @@ public class WaveletATRChannel extends Study {
                 }
             }
             
-            logger.info("Created {} SWT-compatible wavelet options", options.size());
+            logger.debug("Created {} SWT-compatible wavelet options", options.size());
             
         } catch (Exception e) {
             logger.error("Error creating SWT wavelet options", e);
