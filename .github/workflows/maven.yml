@@ -37,13 +37,18 @@ jobs:
                 <username>${{ github.actor }}</username>
                 <password>${{ secrets.GITHUB_TOKEN }}</password>
               </server>
+              <server>
+                <id>github-morphiq-vectorwave</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
             </servers>
           </settings>" > ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
       - name: Build with Maven
-        run: mvn -B package -U -DskipTests --file pom.xml
+        run: mvn -B package -U -DskipTests --file pom.xml -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.httpconnectionManager.ttlSeconds=120
       - name: List built artifacts
         run: |
           echo "=== Module JARs ==="
@@ -92,10 +97,15 @@ jobs:
                 <username>${{ github.actor }}</username>
                 <password>${{ secrets.GITHUB_TOKEN }}</password>
               </server>
+              <server>
+                <id>github-morphiq-vectorwave</id>
+                <username>${{ github.actor }}</username>
+                <password>${{ secrets.GITHUB_TOKEN }}</password>
+              </server>
             </servers>
           </settings>" > ~/.m2/settings.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
       - name: Run tests with Maven
-        run: mvn -B test --file pom.xml
+        run: mvn -B test --file pom.xml -Dhttp.keepAlive=false -Dmaven.wagon.http.pool=false -Dmaven.wagon.httpconnectionManager.ttlSeconds=120

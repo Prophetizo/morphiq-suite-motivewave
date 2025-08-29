@@ -158,10 +158,21 @@
             <id>gitlab-maven</id>
             <url>https://gitlab.com/api/v4/projects/63189175/packages/maven</url>
         </repository>
-                <repository>
+        <repository>
             <id>github-prophetizo-vectorwave</id>
             <name>GitHub Packages</name>
             <url>https://maven.pkg.github.com/prophetizo/vectorwave</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>github-morphiq-vectorwave</id>
+            <name>GitHub Packages - Morphiq Labs</name>
+            <url>https://maven.pkg.github.com/morphiq-labs/vectorwave</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
