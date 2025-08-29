@@ -83,7 +83,7 @@ public class WaveletATRChannel extends Study {
     
     private VectorWaveSwtAdapter swtAdapter;
     private WaveletAtr waveletAtr;
-    private String lastWaveletType = null;
+    private WaveletName lastWaveletName = null;
     
     @Override
     public void initialize(Defaults defaults) {
@@ -197,8 +197,8 @@ public class WaveletATRChannel extends Study {
             initializeAdapter();
             
             if (swtAdapter == null) {
-                swtAdapter = new VectorWaveSwtAdapter("db4");
-                lastWaveletType = "db4";
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
+                lastWaveletName = WaveletName.DB4;
             }
             
             double levelDecay = getSettings().getDouble(WATR_LEVEL_DECAY, DEFAULT_WATR_LEVEL_DECAY);
@@ -208,12 +208,12 @@ public class WaveletATRChannel extends Study {
             setMinBars(getSettings().getInteger(WINDOW_LENGTH, DEFAULT_WINDOW));
             
             logger.debug("onLoad: Initialized with wavelet={}, decay={}, smoothing={}",
-                        lastWaveletType, levelDecay, smoothingPeriod);
+                        lastWaveletName, levelDecay, smoothingPeriod);
                         
         } catch (Exception e) {
             if (swtAdapter == null) {
-                swtAdapter = new VectorWaveSwtAdapter("db4");
-                lastWaveletType = "db4";
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
+                lastWaveletName = WaveletName.DB4;
             }
             setMinBars(DEFAULT_WINDOW);
             logger.debug("onLoad: Error during initialization, using defaults", e);
@@ -227,7 +227,7 @@ public class WaveletATRChannel extends Study {
         super.clearState();
         swtAdapter = null;
         waveletAtr = null;
-        lastWaveletType = null;
+        lastWaveletName = null;
     }
     
     @Override
@@ -241,19 +241,20 @@ public class WaveletATRChannel extends Study {
             return;
         }
         
-        String currentWaveletType = getSettings().getString(WAVELET_TYPE, "db4");
-        if (!currentWaveletType.equals(lastWaveletType)) {
-            logger.debug("Wavelet type changed from {} to {}", lastWaveletType, currentWaveletType);
+        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, "DB4");
+        WaveletName currentWaveletName = WaveletName.valueOf(waveletTypeStr);
+        if (currentWaveletName != lastWaveletName) {
+            logger.debug("Wavelet type changed from {} to {}", lastWaveletName, currentWaveletName);
             swtAdapter = null;
-            lastWaveletType = null;
+            lastWaveletName = null;
             initializeAdapter();
         }
         
         if (swtAdapter == null) {
             initializeAdapter();
             if (swtAdapter == null) {
-                swtAdapter = new VectorWaveSwtAdapter("db4");
-                lastWaveletType = "db4";
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
+                lastWaveletName = WaveletName.DB4;
             }
         }
         
@@ -402,8 +403,8 @@ public class WaveletATRChannel extends Study {
     private void initializeAdapter() {
         String waveletType = getSettings().getString(WAVELET_TYPE, "DB4");
         logger.debug("Creating new SWT adapter with wavelet: {}", waveletType);
-        swtAdapter = new VectorWaveSwtAdapter(waveletType);
-        lastWaveletType = waveletType;
+        swtAdapter = new VectorWaveSwtAdapter(WaveletName.valueOf(waveletType));
+        lastWaveletName = WaveletName.valueOf(waveletType);
     }
     
     private List<NVP> createSWTWaveletOptions() {
@@ -412,31 +413,19 @@ public class WaveletATRChannel extends Study {
         try {
             List<WaveletName> swtWavelets = WaveletRegistry.getWaveletsForTransform(TransformType.SWT);
             
-            List<WaveletName> daubechiesFamily = WaveletRegistry.getDaubechiesWavelets();
-            List<WaveletName> symletFamily = WaveletRegistry.getSymletWavelets();
-            List<WaveletName> coifletFamily = WaveletRegistry.getCoifletWavelets();
+            // Only include specific wavelets as requested:
+            // Daubechies 2, 4, 6, 8 and Coiflets 1, 2, 3
             
-            if (swtWavelets.contains(WaveletName.HAAR)) {
-                options.add(new NVP("Haar", WaveletName.HAAR.name()));
-            }
+            // Daubechies wavelets
+            addWaveletIfSupported(options, swtWavelets, WaveletName.DB2);
+            addWaveletIfSupported(options, swtWavelets, WaveletName.DB4);
+            addWaveletIfSupported(options, swtWavelets, WaveletName.DB6);
+            addWaveletIfSupported(options, swtWavelets, WaveletName.DB8);
             
-            for (WaveletName wavelet : daubechiesFamily) {
-                if (swtWavelets.contains(wavelet)) {
-                    options.add(new NVP(wavelet.getDescription(), wavelet.name()));
-                }
-            }
-            
-            for (WaveletName wavelet : symletFamily) {
-                if (swtWavelets.contains(wavelet)) {
-                    options.add(new NVP(wavelet.getDescription(), wavelet.name()));
-                }
-            }
-            
-            for (WaveletName wavelet : coifletFamily) {
-                if (swtWavelets.contains(wavelet)) {
-                    options.add(new NVP(wavelet.getDescription(), wavelet.name()));
-                }
-            }
+            // Coiflet wavelets
+            addWaveletIfSupported(options, swtWavelets, WaveletName.COIF1);
+            addWaveletIfSupported(options, swtWavelets, WaveletName.COIF2);
+            addWaveletIfSupported(options, swtWavelets, WaveletName.COIF3);
             
             logger.debug("Created {} SWT-compatible wavelet options", options.size());
             
@@ -445,5 +434,11 @@ public class WaveletATRChannel extends Study {
         }
         
         return options;
+    }
+    
+    private void addWaveletIfSupported(List<NVP> options, List<WaveletName> swtWavelets, WaveletName wavelet) {
+        if (swtWavelets.contains(wavelet)) {
+            options.add(new NVP(wavelet.getDescription(), wavelet.name()));
+        }
     }
 }

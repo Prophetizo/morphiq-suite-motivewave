@@ -411,7 +411,7 @@ public class SwtTrendMomentumStudy extends Study {
 
             if (swtAdapter == null) {
                 // Try fallback initialization
-                swtAdapter = new VectorWaveSwtAdapter("db4");
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
                 lastWaveletType = "db4";
             }
 
@@ -431,7 +431,7 @@ public class SwtTrendMomentumStudy extends Study {
         } catch (Exception e) {
             // Ensure we have at least a basic adapter
             if (swtAdapter == null) {
-                swtAdapter = new VectorWaveSwtAdapter("db4");
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
                 lastWaveletType = "db4";
             }
             setMinBars(DEFAULT_WINDOW);
@@ -587,7 +587,7 @@ public class SwtTrendMomentumStudy extends Study {
             initializeAdapter();
             if (swtAdapter == null) {
                 // Fallback initialization
-                swtAdapter = new VectorWaveSwtAdapter("db4");
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
                 lastWaveletType = "db4";
             }
         }
@@ -639,7 +639,7 @@ public class SwtTrendMomentumStudy extends Study {
             if (index < windowLength + 5 && logger.isDebugEnabled()) {
                 double[] approx = swtResult.getApproximation();
                 logger.debug("Transform at index {} with {}: approx length={}, last value={}",
-                           index, swtResult.getWaveletType(),
+                           index, swtResult.getWaveletName(),
                            approx != null ? approx.length : 0,
                            approx != null && approx.length > 0 ? approx[approx.length - 1] : "null");
             }
@@ -842,7 +842,7 @@ public class SwtTrendMomentumStudy extends Study {
                 // Log the actual approximation value being used
                 if (logger.isDebugEnabled()) {
                     logger.debug("Extracted trend from {}: A[{}]={}, first 3=[{}, {}, {}]",
-                               swtResult.getWaveletType(), approx.length - 1, value,
+                               swtResult.getWaveletName(), approx.length - 1, value,
                                approx.length > 0 ? approx[0] : "N/A",
                                approx.length > 1 ? approx[1] : "N/A",
                                approx.length > 2 ? approx[2] : "N/A");
@@ -943,7 +943,7 @@ public class SwtTrendMomentumStudy extends Study {
         logger.info("Creating new SWT adapter with wavelet: {} (was: {})",
                    waveletType, lastWaveletType);
 
-        swtAdapter = new VectorWaveSwtAdapter(waveletType);
+        swtAdapter = new VectorWaveSwtAdapter(WaveletName.valueOf(waveletType));
         lastWaveletType = waveletType;
         logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
     }
