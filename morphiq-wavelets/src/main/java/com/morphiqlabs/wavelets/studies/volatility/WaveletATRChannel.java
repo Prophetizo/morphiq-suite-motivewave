@@ -246,6 +246,8 @@ public class WaveletATRChannel extends Study {
         try {
             currentWaveletName = WaveletName.valueOf(waveletTypeStr);
         } catch (IllegalArgumentException e) {
+            logger.error("Invalid wavelet type '{}'. Please select a valid wavelet from the settings. Error: {}", 
+                        waveletTypeStr, e.getMessage());
             clearValues(series, index);
             series.setComplete(index, true);
             return;

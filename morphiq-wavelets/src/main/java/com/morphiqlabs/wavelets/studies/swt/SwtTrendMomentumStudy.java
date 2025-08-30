@@ -949,7 +949,7 @@ public class SwtTrendMomentumStudy extends Study {
             lastWaveletType = waveletType;
             logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
         } catch (IllegalArgumentException e) {
-            logger.error("Failed to initialize adapter with invalid wavelet type '{}': {}", 
+            logger.error("Failed to initialize adapter with invalid wavelet type '{}'. Please select a valid wavelet from the settings. Error: {}", 
                         waveletType, e.getMessage());
             swtAdapter = null;
             lastWaveletType = null;
