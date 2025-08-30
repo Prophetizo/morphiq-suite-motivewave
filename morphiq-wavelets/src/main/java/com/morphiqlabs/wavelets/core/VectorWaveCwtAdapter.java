@@ -145,7 +145,17 @@ public class VectorWaveCwtAdapter {
         double minScale = 1.0;
         double maxScale = Math.min(signalLength / 4.0, 128.0); // Cap at 128 for performance
         
-        // Generate logarithmically spaced scales
+        // Handle special case when only 1 scale is requested
+        if (numScales == 1) {
+            // Use a middle scale for single level analysis
+            scales[0] = Math.sqrt(minScale * maxScale);  // Geometric mean
+            if (logger.isDebugEnabled()) {
+                logger.debug("Generated single scale: {}", scales[0]);
+            }
+            return scales;
+        }
+        
+        // Generate logarithmically spaced scales for multiple levels
         double logMin = Math.log(minScale);
         double logMax = Math.log(maxScale);
         double logStep = (logMax - logMin) / (numScales - 1);
@@ -155,7 +165,7 @@ public class VectorWaveCwtAdapter {
         }
         
         if (logger.isDebugEnabled()) {
-            logger.debug("Generated {} scales from {:.2f} to {:.2f}", 
+            logger.debug("Generated {} scales from {} to {}", 
                 numScales, scales[0], scales[numScales - 1]);
         }
         
