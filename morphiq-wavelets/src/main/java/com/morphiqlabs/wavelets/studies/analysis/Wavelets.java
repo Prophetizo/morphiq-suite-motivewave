@@ -1155,7 +1155,7 @@ public class Wavelets extends Study {
         
         String name = waveletName.name();
         
-        // Handle continuous wavelets for CWT transform (new VectorWave capabilities)
+        // Handle continuous wavelets for CWT transform with additional descriptions
         if (name.equals("MORLET")) {
             return "Morlet - Market cycles & dominant frequency analysis";
         }
@@ -1181,31 +1181,8 @@ public class Wavelets extends Study {
             return "Ricker - Seismic-style analysis";
         }
         
-        // Handle discrete wavelets (existing functionality)
-        return switch (waveletName) {
-            case HAAR -> "Haar";
-            case DB2 -> "Daubechies 2";
-            case DB4 -> "Daubechies 4";
-            case DB6 -> "Daubechies 6";
-            case DB8 -> "Daubechies 8";
-            case DB10 -> "Daubechies 10";
-            case SYM2 -> "Symlet 2";
-            case SYM3 -> "Symlet 3";
-            case SYM4 -> "Symlet 4";
-            case SYM5 -> "Symlet 5";
-            case SYM6 -> "Symlet 6";
-            case SYM7 -> "Symlet 7";
-            case SYM8 -> "Symlet 8";
-            case SYM10 -> "Symlet 10";
-            case SYM12 -> "Symlet 12";
-            case SYM15 -> "Symlet 15";
-            case SYM20 -> "Symlet 20";
-            case COIF1 -> "Coiflet 1";
-            case COIF2 -> "Coiflet 2";
-            case COIF3 -> "Coiflet 3";
-            case COIF4 -> "Coiflet 4";
-            case COIF5 -> "Coiflet 5";
-            default -> waveletName.name();
-        };
+        // Use VectorWave's built-in display name functionality
+        // This handles all standard wavelets (DB, SYM, COIF, etc.) consistently
+        return waveletName.getDisplayName();
     }
 }
