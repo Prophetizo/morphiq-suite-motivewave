@@ -1110,8 +1110,9 @@ public class Wavelets extends Study {
             if (WaveletRegistry.isWaveletAvailable(morlet)) {
                 wavelets.add(morlet);
             }
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             // MORLET not available in current enum
+            logger.error("MORLET wavelet not found in WaveletName enum: {}", e.getMessage());
         }
         
         try {
@@ -1120,8 +1121,9 @@ public class Wavelets extends Study {
             if (WaveletRegistry.isWaveletAvailable(mexicanHat)) {
                 wavelets.add(mexicanHat);
             }
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             // MEXICAN_HAT not available in current enum
+            logger.error("MEXICAN_HAT wavelet not found in WaveletName enum: {}", e.getMessage());
         }
         
         try {
@@ -1130,25 +1132,23 @@ public class Wavelets extends Study {
             if (WaveletRegistry.isWaveletAvailable(paul)) {
                 wavelets.add(paul);
             }
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             // PAUL not available in current enum
+            logger.error("PAUL wavelet not found in WaveletName enum: {}", e.getMessage());
         }
         
-        try {
-            // Additional continuous wavelets for advanced analysis
-            String[] continuousWavelets = {"GAUSSIAN", "DOG", "SHANNON", "MEYER", "RICKER"};
-            for (String waveletName : continuousWavelets) {
-                try {
-                    WaveletName wn = WaveletName.valueOf(waveletName);
-                    if (WaveletRegistry.isWaveletAvailable(wn)) {
-                        wavelets.add(wn);
-                    }
-                } catch (Exception ignored) {
-                    // Wavelet not available in current enum
+        // Additional continuous wavelets for advanced analysis
+        String[] continuousWavelets = {"GAUSSIAN", "DOG", "SHANNON", "MEYER", "RICKER"};
+        for (String waveletName : continuousWavelets) {
+            try {
+                WaveletName wn = WaveletName.valueOf(waveletName);
+                if (WaveletRegistry.isWaveletAvailable(wn)) {
+                    wavelets.add(wn);
                 }
+            } catch (IllegalArgumentException e) {
+                // Wavelet not available in current enum
+                logger.error("{} wavelet not found in WaveletName enum: {}", waveletName, e.getMessage());
             }
-        } catch (Exception e) {
-            // Additional wavelets not available
         }
         
         // Add discrete wavelets that work well with CWT as fallback
