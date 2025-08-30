@@ -5,7 +5,6 @@ import com.morphiqlabs.wavelet.api.WaveletName;
 import com.morphiqlabs.wavelet.api.WaveletRegistry;
 import com.morphiqlabs.wavelets.core.Thresholds;
 import com.morphiqlabs.wavelets.core.VectorWaveSwtAdapter;
-import com.morphiqlabs.wavelets.core.WaveletAtr;
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.draw.Marker;
@@ -101,15 +100,6 @@ public class SwtTrendMomentumStudy extends Study {
     private static final String THRESH_LOOKBACK = "threshLookback";
     private static final String BETA_MARGIN = "betaMargin";
 
-    // WATR (Wavelet ATR) settings
-    private static final String SHOW_WATR = "showWatr";
-    private static final String WATR_K = "watrK";
-    private static final String WATR_MULTIPLIER = "watrMultiplier";
-    private static final String WATR_SCALE_METHOD = "watrScaleMethod";
-    private static final String WATR_SCALE_FACTOR = "watrScaleFactor";
-    private static final String WATR_LEVEL_DECAY = "watrLevelDecay";
-    private static final String WATR_UPPER_PATH = "watrUpperPath";
-    private static final String WATR_LOWER_PATH = "watrLowerPath";
 
     // Plot and indicator keys
     private static final String MOMENTUM_PLOT = "momentumPlot";
@@ -147,16 +137,9 @@ public class SwtTrendMomentumStudy extends Study {
     // Momentum calculation
     private static final int MOMENTUM_LEVELS = 2;  // Use D1 and D2 for momentum
 
-    // WATR defaults
-    private static final boolean DEFAULT_SHOW_WATR = false;
-    private static final int DEFAULT_WATR_K = 2;
-    private static final double DEFAULT_WATR_MULTIPLIER = 2.0;
-    private static final String DEFAULT_WATR_SCALE_METHOD = "SQRT";
-    private static final double DEFAULT_WATR_SCALE_FACTOR = 10.0;  // Default for SQRT scaling
     private static final double DEFAULT_LINEAR_FACTOR = 100.0;  // For LINEAR scaling
     private static final double DEFAULT_SQRT_FACTOR = 10.0;    // For SQRT scaling
     private static final double DEFAULT_LOG_FACTOR = 5.0;      // For LOG scaling
-    private static final double DEFAULT_WATR_LEVEL_DECAY = 0.5;
 
     // =============================================================================================
     // STATE MANAGEMENT
@@ -165,8 +148,6 @@ public class SwtTrendMomentumStudy extends Study {
     // Wavelet adapter
     private VectorWaveSwtAdapter swtAdapter;
 
-    // WATR component
-    private WaveletAtr waveletAtr;
 
     // Momentum state
     private Double smoothedMomentum = null;  // null = uninitialized, enables proper EMA initialization
@@ -279,23 +260,6 @@ public class SwtTrendMomentumStudy extends Study {
         sd.addDependency(new EnabledDependency(false, AUTO_THRESH_LOOKBACK, THRESH_LOOKBACK));
         sd.addDependency(new EnabledDependency(true, AUTO_THRESH_LOOKBACK, BETA_MARGIN));
 
-        // WATR advanced configuration
-        var watrAdvancedGroup = advancedTab.addGroup("WATR Configuration");
-        watrAdvancedGroup.addRow(new IntegerDescriptor(WATR_K, "WATR Detail Levels", 
-            DEFAULT_WATR_K, 1, 3, 1));
-        watrAdvancedGroup.addRow(new DiscreteDescriptor(WATR_SCALE_METHOD, "WATR Scaling Method", 
-            DEFAULT_WATR_SCALE_METHOD,
-            Arrays.asList(
-                new NVP("LINEAR", "Linear"),
-                new NVP("SQRT", "Square Root"),
-                new NVP("LOG", "Logarithmic"),
-                new NVP("ADAPTIVE", "Adaptive")
-            )));
-        watrAdvancedGroup.addRow(new DoubleDescriptor(WATR_SCALE_FACTOR, "WATR Scale Factor", 
-            DEFAULT_WATR_SCALE_FACTOR, 0.01, 1000.0, 0.1));
-        watrAdvancedGroup.addRow(new DoubleDescriptor(WATR_LEVEL_DECAY, "Level Weight Decay", 
-            DEFAULT_WATR_LEVEL_DECAY, 0.1, 1.0, 0.05));
-
         // ---- Display Tab ----
         var displayTab = sd.addTab("Display");
 
@@ -332,16 +296,6 @@ public class SwtTrendMomentumStudy extends Study {
                 true)   // supportsDisable
         );
         // Slope indicator removed - slope is calculated internally for signals but not displayed
-
-        // WATR configuration
-        var watrGroup = displayTab.addGroup("Wavelet ATR");
-        watrGroup.addRow(new BooleanDescriptor(SHOW_WATR, "Show WATR Bands", DEFAULT_SHOW_WATR));
-        watrGroup.addRow(new DoubleDescriptor(WATR_MULTIPLIER, "WATR Multiplier", 
-            DEFAULT_WATR_MULTIPLIER, 1.0, 5.0, 0.1));
-        watrGroup.addRow(new PathDescriptor(WATR_UPPER_PATH, "WATR Upper Band",
-            new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
-        watrGroup.addRow(new PathDescriptor(WATR_LOWER_PATH, "WATR Lower Band",
-            new Color(255, 100, 100, 128), 1.0f, null, true, false, true));
 
         // Add markers to Display tab
         var markersGroup = displayTab.addGroup("Markers");
@@ -411,28 +365,24 @@ public class SwtTrendMomentumStudy extends Study {
 
             if (swtAdapter == null) {
                 // Try fallback initialization
-                swtAdapter = new VectorWaveSwtAdapter("db4");
-                lastWaveletType = "db4";
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
+                lastWaveletType = "DB4";
             }
-
-            // Initialize WATR component
-            double levelDecay = getSettings().getDouble(WATR_LEVEL_DECAY, DEFAULT_WATR_LEVEL_DECAY);
-            this.waveletAtr = new WaveletAtr(14, levelDecay); // 14-period smoothing with configurable decay
 
             // Set minimum bars based on current settings
             int minBars = calculateCurrentWindowLength();
             setMinBars(minBars);
 
             if (logger.isDebugEnabled()) {
-                logger.debug("onLoad: Initialized with wavelet={}, minBars={}, WATR decay={}",
-                            lastWaveletType, minBars, levelDecay);
+                logger.debug("onLoad: Initialized with wavelet={}, minBars={}",
+                            lastWaveletType, minBars);
             }
 
         } catch (Exception e) {
             // Ensure we have at least a basic adapter
             if (swtAdapter == null) {
-                swtAdapter = new VectorWaveSwtAdapter("db4");
-                lastWaveletType = "db4";
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
+                lastWaveletType = "DB4";
             }
             setMinBars(DEFAULT_WINDOW);
             if (logger.isDebugEnabled()) {
@@ -492,7 +442,6 @@ public class SwtTrendMomentumStudy extends Study {
 
         // Reset adapter and state
         swtAdapter = null;
-        waveletAtr = null;
         smoothedMomentum = null;
         lastWaveletType = null;
         
@@ -587,16 +536,9 @@ public class SwtTrendMomentumStudy extends Study {
             initializeAdapter();
             if (swtAdapter == null) {
                 // Fallback initialization
-                swtAdapter = new VectorWaveSwtAdapter("db4");
-                lastWaveletType = "db4";
+                swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
+                lastWaveletType = "DB4";
             }
-        }
-
-        // Ensure WATR is initialized
-        if (waveletAtr == null) {
-            double levelDecay = getSettings().getDouble(WATR_LEVEL_DECAY, DEFAULT_WATR_LEVEL_DECAY);
-            this.waveletAtr = new WaveletAtr(14, levelDecay);
-            logger.debug("Initialized WATR component with level decay: {}", levelDecay);
         }
 
         // Get current settings
@@ -639,7 +581,7 @@ public class SwtTrendMomentumStudy extends Study {
             if (index < windowLength + 5 && logger.isDebugEnabled()) {
                 double[] approx = swtResult.getApproximation();
                 logger.debug("Transform at index {} with {}: approx length={}, last value={}",
-                           index, swtResult.getWaveletType(),
+                           index, swtResult.getWaveletName(),
                            approx != null ? approx.length : 0,
                            approx != null && approx.length > 0 ? approx[approx.length - 1] : "null");
             }
@@ -683,7 +625,7 @@ public class SwtTrendMomentumStudy extends Study {
     }
 
     /**
-     * Clears all calculated values (Trend, Momentum, Slope, WATR) for a given bar index.
+     * Clears all calculated values (Trend, Momentum, Slope) for a given bar index.
      *
      * @param series The data series.
      * @param index  The index of the bar to clear.
@@ -842,7 +784,7 @@ public class SwtTrendMomentumStudy extends Study {
                 // Log the actual approximation value being used
                 if (logger.isDebugEnabled()) {
                     logger.debug("Extracted trend from {}: A[{}]={}, first 3=[{}, {}, {}]",
-                               swtResult.getWaveletType(), approx.length - 1, value,
+                               swtResult.getWaveletName(), approx.length - 1, value,
                                approx.length > 0 ? approx[0] : "N/A",
                                approx.length > 1 ? approx[1] : "N/A",
                                approx.length > 2 ? approx[2] : "N/A");
@@ -943,9 +885,17 @@ public class SwtTrendMomentumStudy extends Study {
         logger.info("Creating new SWT adapter with wavelet: {} (was: {})",
                    waveletType, lastWaveletType);
 
-        swtAdapter = new VectorWaveSwtAdapter(waveletType);
-        lastWaveletType = waveletType;
-        logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
+        try {
+            WaveletName waveletNameEnum = WaveletName.valueOf(waveletType);
+            swtAdapter = new VectorWaveSwtAdapter(waveletNameEnum);
+            lastWaveletType = waveletType;
+            logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
+        } catch (IllegalArgumentException e) {
+            logger.error("Failed to initialize adapter with invalid wavelet type '{}'. Please select a valid wavelet from the settings. Error: {}", 
+                        waveletType, e.getMessage());
+            swtAdapter = null;
+            lastWaveletType = null;
+        }
     }
 
     /**
