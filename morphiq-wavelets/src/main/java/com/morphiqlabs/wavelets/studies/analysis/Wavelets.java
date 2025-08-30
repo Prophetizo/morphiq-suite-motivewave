@@ -16,6 +16,8 @@ import com.morphiqlabs.wavelet.modwt.MODWTTransformFactory;
 import com.morphiqlabs.wavelet.modwt.MultiLevelMODWTResult;
 import com.morphiqlabs.wavelet.modwt.MultiLevelMODWTTransform;
 import com.morphiqlabs.wavelets.core.TransformWaveletPair;
+import com.morphiqlabs.wavelets.core.VectorWaveCwtAdapter;
+import com.morphiqlabs.wavelet.cwt.CWTResult;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,6 +145,7 @@ public class Wavelets extends Study {
     
     // Wavelet transform components
     private MultiLevelMODWTTransform modwtTransform;
+    private VectorWaveCwtAdapter cwtAdapter;
     private DiscreteWavelet currentWavelet;
     private WaveletName currentWaveletName;
     private TransformType currentTransformType = TransformType.MODWT;
@@ -339,6 +342,7 @@ public class Wavelets extends Study {
         
         // Reset wavelet state (but keep cache for performance)
         modwtTransform = null;
+        cwtAdapter = null;
         currentWavelet = null;
         currentWaveletName = null;
         lastWaveletPair = null;
@@ -393,13 +397,23 @@ public class Wavelets extends Study {
             return;
         }
         
-        // Ensure wavelet components are initialized
-        if (modwtTransform == null || currentWavelet == null) {
-            // Try to initialize
-            checkAndUpdateSettings();
+        // Ensure wavelet components are initialized based on transform type
+        if (currentTransformType == TransformType.CWT) {
+            if (cwtAdapter == null) {
+                checkAndUpdateSettings();
+                if (cwtAdapter == null) {
+                    clearLevels(series, index);
+                    return;
+                }
+            }
+        } else {
             if (modwtTransform == null || currentWavelet == null) {
-                clearLevels(series, index);
-                return;
+                // Try to initialize
+                checkAndUpdateSettings();
+                if (modwtTransform == null || currentWavelet == null) {
+                    clearLevels(series, index);
+                    return;
+                }
             }
         }
         
@@ -435,22 +449,23 @@ public class Wavelets extends Study {
             
             // Perform wavelet decomposition based on transform type
             if (currentTransformType == TransformType.CWT) {
-                // CWT not yet implemented - for now just use MODWT
-                // TODO: Implement CWT using VectorWaveCwtAdapter
-                logger.debug("CWT transform requested but not yet implemented, using MODWT");
-                MultiLevelMODWTResult result = modwtTransform.decompose(data, levels);
-                if (result == null || !result.isValid()) {
+                // Perform CWT analysis
+                CWTResult cwtResult = cwtAdapter.analyzeWithAutoScales(data, currentWaveletName, levels);
+                if (cwtResult == null) {
+                    logger.error("CWT analysis failed");
                     clearLevels(series, index);
                     return;
                 }
                 
-                // Apply denoising if enabled
-                if (useDenoised) {
-                    applyDenoising(result, levels);
+                // Extract levels from CWT result for compatibility with existing display
+                double[][] cwtLevels = cwtAdapter.extractLevels(cwtResult, levels);
+                if (cwtLevels == null) {
+                    clearLevels(series, index);
+                    return;
                 }
                 
-                // Store coefficients in data series
-                storeCoefficients(series, index, result, levels);
+                // Store CWT coefficients in data series
+                storeCWTCoefficients(series, index, cwtLevels, levels);
             } else {
                 // MODWT decomposition (default)
                 MultiLevelMODWTResult result = modwtTransform.decompose(data, levels);
@@ -568,6 +583,34 @@ public class Wavelets extends Study {
     }
     
     /**
+     * Store CWT coefficients in data series
+     * Maps CWT scales to decomposition levels for visualization
+     */
+    private void storeCWTCoefficients(DataSeries series, int index, double[][] cwtLevels, int numLevels) {
+        // Store CWT coefficients for active levels
+        for (int level = 0; level < numLevels && level < MAX_DECOMPOSITION_LEVELS; level++) {
+            Values key = Values.values()[level];
+            
+            if (cwtLevels[level] != null && index < cwtLevels[level].length) {
+                double value = cwtLevels[level][index];
+                series.setDouble(index, key, value);
+                
+                // Debug logging for first few bars
+                if (logger.isTraceEnabled() && index < 5) {
+                    logger.trace("Stored CWT scale {} at index {}: {}", level + 1, index, value);
+                }
+            } else {
+                series.setDouble(index, key, null);
+            }
+        }
+        
+        // Clear unused levels
+        for (int level = numLevels; level < MAX_DECOMPOSITION_LEVELS; level++) {
+            series.setDouble(index, Values.values()[level], null);
+        }
+    }
+    
+    /**
      * Clear all coefficient levels
      */
     private void clearLevels(DataSeries series, int index) {
@@ -640,13 +683,19 @@ public class Wavelets extends Study {
         try {
             // Check if this is a CWT wavelet (continuous wavelets)
             if (currentTransformType == TransformType.CWT) {
-                // CWT wavelets are continuous, not discrete
-                // For now, use MODWT with a fallback discrete wavelet until CWT is implemented
-                logger.info("CWT wavelet {} selected, but CWT not yet implemented. Using MODWT with DB4 fallback", waveletName);
-                waveletName = WaveletName.DB4;
-                // When CWT is implemented, we would create a ContinuousWavelet here instead
+                // Initialize CWT adapter if needed
+                if (cwtAdapter == null) {
+                    cwtAdapter = new VectorWaveCwtAdapter();
+                    logger.info("Initialized CWT adapter for wavelet: {}", waveletName);
+                }
+                currentWaveletName = waveletName;
+                // For CWT, we don't need discrete wavelets or MODWT transform
+                currentWavelet = null;
+                modwtTransform = null;
+                return;
             }
             
+            // For MODWT, continue with discrete wavelet setup
             // Validate wavelet availability
             if (!WaveletRegistry.isWaveletAvailable(waveletName)) {
                 logger.warn("updateWaveletComponents: Wavelet {} not available, trying fallback", waveletName);
