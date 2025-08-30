@@ -8,6 +8,7 @@ import com.motivewave.platform.sdk.study.StudyHeader;
 
 import com.morphiqlabs.wavelet.api.BoundaryMode;
 import com.morphiqlabs.wavelet.api.DiscreteWavelet;
+import com.morphiqlabs.wavelet.api.TransformType;
 import com.morphiqlabs.wavelet.api.Wavelet;
 import com.morphiqlabs.wavelet.api.WaveletName;
 import com.morphiqlabs.wavelet.api.WaveletRegistry;
@@ -945,10 +946,10 @@ public class Wavelets extends Study {
     private List<NVP> createTransformOptions() {
         List<NVP> options = new ArrayList<>();
         
-        // Add transform options with descriptions
-        options.add(new NVP("MODWT (Maximal Overlap Discrete)", "MODWT"));
-        options.add(new NVP("SWT (Stationary Wavelet Transform)", "SWT"));
-        options.add(new NVP("CWT (Continuous Wavelet Transform)", "CWT"));
+        // Add transform options with descriptions highlighting new capabilities
+        options.add(new NVP("MODWT (Maximal Overlap Discrete) - 18+ wavelets", "MODWT"));
+        options.add(new NVP("SWT (Stationary Wavelet Transform) - 9+ wavelets", "SWT"));
+        options.add(new NVP("CWT (Continuous) - Morlet, Mexican Hat, Paul + 12+ wavelets", "CWT"));
         
         return options;
     }
@@ -974,16 +975,16 @@ public class Wavelets extends Study {
                     // SWT supports orthogonal wavelets, query transform-specific options
                     try {
                         // Use VectorWave API if available (this will work in runtime environment)
-                        available = WaveletRegistry.getWaveletsForTransform(ai.prophetizo.wavelet.api.TransformType.SWT);
+                        available = WaveletRegistry.getWaveletsForTransform(TransformType.SWT);
                     } catch (Exception e) {
                         // Fallback for development environment
                         available = getDefaultSWTWavelets();
                     }
                     break;
                 case "CWT":
-                    // CWT supports complex wavelets - different set than discrete
+                    // CWT supports continuous wavelets including Morlet, Mexican Hat, and complex wavelets
                     try {
-                        available = WaveletRegistry.getWaveletsForTransform(ai.prophetizo.wavelet.api.TransformType.CWT);
+                        available = WaveletRegistry.getWaveletsForTransform(TransformType.CWT);
                     } catch (Exception e) {
                         // Fallback for development environment
                         available = getDefaultCWTWavelets();
@@ -1035,7 +1036,8 @@ public class Wavelets extends Study {
                 }
             }
             
-            logger.info("Created {} wavelet options for transform type: {}", options.size(), transformType);
+            logger.info("Created {} wavelet options for transform type: {} (including continuous wavelets for financial analysis)", 
+                options.size(), transformType);
             
         } catch (Exception e) {
             logger.error("Error creating wavelet options", e);
@@ -1072,22 +1074,114 @@ public class Wavelets extends Study {
     
     /**
      * Get default wavelets for CWT transform (fallback for development)
+     * CWT supports continuous wavelets for advanced financial analysis
      */
     private List<WaveletName> getDefaultCWTWavelets() {
-        // CWT typically uses complex wavelets, but VectorWave may have discrete equivalents
-        // For now, use a subset that works well with CWT
-        return Arrays.asList(
+        List<WaveletName> wavelets = new ArrayList<>();
+        
+        // Try continuous wavelets first (new VectorWave API)
+        try {
+            // Morlet wavelet - Market cycles and dominant frequency analysis
+            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("MORLET"))) {
+                wavelets.add(WaveletName.valueOf("MORLET"));
+            }
+        } catch (Exception e) {
+            // MORLET not available in current enum
+        }
+        
+        try {
+            // Mexican Hat wavelet - Flash crashes and liquidity events
+            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("MEXICAN_HAT"))) {
+                wavelets.add(WaveletName.valueOf("MEXICAN_HAT"));
+            }
+        } catch (Exception e) {
+            // MEXICAN_HAT not available in current enum
+        }
+        
+        try {
+            // Paul wavelet - Asymmetric events and regime detection
+            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("PAUL"))) {
+                wavelets.add(WaveletName.valueOf("PAUL"));
+            }
+        } catch (Exception e) {
+            // PAUL not available in current enum
+        }
+        
+        try {
+            // Additional continuous wavelets for advanced analysis
+            String[] continuousWavelets = {"GAUSSIAN", "DOG", "SHANNON", "MEYER", "RICKER"};
+            for (String waveletName : continuousWavelets) {
+                try {
+                    WaveletName wn = WaveletName.valueOf(waveletName);
+                    if (WaveletRegistry.isWaveletAvailable(wn)) {
+                        wavelets.add(wn);
+                    }
+                } catch (Exception ignored) {
+                    // Wavelet not available in current enum
+                }
+            }
+        } catch (Exception e) {
+            // Additional wavelets not available
+        }
+        
+        // Add discrete wavelets that work well with CWT as fallback
+        List<WaveletName> discreteFallback = Arrays.asList(
             WaveletName.HAAR, WaveletName.DB4, WaveletName.DB8,
             WaveletName.SYM4, WaveletName.SYM8, WaveletName.COIF2
         );
+        
+        for (WaveletName wavelet : discreteFallback) {
+            if (!wavelets.contains(wavelet)) {
+                wavelets.add(wavelet);
+            }
+        }
+        
+        // Log what wavelets are available for CWT
+        if (logger.isInfoEnabled()) {
+            logger.info("CWT wavelets available: {} (continuous: {}, discrete fallback: {})", 
+                wavelets.size(), 
+                Math.max(0, wavelets.size() - discreteFallback.size()),
+                Math.min(wavelets.size(), discreteFallback.size()));
+        }
+        
+        return wavelets;
     }
     
     /**
-     * Get display name for wavelet
+     * Get display name for wavelet with financial use case descriptions
      */
     private String getWaveletDisplayName(WaveletName waveletName) {
         if (waveletName == null) return "Unknown";
         
+        String name = waveletName.name();
+        
+        // Handle continuous wavelets for CWT transform (new VectorWave capabilities)
+        if (name.equals("MORLET")) {
+            return "Morlet - Market cycles & dominant frequency analysis";
+        }
+        if (name.equals("MEXICAN_HAT")) {
+            return "Mexican Hat - Flash crashes & liquidity events";
+        }
+        if (name.equals("PAUL")) {
+            return "Paul - Asymmetric events & regime detection";
+        }
+        if (name.equals("GAUSSIAN")) {
+            return "Gaussian - Edge detection & volatility analysis";
+        }
+        if (name.equals("DOG")) {
+            return "DOG - Advanced volatility metrics";
+        }
+        if (name.equals("SHANNON")) {
+            return "Shannon - Spectral analysis with reduced artifacts";
+        }
+        if (name.equals("MEYER")) {
+            return "Meyer - Continuous wavelet version";
+        }
+        if (name.equals("RICKER")) {
+            return "Ricker - Seismic-style analysis";
+        }
+        
+        // Handle discrete wavelets (existing functionality)
         return switch (waveletName) {
             case HAAR -> "Haar";
             case DB2 -> "Daubechies 2";
