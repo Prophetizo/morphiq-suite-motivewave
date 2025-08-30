@@ -106,7 +106,6 @@ public class Wavelets extends Study {
     // DEFAULTS AND LIMITS
     // =============================================================================================
     
-    
     // Decomposition levels
     private static final int MAX_DECOMPOSITION_LEVELS = 7;
     private static final int DEFAULT_LEVELS = 5;
