@@ -1103,51 +1103,37 @@ public class Wavelets extends Study {
     private List<WaveletName> getDefaultCWTWavelets() {
         List<WaveletName> wavelets = new ArrayList<>();
         
-        // Try continuous wavelets first (new VectorWave API)
-        try {
-            // Morlet wavelet - Market cycles and dominant frequency analysis
-            WaveletName morlet = WaveletName.valueOf("MORLET");
-            if (WaveletRegistry.isWaveletAvailable(morlet)) {
-                wavelets.add(morlet);
+        // Define known CWT wavelets using actual enum values where available
+        // This approach is more robust than using string literals
+        
+        // Primary CWT wavelets - these are known to exist in the current VectorWave version
+        WaveletName[] primaryCwtWavelets = {
+            WaveletName.MORLET,
+            WaveletName.MEXICAN_HAT,
+            WaveletName.PAUL
+        };
+        
+        for (WaveletName waveletName : primaryCwtWavelets) {
+            if (WaveletRegistry.isWaveletAvailable(waveletName)) {
+                wavelets.add(waveletName);
+            } else {
+                logger.warn("Expected CWT wavelet {} not available in registry", waveletName);
             }
-        } catch (IllegalArgumentException e) {
-            // MORLET not available in current enum
-            logger.error("MORLET wavelet not found in WaveletName enum: {}", e.getMessage());
         }
         
-        try {
-            // Mexican Hat wavelet - Flash crashes and liquidity events
-            WaveletName mexicanHat = WaveletName.valueOf("MEXICAN_HAT");
-            if (WaveletRegistry.isWaveletAvailable(mexicanHat)) {
-                wavelets.add(mexicanHat);
+        // Check for additional continuous wavelets that might be available in future versions
+        // Using reflection to discover all enum values dynamically
+        for (WaveletName waveletName : WaveletName.values()) {
+            // Skip if already added
+            if (wavelets.contains(waveletName)) {
+                continue;
             }
-        } catch (IllegalArgumentException e) {
-            // MEXICAN_HAT not available in current enum
-            logger.error("MEXICAN_HAT wavelet not found in WaveletName enum: {}", e.getMessage());
-        }
-        
-        try {
-            // Paul wavelet - Asymmetric events and regime detection
-            WaveletName paul = WaveletName.valueOf("PAUL");
-            if (WaveletRegistry.isWaveletAvailable(paul)) {
-                wavelets.add(paul);
-            }
-        } catch (IllegalArgumentException e) {
-            // PAUL not available in current enum
-            logger.error("PAUL wavelet not found in WaveletName enum: {}", e.getMessage());
-        }
-        
-        // Additional continuous wavelets for advanced analysis
-        String[] continuousWavelets = {"GAUSSIAN", "DOG", "SHANNON", "MEYER", "RICKER"};
-        for (String waveletName : continuousWavelets) {
-            try {
-                WaveletName wn = WaveletName.valueOf(waveletName);
-                if (WaveletRegistry.isWaveletAvailable(wn)) {
-                    wavelets.add(wn);
-                }
-            } catch (IllegalArgumentException e) {
-                // Wavelet not available in current enum
-                logger.error("{} wavelet not found in WaveletName enum: {}", waveletName, e.getMessage());
+            
+            // Check if this is a continuous wavelet based on naming convention
+            String name = waveletName.name();
+            if (isContinuousWaveletName(name) && WaveletRegistry.isWaveletAvailable(waveletName)) {
+                wavelets.add(waveletName);
+                logger.debug("Found additional CWT wavelet: {}", waveletName);
             }
         }
         
@@ -1172,6 +1158,25 @@ public class Wavelets extends Study {
         }
         
         return wavelets;
+    }
+    
+    /**
+     * Check if a wavelet name corresponds to a continuous wavelet
+     * based on known naming conventions
+     */
+    private boolean isContinuousWaveletName(String name) {
+        // Known continuous wavelet name patterns
+        return name.equals("MORLET") ||
+               name.equals("MEXICAN_HAT") ||
+               name.equals("PAUL") ||
+               name.equals("GAUSSIAN") ||
+               name.equals("DOG") ||  // Derivative of Gaussian
+               name.equals("SHANNON") ||
+               name.equals("MEYER") ||
+               name.equals("RICKER") ||
+               name.startsWith("FBSP") ||  // Frequency B-Spline
+               name.startsWith("CMOR") ||  // Complex Morlet
+               name.startsWith("SHAN");    // Shannon
     }
     
     /**
