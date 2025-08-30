@@ -352,10 +352,13 @@ public class WaveletATR extends Study {
         }
     }
     
-        int start = index - windowLength + 1;
-        if (start < 0) {
+    private double[] getWindowData(DataSeries series, int index, int windowLength, Object input) {
+        if (series == null || windowLength <= 0) {
             return null;
         }
+        
+        // The guard `if (index < windowLength - 1)` in `calculate` ensures `start >= 0`.
+        int start = index - windowLength + 1;
         double[] window = new double[windowLength];
         
         for (int i = 0; i < windowLength; i++) {
