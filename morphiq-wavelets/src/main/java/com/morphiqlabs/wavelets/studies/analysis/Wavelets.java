@@ -1106,8 +1106,9 @@ public class Wavelets extends Study {
         // Try continuous wavelets first (new VectorWave API)
         try {
             // Morlet wavelet - Market cycles and dominant frequency analysis
-            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("MORLET"))) {
-                wavelets.add(WaveletName.valueOf("MORLET"));
+            WaveletName morlet = WaveletName.valueOf("MORLET");
+            if (WaveletRegistry.isWaveletAvailable(morlet)) {
+                wavelets.add(morlet);
             }
         } catch (Exception e) {
             // MORLET not available in current enum
@@ -1115,8 +1116,9 @@ public class Wavelets extends Study {
         
         try {
             // Mexican Hat wavelet - Flash crashes and liquidity events
-            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("MEXICAN_HAT"))) {
-                wavelets.add(WaveletName.valueOf("MEXICAN_HAT"));
+            WaveletName mexicanHat = WaveletName.valueOf("MEXICAN_HAT");
+            if (WaveletRegistry.isWaveletAvailable(mexicanHat)) {
+                wavelets.add(mexicanHat);
             }
         } catch (Exception e) {
             // MEXICAN_HAT not available in current enum
@@ -1124,8 +1126,9 @@ public class Wavelets extends Study {
         
         try {
             // Paul wavelet - Asymmetric events and regime detection
-            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("PAUL"))) {
-                wavelets.add(WaveletName.valueOf("PAUL"));
+            WaveletName paul = WaveletName.valueOf("PAUL");
+            if (WaveletRegistry.isWaveletAvailable(paul)) {
+                wavelets.add(paul);
             }
         } catch (Exception e) {
             // PAUL not available in current enum
