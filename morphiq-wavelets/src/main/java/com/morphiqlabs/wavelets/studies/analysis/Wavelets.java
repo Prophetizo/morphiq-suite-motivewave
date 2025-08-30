@@ -255,7 +255,7 @@ public class Wavelets extends Study {
         var desc = createRD();
         
         // Configure label generation
-        desc.setLabelSettings(WAVELET_TYPE, DECOMPOSITION_LEVELS);
+        desc.setLabelSettings(WAVELET_PAIR, DECOMPOSITION_LEVELS);
         
         // Export values for external access
         for (Values v : Values.values()) {
@@ -352,6 +352,22 @@ public class Wavelets extends Study {
     public int getMinBars() {
         // Return minimum bars needed based on window configuration
         return currentWindowLength(getSettings()) + 10;  // Add buffer for safety
+    }
+    
+    @Override
+    public String getLabel() {
+        // Custom label to properly display the TransformWaveletPair
+        Settings settings = getSettings();
+        if (settings == null) {
+            return "Wavelet Analysis";
+        }
+        
+        String pairStr = settings.getString(WAVELET_PAIR, "MODWT:DB4");
+        TransformWaveletPair pair = TransformWaveletPair.fromString(pairStr);
+        int levels = settings.getInteger(DECOMPOSITION_LEVELS, DEFAULT_LEVELS);
+        
+        // Format: "Wavelet Analysis(MODWT:Daubechies 4, 4)"
+        return String.format("Wavelet Analysis(%s, %d)", pair.toString(), levels);
     }
     
     // =============================================================================================
