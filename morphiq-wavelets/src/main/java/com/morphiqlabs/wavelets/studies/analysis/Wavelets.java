@@ -1075,7 +1075,6 @@ public class Wavelets extends Study {
         return new NVP(pair.toString(), pair.toStorageString());
     }
     
-    
     /**
      * Get default wavelets for SWT transform (fallback for development)
      */
