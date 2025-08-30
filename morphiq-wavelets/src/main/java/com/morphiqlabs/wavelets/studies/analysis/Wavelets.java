@@ -415,9 +415,12 @@ public class Wavelets extends Study {
         
         // Ensure wavelet components are initialized based on transform type
         if (currentTransformType == TransformType.CWT) {
+            logger.info("CWT branch detected at index {}, currentTransformType={}", index, currentTransformType);
             if (cwtAdapter == null) {
+                logger.info("CWT adapter is null, calling checkAndUpdateSettings");
                 checkAndUpdateSettings();
                 if (cwtAdapter == null) {
+                    logger.error("Failed to initialize CWT adapter at index {}", index);
                     clearLevels(series, index);
                     return;
                 }
@@ -465,33 +468,43 @@ public class Wavelets extends Study {
             
             // Perform wavelet decomposition based on transform type
             if (currentTransformType == TransformType.CWT) {
+                logger.info("Processing CWT at index {}: wavelet={}, levels={}, windowLength={}", 
+                           index, currentWaveletName, levels, windowLength);
+                
                 // Ensure CWT adapter is initialized
                 if (cwtAdapter == null) {
                     cwtAdapter = new VectorWaveCwtAdapter();
                     logger.info("Created CWT adapter on-demand for wavelet: {}", currentWaveletName);
                 }
                 
+                // Log data sample for debugging
+                if (index < 5 || index % 100 == 0) {
+                    logger.info("CWT input data at index {}: first={}, last={}, length={}", 
+                               index, data[0], data[data.length-1], data.length);
+                }
+                
                 // Perform CWT analysis
                 CWTResult cwtResult = cwtAdapter.analyzeWithAutoScales(data, currentWaveletName, levels);
                 if (cwtResult == null) {
-                    logger.error("CWT analysis failed for wavelet: {}", currentWaveletName);
+                    logger.error("CWT analysis failed for wavelet: {} at index {}", currentWaveletName, index);
                     clearLevels(series, index);
                     return;
                 }
+                
+                logger.info("CWT analysis returned result: scales={}, samples={}", 
+                           cwtResult.getNumScales(), cwtResult.getNumSamples());
                 
                 // Extract levels from CWT result for compatibility with existing display
                 double[][] cwtLevels = cwtAdapter.extractLevels(cwtResult, levels);
                 if (cwtLevels == null || cwtLevels.length == 0) {
-                    logger.error("Failed to extract CWT levels");
+                    logger.error("Failed to extract CWT levels at index {}", index);
                     clearLevels(series, index);
                     return;
                 }
                 
-                // Log CWT analysis success
-                if (logger.isDebugEnabled() && index < windowLength + 5) {
-                    logger.debug("CWT analysis successful at index {}: {} levels, window size {}", 
-                                index, cwtLevels.length, data.length);
-                }
+                // Log extracted levels info
+                logger.info("Extracted CWT levels at index {}: {} levels, first level length={}", 
+                           index, cwtLevels.length, cwtLevels[0].length);
                 
                 // Store CWT coefficients in data series
                 storeCWTCoefficients(series, index, cwtLevels, levels);
@@ -616,6 +629,8 @@ public class Wavelets extends Study {
      * Maps CWT scales to decomposition levels for visualization
      */
     private void storeCWTCoefficients(DataSeries series, int index, double[][] cwtLevels, int numLevels) {
+        logger.info("Storing CWT coefficients at index {}: numLevels={}", index, numLevels);
+        
         // Store CWT coefficients for active levels
         // CWT returns [numLevels][windowLength] where each level contains coefficients for all time points
         // We need to store the last coefficient (most recent) for the current bar
@@ -627,20 +642,24 @@ public class Wavelets extends Study {
                 double value = cwtLevels[level][cwtLevels[level].length - 1];
                 series.setDouble(index, key, value);
                 
-                // Debug logging for first few bars
-                if (logger.isDebugEnabled() && index < 5) {
-                    logger.debug("Stored CWT scale {} at index {}: {} (from {} coefficients)", 
-                                level + 1, index, value, cwtLevels[level].length);
+                // Log every store operation for debugging
+                if (index < 5 || index % 100 == 0) {
+                    logger.info("Stored CWT level {} (key={}) at index {}: value={} (from {} coefficients)", 
+                                level + 1, key, index, value, cwtLevels[level].length);
                 }
             } else {
                 series.setDouble(index, key, null);
+                logger.warn("CWT level {} is null or empty at index {}", level, index);
             }
         }
         
         // Clear unused levels
         for (int level = numLevels; level < MAX_DECOMPOSITION_LEVELS; level++) {
-            series.setDouble(index, Values.values()[level], null);
+            Values key = Values.values()[level];
+            series.setDouble(index, key, null);
         }
+        
+        logger.info("Completed storing CWT coefficients at index {}", index);
     }
     
     /**
