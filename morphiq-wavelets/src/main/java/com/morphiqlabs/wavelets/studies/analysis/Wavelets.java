@@ -8,12 +8,14 @@ import com.motivewave.platform.sdk.study.StudyHeader;
 
 import com.morphiqlabs.wavelet.api.BoundaryMode;
 import com.morphiqlabs.wavelet.api.DiscreteWavelet;
+import com.morphiqlabs.wavelet.api.TransformType;
 import com.morphiqlabs.wavelet.api.Wavelet;
 import com.morphiqlabs.wavelet.api.WaveletName;
 import com.morphiqlabs.wavelet.api.WaveletRegistry;
 import com.morphiqlabs.wavelet.modwt.MODWTTransformFactory;
 import com.morphiqlabs.wavelet.modwt.MultiLevelMODWTResult;
 import com.morphiqlabs.wavelet.modwt.MultiLevelMODWTTransform;
+import com.morphiqlabs.wavelets.core.TransformWaveletPair;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,15 +27,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
- * Wavelets Study - Multi-resolution analysis using MODWT (Maximal Overlap Discrete Wavelet Transform)
+ * Wavelets Study - Multi-resolution analysis using configurable wavelet transforms
  * 
  * This study performs wavelet decomposition on price data to extract multi-scale features:
+ * - Transform selection (MODWT, SWT, CWT) with transform-specific wavelet families
  * - Detail coefficients (D1-D7) representing different frequency components
  * - Optional denoising using BayesShrink or Universal thresholding
  * - Auto-windowing based on wavelet effective support
  * - Decoupled threshold lookback for adaptive denoising
  * 
  * Key Features:
+ * - Configurable transform types with appropriate wavelet family filtering
  * - Supports multiple wavelet families (Daubechies, Symlets, Coiflets, Haar)
  * - Automatic window size calculation based on wavelet properties
  * - Performance-optimized with wavelet caching
@@ -45,7 +49,7 @@ import java.util.stream.Collectors;
     namespace = "com.morphiqlabs",
     id = "WAVELETS_ANALYSIS",
     name = "Wavelet Analysis",
-    desc = "Multi-resolution wavelet decomposition with adaptive windowing and denoising",
+    desc = "Multi-resolution wavelet decomposition with configurable transforms and adaptive windowing",
     menu = "MorphIQ Labs",
     overlay = false,
     requiresBarUpdates = false,
@@ -71,7 +75,8 @@ public class Wavelets extends Study {
     // =============================================================================================
     
     // Core wavelet settings
-    private static final String WAVELET_TYPE = "waveletType";
+    private static final String WAVELET_PAIR = "waveletPair";
+    private static final String WAVELET_TYPE = "waveletType"; // Legacy, for backwards compatibility
     private static final String DECOMPOSITION_LEVELS = "decompositionLevels";
     
     // Window configuration
@@ -98,6 +103,7 @@ public class Wavelets extends Study {
     // =============================================================================================
     // DEFAULTS AND LIMITS
     // =============================================================================================
+    
     
     // Decomposition levels
     private static final int MAX_DECOMPOSITION_LEVELS = 7;
@@ -139,7 +145,8 @@ public class Wavelets extends Study {
     private MultiLevelMODWTTransform modwtTransform;
     private DiscreteWavelet currentWavelet;
     private WaveletName currentWaveletName;
-    private WaveletName lastWaveletType = null;
+    private TransformType currentTransformType = TransformType.MODWT;
+    private TransformWaveletPair lastWaveletPair = null;
     
     // Performance optimization: cache wavelets to avoid recreation
     private final Map<WaveletName, DiscreteWavelet> waveletCache = new ConcurrentHashMap<>();
@@ -165,7 +172,8 @@ public class Wavelets extends Study {
         // Wavelet configuration
         var waveletGroup = generalTab.addGroup("Wavelet Configuration");
         waveletGroup.addRow(
-            new DiscreteDescriptor(WAVELET_TYPE, "Wavelet Type", "db4", createWaveletOptions())
+            new DiscreteDescriptor(WAVELET_PAIR, "Transform & Wavelet", "MODWT:DB4", 
+                createWaveletPairOptions())
         );
         waveletGroup.addRow(
             new IntegerDescriptor(DECOMPOSITION_LEVELS, "Decomposition Levels", 
@@ -281,7 +289,7 @@ public class Wavelets extends Study {
         String waveletType = getSettings().getString(WAVELET_TYPE, "db4");
         
         // Force initialization
-        lastWaveletType = null;
+        lastWaveletPair = null;
         checkAndUpdateSettings();
         
         // If still not initialized, try default
@@ -333,7 +341,7 @@ public class Wavelets extends Study {
         modwtTransform = null;
         currentWavelet = null;
         currentWaveletName = null;
-        lastWaveletType = null;
+        lastWaveletPair = null;
     }
     
     @Override
@@ -397,7 +405,7 @@ public class Wavelets extends Study {
         
         try {
             // Only check settings on first bar or settings update
-            if (index == 0 || lastWaveletType == null) {
+            if (index == 0 || lastWaveletPair == null) {
                 checkAndUpdateSettings();
             }
             
@@ -425,20 +433,40 @@ public class Wavelets extends Study {
                 logCalculationParameters(levels, windowLength);
             }
             
-            // Perform MODWT decomposition
-            MultiLevelMODWTResult result = modwtTransform.decompose(data, levels);
-            if (result == null || !result.isValid()) {
-                clearLevels(series, index);
-                return;
+            // Perform wavelet decomposition based on transform type
+            if (currentTransformType == TransformType.CWT) {
+                // CWT not yet implemented - for now just use MODWT
+                // TODO: Implement CWT using VectorWaveCwtAdapter
+                logger.debug("CWT transform requested but not yet implemented, using MODWT");
+                MultiLevelMODWTResult result = modwtTransform.decompose(data, levels);
+                if (result == null || !result.isValid()) {
+                    clearLevels(series, index);
+                    return;
+                }
+                
+                // Apply denoising if enabled
+                if (useDenoised) {
+                    applyDenoising(result, levels);
+                }
+                
+                // Store coefficients in data series
+                storeCoefficients(series, index, result, levels);
+            } else {
+                // MODWT decomposition (default)
+                MultiLevelMODWTResult result = modwtTransform.decompose(data, levels);
+                if (result == null || !result.isValid()) {
+                    clearLevels(series, index);
+                    return;
+                }
+                
+                // Apply denoising if enabled
+                if (useDenoised) {
+                    applyDenoising(result, levels);
+                }
+                
+                // Store coefficients in data series
+                storeCoefficients(series, index, result, levels);
             }
-            
-            // Apply denoising if enabled
-            if (useDenoised) {
-                applyDenoising(result, levels);
-            }
-            
-            // Store coefficients in data series
-            storeCoefficients(series, index, result, levels);
             
             // Mark as complete
             series.setComplete(index);
@@ -572,13 +600,16 @@ public class Wavelets extends Study {
      * Check and update wavelet settings if changed
      */
     private void checkAndUpdateSettings() {
-        String waveletTypeStr = getSettings().getString(WAVELET_TYPE, "DB4");
-        WaveletName waveletType = parseWaveletName(waveletTypeStr);
-        boolean changed = (lastWaveletType == null) || !waveletType.equals(lastWaveletType);
+        // Get the selected transform-wavelet pair
+        String pairStr = getSettings().getString(WAVELET_PAIR, "MODWT:DB4");
+        TransformWaveletPair pair = TransformWaveletPair.fromString(pairStr);
         
-        if (changed || currentWavelet == null) {
-            updateWaveletComponents(waveletType);
-            lastWaveletType = waveletType;
+        boolean pairChanged = (lastWaveletPair == null) || !pair.equals(lastWaveletPair);
+        
+        if (pairChanged || currentWavelet == null) {
+            currentTransformType = pair.getTransform();
+            updateWaveletComponents(pair.getWavelet());
+            lastWaveletPair = pair;
         }
     }
     
@@ -607,6 +638,15 @@ public class Wavelets extends Study {
      */
     private void updateWaveletComponents(WaveletName waveletName) {
         try {
+            // Check if this is a CWT wavelet (continuous wavelets)
+            if (currentTransformType == TransformType.CWT) {
+                // CWT wavelets are continuous, not discrete
+                // For now, use MODWT with a fallback discrete wavelet until CWT is implemented
+                logger.info("CWT wavelet {} selected, but CWT not yet implemented. Using MODWT with DB4 fallback", waveletName);
+                waveletName = WaveletName.DB4;
+                // When CWT is implemented, we would create a ContinuousWavelet here instead
+            }
+            
             // Validate wavelet availability
             if (!WaveletRegistry.isWaveletAvailable(waveletName)) {
                 logger.warn("updateWaveletComponents: Wavelet {} not available, trying fallback", waveletName);
@@ -925,95 +965,172 @@ public class Wavelets extends Study {
     // =============================================================================================
     
     /**
-     * Create wavelet options for UI dropdown
-     * Following WaveletRegistry best practices - using type-specific queries
+     * Create transform-wavelet pair options for the dropdown
+     * Shows only the curated subset of wavelets for each transform
      */
-    private List<NVP> createWaveletOptions() {
+    private List<NVP> createWaveletPairOptions() {
         List<NVP> options = new ArrayList<>();
-        Set<WaveletName> added = new HashSet<>();
         
-        try {
-            // Use type-specific query as per best practices - now returns List<WaveletName>
-            List<WaveletName> available = WaveletRegistry.getOrthogonalWavelets();
-            
-            if (available.isEmpty()) {
-                // Fallback options
-                options.add(new NVP("Daubechies 4", "DB4"));
-                options.add(new NVP("Haar", "HAAR"));
-                return options;
-            }
-            
-            // Preferred wavelets in order
-            WaveletName[] preferred = {
-                WaveletName.HAAR, WaveletName.DB2, WaveletName.DB4, WaveletName.DB6, WaveletName.DB8, WaveletName.DB10,
-                WaveletName.SYM2, WaveletName.SYM3, WaveletName.SYM4, WaveletName.SYM5, 
-                WaveletName.SYM6, WaveletName.SYM7, WaveletName.SYM8, WaveletName.SYM10,
-                WaveletName.COIF1, WaveletName.COIF2, WaveletName.COIF3, WaveletName.COIF4, WaveletName.COIF5
-            };
-            
-            // Add preferred wavelets first
-            for (WaveletName wavelet : preferred) {
-                if (available.contains(wavelet) && added.add(wavelet)) {
-                    options.add(new NVP(getWaveletDisplayName(wavelet), wavelet.name()));
-                }
-            }
-            
-            // Add remaining wavelets (excluding already added)
-            List<WaveletName> remaining = available.stream()
-                .filter(w -> !added.contains(w))
-                .sorted() // Sort alphabetically for consistency
-                .collect(Collectors.toList());
-                
-            for (WaveletName wavelet : remaining) {
-                if (added.add(wavelet)) {
-                    options.add(new NVP(getWaveletDisplayName(wavelet), wavelet.name()));
-                }
-            }
-            
-            logger.info("Created {} wavelet options", options.size());
-            
-        } catch (Exception e) {
-            logger.error("Error creating wavelet options", e);
-            // Provide fallback options
-            if (options.isEmpty()) {
-                options.add(new NVP("Daubechies 4", "DB4"));
-                options.add(new NVP("Haar", "HAAR"));
-            }
-        }
+        // MODWT wavelets
+        options.add(createPairOption(TransformType.MODWT, WaveletName.HAAR));
+        options.add(createPairOption(TransformType.MODWT, WaveletName.DB2));
+        options.add(createPairOption(TransformType.MODWT, WaveletName.DB4));
+        options.add(createPairOption(TransformType.MODWT, WaveletName.DB8));
+        options.add(createPairOption(TransformType.MODWT, WaveletName.SYM4));
+        options.add(createPairOption(TransformType.MODWT, WaveletName.SYM8));
+        options.add(createPairOption(TransformType.MODWT, WaveletName.COIF1));
+        options.add(createPairOption(TransformType.MODWT, WaveletName.COIF2));
+        options.add(createPairOption(TransformType.MODWT, WaveletName.COIF3));
+        
+        // CWT wavelets
+        options.add(createPairOption(TransformType.CWT, WaveletName.MORLET));
+        options.add(createPairOption(TransformType.CWT, WaveletName.MEXICAN_HAT));
+        options.add(createPairOption(TransformType.CWT, WaveletName.PAUL));
         
         return options;
     }
     
     /**
-     * Get display name for wavelet
+     * Create a single pair option for the dropdown
+     */
+    private NVP createPairOption(TransformType transform, WaveletName wavelet) {
+        TransformWaveletPair pair = new TransformWaveletPair(transform, wavelet);
+        return new NVP(pair.toString(), pair.toStorageString());
+    }
+    
+    
+    /**
+     * Get default wavelets for SWT transform (fallback for development)
+     */
+    private List<WaveletName> getDefaultSWTWavelets() {
+        return Arrays.asList(
+            WaveletName.HAAR, WaveletName.DB2, WaveletName.DB4, WaveletName.DB6, WaveletName.DB8,
+            WaveletName.SYM4, WaveletName.SYM8, WaveletName.COIF2, WaveletName.COIF4
+        );
+    }
+    
+    /**
+     * Get default wavelets for MODWT transform (fallback for development)
+     */
+    private List<WaveletName> getDefaultMODWTWavelets() {
+        return Arrays.asList(
+            WaveletName.HAAR, WaveletName.DB2, WaveletName.DB4, WaveletName.DB6, WaveletName.DB8, WaveletName.DB10,
+            WaveletName.SYM2, WaveletName.SYM3, WaveletName.SYM4, WaveletName.SYM5, WaveletName.SYM6, WaveletName.SYM7, WaveletName.SYM8,
+            WaveletName.COIF1, WaveletName.COIF2, WaveletName.COIF3, WaveletName.COIF4, WaveletName.COIF5
+        );
+    }
+    
+    /**
+     * Get default wavelets for CWT transform (fallback for development)
+     * CWT supports continuous wavelets for advanced financial analysis
+     */
+    private List<WaveletName> getDefaultCWTWavelets() {
+        List<WaveletName> wavelets = new ArrayList<>();
+        
+        // Try continuous wavelets first (new VectorWave API)
+        try {
+            // Morlet wavelet - Market cycles and dominant frequency analysis
+            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("MORLET"))) {
+                wavelets.add(WaveletName.valueOf("MORLET"));
+            }
+        } catch (Exception e) {
+            // MORLET not available in current enum
+        }
+        
+        try {
+            // Mexican Hat wavelet - Flash crashes and liquidity events
+            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("MEXICAN_HAT"))) {
+                wavelets.add(WaveletName.valueOf("MEXICAN_HAT"));
+            }
+        } catch (Exception e) {
+            // MEXICAN_HAT not available in current enum
+        }
+        
+        try {
+            // Paul wavelet - Asymmetric events and regime detection
+            if (WaveletRegistry.isWaveletAvailable(WaveletName.valueOf("PAUL"))) {
+                wavelets.add(WaveletName.valueOf("PAUL"));
+            }
+        } catch (Exception e) {
+            // PAUL not available in current enum
+        }
+        
+        try {
+            // Additional continuous wavelets for advanced analysis
+            String[] continuousWavelets = {"GAUSSIAN", "DOG", "SHANNON", "MEYER", "RICKER"};
+            for (String waveletName : continuousWavelets) {
+                try {
+                    WaveletName wn = WaveletName.valueOf(waveletName);
+                    if (WaveletRegistry.isWaveletAvailable(wn)) {
+                        wavelets.add(wn);
+                    }
+                } catch (Exception ignored) {
+                    // Wavelet not available in current enum
+                }
+            }
+        } catch (Exception e) {
+            // Additional wavelets not available
+        }
+        
+        // Add discrete wavelets that work well with CWT as fallback
+        List<WaveletName> discreteFallback = Arrays.asList(
+            WaveletName.HAAR, WaveletName.DB4, WaveletName.DB8,
+            WaveletName.SYM4, WaveletName.SYM8, WaveletName.COIF2
+        );
+        
+        for (WaveletName wavelet : discreteFallback) {
+            if (!wavelets.contains(wavelet)) {
+                wavelets.add(wavelet);
+            }
+        }
+        
+        // Log what wavelets are available for CWT
+        if (logger.isInfoEnabled()) {
+            logger.info("CWT wavelets available: {} (continuous: {}, discrete fallback: {})", 
+                wavelets.size(), 
+                Math.max(0, wavelets.size() - discreteFallback.size()),
+                Math.min(wavelets.size(), discreteFallback.size()));
+        }
+        
+        return wavelets;
+    }
+    
+    /**
+     * Get display name for wavelet with financial use case descriptions
      */
     private String getWaveletDisplayName(WaveletName waveletName) {
         if (waveletName == null) return "Unknown";
         
-        return switch (waveletName) {
-            case HAAR -> "Haar";
-            case DB2 -> "Daubechies 2";
-            case DB4 -> "Daubechies 4";
-            case DB6 -> "Daubechies 6";
-            case DB8 -> "Daubechies 8";
-            case DB10 -> "Daubechies 10";
-            case SYM2 -> "Symlet 2";
-            case SYM3 -> "Symlet 3";
-            case SYM4 -> "Symlet 4";
-            case SYM5 -> "Symlet 5";
-            case SYM6 -> "Symlet 6";
-            case SYM7 -> "Symlet 7";
-            case SYM8 -> "Symlet 8";
-            case SYM10 -> "Symlet 10";
-            case SYM12 -> "Symlet 12";
-            case SYM15 -> "Symlet 15";
-            case SYM20 -> "Symlet 20";
-            case COIF1 -> "Coiflet 1";
-            case COIF2 -> "Coiflet 2";
-            case COIF3 -> "Coiflet 3";
-            case COIF4 -> "Coiflet 4";
-            case COIF5 -> "Coiflet 5";
-            default -> waveletName.name();
-        };
+        String name = waveletName.name();
+        
+        // Handle continuous wavelets for CWT transform with additional descriptions
+        if (name.equals("MORLET")) {
+            return "Morlet - Market cycles & dominant frequency analysis";
+        }
+        if (name.equals("MEXICAN_HAT")) {
+            return "Mexican Hat - Flash crashes & liquidity events";
+        }
+        if (name.equals("PAUL")) {
+            return "Paul - Asymmetric events & regime detection";
+        }
+        if (name.equals("GAUSSIAN")) {
+            return "Gaussian - Edge detection & volatility analysis";
+        }
+        if (name.equals("DOG")) {
+            return "DOG - Advanced volatility metrics";
+        }
+        if (name.equals("SHANNON")) {
+            return "Shannon - Spectral analysis with reduced artifacts";
+        }
+        if (name.equals("MEYER")) {
+            return "Meyer - Continuous wavelet version";
+        }
+        if (name.equals("RICKER")) {
+            return "Ricker - Seismic-style analysis";
+        }
+        
+        // Use VectorWave's built-in display name functionality
+        // This handles all standard wavelets (DB, SYM, COIF, etc.) consistently
+        return waveletName.getDisplayName();
     }
 }
