@@ -77,7 +77,7 @@ public class WaveletATRChannel extends Study {
     private static final int MAX_THRESH_LOOKBACK = 512;
     
     private static final int DEFAULT_WATR_K = 2;
-    private static final double DEFAULT_WATR_MULTIPLIER = 1.0;
+    private static final double DEFAULT_WATR_MULTIPLIER = 2.0;
     private static final double DEFAULT_WATR_LEVEL_DECAY = 0.5;
     private static final int DEFAULT_SMOOTHING = 14;
     
@@ -140,7 +140,7 @@ public class WaveletATRChannel extends Study {
         var bandsGroup = displayTab.addGroup("Bands");
         bandsGroup.addRow(
             new DoubleDescriptor(WATR_MULTIPLIER, "Band Multiplier",
-                DEFAULT_WATR_MULTIPLIER, 0.5, 3.0, 0.1)
+                DEFAULT_WATR_MULTIPLIER, 0.5, 5.0, 0.1)
         );
         bandsGroup.addRow(
             new BooleanDescriptor(SHOW_CENTER, "Show Center Line", false)
