@@ -366,7 +366,7 @@ public class SwtTrendMomentumStudy extends Study {
             if (swtAdapter == null) {
                 // Try fallback initialization
                 swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
-                lastWaveletType = "db4";
+                lastWaveletType = "DB4";
             }
 
             // Set minimum bars based on current settings
@@ -382,7 +382,7 @@ public class SwtTrendMomentumStudy extends Study {
             // Ensure we have at least a basic adapter
             if (swtAdapter == null) {
                 swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
-                lastWaveletType = "db4";
+                lastWaveletType = "DB4";
             }
             setMinBars(DEFAULT_WINDOW);
             if (logger.isDebugEnabled()) {
@@ -537,7 +537,7 @@ public class SwtTrendMomentumStudy extends Study {
             if (swtAdapter == null) {
                 // Fallback initialization
                 swtAdapter = new VectorWaveSwtAdapter(WaveletName.DB4);
-                lastWaveletType = "db4";
+                lastWaveletType = "DB4";
             }
         }
 
