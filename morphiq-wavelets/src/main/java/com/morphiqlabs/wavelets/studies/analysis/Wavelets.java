@@ -465,6 +465,12 @@ public class Wavelets extends Study {
             
             // Perform wavelet decomposition based on transform type
             if (currentTransformType == TransformType.CWT) {
+                // Ensure CWT adapter is initialized
+                if (cwtAdapter == null) {
+                    cwtAdapter = new VectorWaveCwtAdapter();
+                    logger.info("Created CWT adapter on-demand for wavelet: {}", currentWaveletName);
+                }
+                
                 // Perform CWT analysis
                 CWTResult cwtResult = cwtAdapter.analyzeWithAutoScales(data, currentWaveletName, levels);
                 if (cwtResult == null) {
