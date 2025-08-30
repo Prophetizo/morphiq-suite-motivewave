@@ -474,16 +474,23 @@ public class Wavelets extends Study {
                 // Perform CWT analysis
                 CWTResult cwtResult = cwtAdapter.analyzeWithAutoScales(data, currentWaveletName, levels);
                 if (cwtResult == null) {
-                    logger.error("CWT analysis failed");
+                    logger.error("CWT analysis failed for wavelet: {}", currentWaveletName);
                     clearLevels(series, index);
                     return;
                 }
                 
                 // Extract levels from CWT result for compatibility with existing display
                 double[][] cwtLevels = cwtAdapter.extractLevels(cwtResult, levels);
-                if (cwtLevels == null) {
+                if (cwtLevels == null || cwtLevels.length == 0) {
+                    logger.error("Failed to extract CWT levels");
                     clearLevels(series, index);
                     return;
+                }
+                
+                // Log CWT analysis success
+                if (logger.isDebugEnabled() && index < windowLength + 5) {
+                    logger.debug("CWT analysis successful at index {}: {} levels, window size {}", 
+                                index, cwtLevels.length, data.length);
                 }
                 
                 // Store CWT coefficients in data series
@@ -610,16 +617,20 @@ public class Wavelets extends Study {
      */
     private void storeCWTCoefficients(DataSeries series, int index, double[][] cwtLevels, int numLevels) {
         // Store CWT coefficients for active levels
+        // CWT returns [numLevels][windowLength] where each level contains coefficients for all time points
+        // We need to store the last coefficient (most recent) for the current bar
         for (int level = 0; level < numLevels && level < MAX_DECOMPOSITION_LEVELS; level++) {
             Values key = Values.values()[level];
             
-            if (cwtLevels[level] != null && index < cwtLevels[level].length) {
-                double value = cwtLevels[level][index];
+            if (cwtLevels[level] != null && cwtLevels[level].length > 0) {
+                // Store the last coefficient (most recent) from this scale
+                double value = cwtLevels[level][cwtLevels[level].length - 1];
                 series.setDouble(index, key, value);
                 
                 // Debug logging for first few bars
-                if (logger.isTraceEnabled() && index < 5) {
-                    logger.trace("Stored CWT scale {} at index {}: {}", level + 1, index, value);
+                if (logger.isDebugEnabled() && index < 5) {
+                    logger.debug("Stored CWT scale {} at index {}: {} (from {} coefficients)", 
+                                level + 1, index, value, cwtLevels[level].length);
                 }
             } else {
                 series.setDouble(index, key, null);
