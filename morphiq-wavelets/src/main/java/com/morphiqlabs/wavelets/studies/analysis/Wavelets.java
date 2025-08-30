@@ -610,26 +610,31 @@ public class Wavelets extends Study {
     /**
      * Store CWT coefficients in data series
      * Maps CWT scales to decomposition levels for visualization
-     * For CWT, we only store and display D1 (first detail level)
      */
     private void storeCWTCoefficients(DataSeries series, int index, double[][] cwtLevels, int numLevels) {
-        // For CWT, only store the first detail level (D1)
-        // This provides the highest frequency component which is most relevant for trading
-        if (cwtLevels.length > 0 && cwtLevels[0] != null && cwtLevels[0].length > 0) {
-            // Store the last coefficient (most recent) from the first scale
-            double value = cwtLevels[0][cwtLevels[0].length - 1];
-            series.setDouble(index, Values.D1, value);
+        // Store CWT coefficients for all active levels
+        // CWT returns [numLevels][windowLength] where each level contains coefficients for all time points
+        // We need to store the last coefficient (most recent) for the current bar
+        for (int level = 0; level < numLevels && level < MAX_DECOMPOSITION_LEVELS; level++) {
+            Values key = Values.values()[level];
             
-            // Debug logging for first few values
-            if (logger.isDebugEnabled() && index < 5) {
-                logger.debug("Stored CWT D1 at index {}: value={}", index, value);
+            if (level < cwtLevels.length && cwtLevels[level] != null && cwtLevels[level].length > 0) {
+                // Store the last coefficient (most recent) from this scale
+                double value = cwtLevels[level][cwtLevels[level].length - 1];
+                series.setDouble(index, key, value);
+                
+                // Debug logging for first few values
+                if (logger.isDebugEnabled() && index < 5) {
+                    logger.debug("Stored CWT level {} at index {}: value={}", 
+                                level + 1, index, value);
+                }
+            } else {
+                series.setDouble(index, key, null);
             }
-        } else {
-            series.setDouble(index, Values.D1, null);
         }
         
-        // Clear all other levels for CWT (only D1 is used)
-        for (int level = 1; level < MAX_DECOMPOSITION_LEVELS; level++) {
+        // Clear unused levels
+        for (int level = numLevels; level < MAX_DECOMPOSITION_LEVELS; level++) {
             series.setDouble(index, Values.values()[level], null);
         }
     }
