@@ -241,7 +241,14 @@ public class WaveletATR extends Study {
         }
         
         String currentWaveletType = getSettings().getString(WAVELET_TYPE, "DB4");
-        WaveletName currentWaveletName = WaveletName.valueOf(currentWaveletType);
+        WaveletName currentWaveletName;
+        try {
+            currentWaveletName = WaveletName.valueOf(currentWaveletType);
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid wavelet type '{}': {}", currentWaveletType, e.getMessage());
+            clearValues(series, index);
+            return;
+        }
         if (currentWaveletName != lastWaveletName) {
             logger.debug("Wavelet type changed from {} to {}", lastWaveletName, currentWaveletName);
             swtAdapter = null;
@@ -344,18 +351,12 @@ public class WaveletATR extends Study {
     }
     
     private double[] getWindowData(DataSeries series, int index, int windowLength, Object input) {
-        if (series == null || windowLength <= 0 || series.size() == 0) {
+        if (series == null || windowLength <= 0) {
             return null;
         }
         
         // The guard `if (index < windowLength - 1)` in `calculate` ensures `start >= 0`.
         int start = index - windowLength + 1;
-        if (start < 0) {
-            // This should not happen, but as a safeguard:
-            logger.warn("getWindowData called with insufficient history. index={}, windowLength={}", index, windowLength);
-            return null;
-        }
-
         double[] window = new double[windowLength];
         
         for (int i = 0; i < windowLength; i++) {
@@ -376,8 +377,16 @@ public class WaveletATR extends Study {
     private void initializeAdapter() {
         String waveletType = getSettings().getString(WAVELET_TYPE, "DB4");
         logger.debug("Creating new SWT adapter with wavelet: {}", waveletType);
-        swtAdapter = new VectorWaveSwtAdapter(WaveletName.valueOf(waveletType));
-        lastWaveletName = WaveletName.valueOf(waveletType);
+        
+        try {
+            WaveletName waveletName = WaveletName.valueOf(waveletType);
+            swtAdapter = new VectorWaveSwtAdapter(waveletName);
+            lastWaveletName = waveletName;
+        } catch (IllegalArgumentException e) {
+            logger.error("Failed to initialize adapter with invalid wavelet type '{}': {}", waveletType, e.getMessage());
+            swtAdapter = null;
+            lastWaveletName = null;
+        }
     }
     
     private List<NVP> createSWTWaveletOptions() {
