@@ -249,7 +249,7 @@ public class WaveletATRChannel extends Study {
             logger.error("Invalid wavelet type '{}'. Please select a valid wavelet from the settings. Error: {}", 
                         waveletTypeStr, e.getMessage());
             clearValues(series, index);
-            series.setComplete(index, true);
+            series.setComplete(index);
             return;
         }
         if (currentWaveletName != lastWaveletName) {
