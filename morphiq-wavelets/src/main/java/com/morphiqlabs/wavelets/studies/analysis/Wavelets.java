@@ -638,6 +638,15 @@ public class Wavelets extends Study {
      */
     private void updateWaveletComponents(WaveletName waveletName) {
         try {
+            // Check if this is a CWT wavelet (continuous wavelets)
+            if (currentTransformType == TransformType.CWT) {
+                // CWT wavelets are continuous, not discrete
+                // For now, use MODWT with a fallback discrete wavelet until CWT is implemented
+                logger.info("CWT wavelet {} selected, but CWT not yet implemented. Using MODWT with DB4 fallback", waveletName);
+                waveletName = WaveletName.DB4;
+                // When CWT is implemented, we would create a ContinuousWavelet here instead
+            }
+            
             // Validate wavelet availability
             if (!WaveletRegistry.isWaveletAvailable(waveletName)) {
                 logger.warn("updateWaveletComponents: Wavelet {} not available, trying fallback", waveletName);
