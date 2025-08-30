@@ -2,6 +2,55 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL DEVELOPMENT INSTRUCTIONS
+
+### 🔴 MANDATORY: For EVERY MotiveWave Development Task
+
+**BEFORE writing or modifying ANY MotiveWave study or strategy code:**
+
+1. **ALWAYS consult the project documentation FIRST:**
+   - Review `docs/MOTIVEWAVE_PATTERNS_AND_PRACTICES.md` for patterns and best practices
+   - Review `docs/MOTIVEWAVE_SDK_COMPLETE_REFERENCE.md` for API reference
+   - Check existing studies in this codebase for implementation examples
+
+2. **ALWAYS refer to the official MotiveWave SDK documentation:**
+   - SDK JavaDoc: https://www.motivewave.com/sdk/javadoc/index.html
+   - Example Studies Repository: https://github.com/Prophetizo/motivewave-public-studies
+   - Use the JavaDoc to verify:
+     - Correct method signatures
+     - Available enumerations and constants
+     - Proper use of SDK classes
+     - Parameter types and return values
+   - Use the example studies to understand:
+     - Common implementation patterns
+     - Best practices for study structure
+     - Proper initialization and calculation flows
+     - Settings descriptor configurations
+
+3. **ALWAYS follow this verification checklist:**
+   - [ ] Checked project docs for patterns
+   - [ ] Reviewed similar existing studies in codebase
+   - [ ] Verified API usage against SDK JavaDoc
+   - [ ] Confirmed enum/constant names exist in SDK
+   - [ ] Validated method signatures match SDK
+
+4. **NEVER assume API methods or constants exist** - always verify against:
+   - The SDK JavaDoc
+   - Existing working code in this project
+   - The reference documentation
+
+### Example Workflow for New Study Development
+
+```
+1. Read task requirements
+2. Open docs/MOTIVEWAVE_PATTERNS_AND_PRACTICES.md
+3. Open docs/MOTIVEWAVE_SDK_COMPLETE_REFERENCE.md  
+4. Search codebase for similar studies
+5. Check SDK JavaDoc for specific APIs needed
+6. Implement following verified patterns
+7. Test against SDK documentation
+```
+
 ## Project Overview
 
 Morphiq Suite MotiveWave is a multi-module Maven project that provides advanced wavelet-based trading indicators for the MotiveWave platform. The project uses Java 23 and leverages parallel processing for high-performance signal analysis.

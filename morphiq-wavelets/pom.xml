@@ -23,8 +23,8 @@
         </dependency>
         <!-- VectorWave -->
         <dependency>
-            <groupId>ai.prophetizo</groupId>
-            <artifactId>vector-wave</artifactId>
+            <groupId>com.morphiqlabs</groupId>
+            <artifactId>vectorwave-core</artifactId>
         </dependency>
         <!-- MotiveWave SDK -->
         <dependency>
@@ -86,7 +86,7 @@
                             <artifactSet>
                                 <includes>
                                     <include>ai.prophetizo:morphiq-common</include>
-                                    <include>ai.prophetizo:vector-wave</include>
+                                    <include>com.morphiqlabs:vectorwave-core</include>
                                     <include>org.slf4j:*</include>
                                 </includes>
                             </artifactSet>
@@ -106,13 +106,13 @@
                                         <exclude>META-INF/versions/9/module-info.class</exclude>
                                     </excludes>
                                 </filter>
-                                <!-- Exclude vector-wave example and financial classes -->
+                                <!-- Exclude vectorwave-core example and financial classes -->
                                 <filter>
-                                    <artifact>ai.prophetizo:vector-wave</artifact>
+                                    <artifact>com.morphiqlabs:vectorwave-core</artifact>
                                     <excludes>
                                         <exclude>META-INF/jpms.args</exclude>
-                                        <exclude>ai/prophetizo/examples/**</exclude>
-                                        <exclude>ai/prophetizo/financial/**</exclude>
+                                        <exclude>com/morphiqlabs/examples/**</exclude>
+                                        <exclude>com/morphiqlabs/demo/**</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -135,7 +135,7 @@
                                 </transformer>
                                 <!-- Append resources instead of replacing -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
-                                    <resource>META-INF/services/ai.prophetizo.wavelet.api.WaveletProvider</resource>
+                                    <resource>META-INF/services/com.morphiqlabs.wavelet.api.WaveletProvider</resource>
                                 </transformer>
                             </transformers>
                         </configuration>

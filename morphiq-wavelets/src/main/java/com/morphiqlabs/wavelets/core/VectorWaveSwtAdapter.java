@@ -1,10 +1,10 @@
 package com.morphiqlabs.wavelets.core;
 
-import ai.prophetizo.wavelet.api.BoundaryMode;
-import ai.prophetizo.wavelet.api.Wavelet;
-import ai.prophetizo.wavelet.api.WaveletName;
-import ai.prophetizo.wavelet.api.WaveletRegistry;
-import ai.prophetizo.wavelet.modwt.MutableMultiLevelMODWTResult;
+import com.morphiqlabs.wavelet.api.BoundaryMode;
+import com.morphiqlabs.wavelet.api.Wavelet;
+import com.morphiqlabs.wavelet.api.WaveletName;
+import com.morphiqlabs.wavelet.api.WaveletRegistry;
+import com.morphiqlabs.wavelet.modwt.MutableMultiLevelMODWTResult;
 import com.morphiqlabs.common.LoggerConfig;
 import org.slf4j.Logger;
 import java.util.Arrays;
@@ -25,47 +25,43 @@ import java.util.Arrays;
  * maintains the same data length at each decomposition level, making it 
  * shift-invariant and suitable for financial time series analysis.
  *
- * @see ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter
+ * @see com.morphiqlabs.wavelet.swt.VectorWaveSwtAdapter
  */
 public class VectorWaveSwtAdapter {
     private static final Logger logger = LoggerConfig.getLogger(VectorWaveSwtAdapter.class);
     
-    private final String waveletType;
+    private final WaveletName waveletName;
     private final BoundaryMode boundaryMode;
-    private final ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter swtAdapter;
+    private final com.morphiqlabs.wavelet.swt.VectorWaveSwtAdapter swtAdapter;
     private final Wavelet wavelet;
     
     /**
      * Creates a new SWT adapter with the specified wavelet type and periodic boundary handling.
      * 
-     * @param waveletType the wavelet type identifier (e.g., "db4", "sym8", "haar")
-     * @throws IllegalArgumentException if the wavelet type is not recognized
+     * @param waveletName the wavelet type enum
+     * @throws IllegalArgumentException if the wavelet is not supported
      */
-    public VectorWaveSwtAdapter(String waveletType) {
-        this.waveletType = waveletType;
+    public VectorWaveSwtAdapter(WaveletName waveletName) {
+        this.waveletName = waveletName;
         this.boundaryMode = BoundaryMode.PERIODIC; // Default boundary mode
-        // Convert string to WaveletName enum
-        WaveletName waveletName = WaveletName.valueOf(waveletType.toUpperCase());
         this.wavelet = WaveletRegistry.getWavelet(waveletName);
-        this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
-        logger.info("VectorWave SWT adapter initialized with wavelet: {}", waveletType);
+        this.swtAdapter = new com.morphiqlabs.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
+        logger.info("VectorWave SWT adapter initialized with wavelet: {}", waveletName);
     }
     
     /**
      * Creates a new SWT adapter with the specified wavelet type and boundary mode.
      * 
-     * @param waveletType the wavelet type identifier (e.g., "db4", "sym8", "haar")
+     * @param waveletName the wavelet type enum
      * @param boundaryMode the boundary handling mode for the transform
-     * @throws IllegalArgumentException if the wavelet type is not recognized
+     * @throws IllegalArgumentException if the wavelet is not supported
      */
-    public VectorWaveSwtAdapter(String waveletType, BoundaryMode boundaryMode) {
-        this.waveletType = waveletType;
+    public VectorWaveSwtAdapter(WaveletName waveletName, BoundaryMode boundaryMode) {
+        this.waveletName = waveletName;
         this.boundaryMode = boundaryMode;
-        // Convert string to WaveletName enum
-        WaveletName waveletName = WaveletName.valueOf(waveletType.toUpperCase());
         this.wavelet = WaveletRegistry.getWavelet(waveletName);
-        this.swtAdapter = new ai.prophetizo.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
-        logger.info("VectorWave SWT adapter initialized with wavelet: {}, boundary: {}", waveletType, boundaryMode);
+        this.swtAdapter = new com.morphiqlabs.wavelet.swt.VectorWaveSwtAdapter(wavelet, this.boundaryMode);
+        logger.info("VectorWave SWT adapter initialized with wavelet: {}, boundary: {}", waveletName, boundaryMode);
     }
     
     
@@ -91,7 +87,7 @@ public class VectorWaveSwtAdapter {
         if (logger.isDebugEnabled()) {
             logger.debug("VectorWave SWT completed for {} levels", levels);
         }
-        return new SwtResult(approximation, details, waveletType, boundaryMode, result);
+        return new SwtResult(approximation, details, waveletName, boundaryMode, result);
     }
     
     /**
@@ -160,14 +156,14 @@ public class VectorWaveSwtAdapter {
     public static class SwtResult {
         private final double[] approximation;
         private final double[][] details;
-        private final String waveletType;
+        private final WaveletName waveletName;
         private final BoundaryMode boundaryMode;
         
         private final MutableMultiLevelMODWTResult vectorWaveResult;
         // Cache the adapter for efficient reconstruction
         private VectorWaveSwtAdapter cachedAdapter;
         
-        public SwtResult(double[] approximation, double[][] details, String waveletType, BoundaryMode boundaryMode, MutableMultiLevelMODWTResult vectorWaveResult) {
+        public SwtResult(double[] approximation, double[][] details, WaveletName waveletName, BoundaryMode boundaryMode, MutableMultiLevelMODWTResult vectorWaveResult) {
             if (vectorWaveResult == null) {
                 throw new IllegalArgumentException("VectorWave result cannot be null");
             }
@@ -176,7 +172,7 @@ public class VectorWaveSwtAdapter {
             for (int i = 0; i < details.length; i++) {
                 this.details[i] = Arrays.copyOf(details[i], details[i].length);
             }
-            this.waveletType = waveletType;
+            this.waveletName = waveletName;
             this.boundaryMode = boundaryMode;
             this.vectorWaveResult = vectorWaveResult;
         }
@@ -204,8 +200,8 @@ public class VectorWaveSwtAdapter {
             return details.length;
         }
         
-        public String getWaveletType() {
-            return waveletType;
+        public WaveletName getWaveletName() {
+            return waveletName;
         }
         
         /**
@@ -294,7 +290,7 @@ public class VectorWaveSwtAdapter {
             try {
                 // Use cached adapter for efficient reconstruction
                 if (cachedAdapter == null) {
-                    cachedAdapter = new VectorWaveSwtAdapter(waveletType, boundaryMode);
+                    cachedAdapter = new VectorWaveSwtAdapter(waveletName, boundaryMode);
                 }
                 return cachedAdapter.inverse(vectorWaveResult);
             } finally {

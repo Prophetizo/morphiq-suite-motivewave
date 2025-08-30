@@ -55,7 +55,7 @@ Your Custom Study
 ```xml
 
 <dependency>
-    <groupId>com.morphiqlabscom.morphiqlabs</groupId>
+    <groupId>com.morphiqlabs</groupId>
     <artifactId>vectorwave-motivewave</artifactId>
     <version>1.0.0</version>
 </dependency>
