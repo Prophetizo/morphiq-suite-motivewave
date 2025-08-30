@@ -886,8 +886,8 @@ public class SwtTrendMomentumStudy extends Study {
                    waveletType, lastWaveletType);
 
         try {
-            WaveletName waveletName = WaveletName.valueOf(waveletType);
-            swtAdapter = new VectorWaveSwtAdapter(waveletName);
+            WaveletName waveletNameEnum = WaveletName.valueOf(waveletType);
+            swtAdapter = new VectorWaveSwtAdapter(waveletNameEnum);
             lastWaveletType = waveletType;
             logger.info("Successfully initialized SWT adapter with wavelet: {}", waveletType);
         } catch (IllegalArgumentException e) {
