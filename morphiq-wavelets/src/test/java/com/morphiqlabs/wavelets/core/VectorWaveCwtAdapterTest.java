@@ -218,21 +218,17 @@ class VectorWaveCwtAdapterTest {
             assertNotNull(levels[i]);
             assertEquals(testSignal.length, levels[i].length);
             
-            // Check normalization: mean should be approximately 0
-            double mean = 0.0;
+            // Check normalization: max absolute value should be approximately 1
+            double maxAbs = 0.0;
             for (double val : levels[i]) {
-                mean += val;
+                maxAbs = Math.max(maxAbs, Math.abs(val));
             }
-            mean /= levels[i].length;
-            assertEquals(0.0, mean, 0.01, "Normalized level should have mean ≈ 0");
-            
-            // Check normalization: std dev should be approximately 1
-            double variance = 0.0;
+            assertEquals(1.0, maxAbs, 0.01, "Peak-normalized level should have max absolute value of 1");
+
+            // All values should be in [-1, 1] range
             for (double val : levels[i]) {
-                variance += val * val;
+                assertTrue(val >= -1.0 && val <= 1.0, "All values should be in the range [-1, 1]");
             }
-            double stdDev = Math.sqrt(variance / levels[i].length);
-            assertEquals(1.0, stdDev, 0.1, "Normalized level should have std dev ≈ 1");
             
             // Check for non-zero values
             boolean hasNonZero = false;
@@ -259,17 +255,16 @@ class VectorWaveCwtAdapterTest {
         assertEquals(testSignal.length, levels[0].length);
         
         // Verify normalization for single level
-        double mean = 0.0;
-        double sumSquares = 0.0;
+        double maxAbs = 0.0;
         for (double val : levels[0]) {
-            mean += val;
-            sumSquares += val * val;
+            maxAbs = Math.max(maxAbs, Math.abs(val));
         }
-        mean /= levels[0].length;
-        double stdDev = Math.sqrt(sumSquares / levels[0].length);
-        
-        assertEquals(0.0, mean, 0.01, "Single level should be centered");
-        assertEquals(1.0, stdDev, 0.1, "Single level should be normalized");
+        assertEquals(1.0, maxAbs, 0.01, "Peak-normalized level should have max absolute value of 1");
+
+        // All values should be in [-1, 1] range
+        for (double val : levels[0]) {
+            assertTrue(val >= -1.0 && val <= 1.0, "All values should be in the range [-1, 1]");
+        }
     }
     
     @Test
@@ -430,14 +425,13 @@ class VectorWaveCwtAdapterTest {
         assertNotNull(levels);
         assertEquals(2, levels.length);
         
-        // Both levels should be normalized (std dev ≈ 1)
+        // Both levels should be peak-normalized
         for (int i = 0; i < 2; i++) {
-            double sumSquares = 0.0;
+            double maxAbs = 0.0;
             for (double val : levels[i]) {
-                sumSquares += val * val;
+                maxAbs = Math.max(maxAbs, Math.abs(val));
             }
-            double stdDev = Math.sqrt(sumSquares / levels[i].length);
-            assertEquals(1.0, stdDev, 0.2, "Level " + i + " should be normalized");
+            assertEquals(1.0, maxAbs, 0.01, "Level " + i + " should be peak-normalized");
         }
     }
 }

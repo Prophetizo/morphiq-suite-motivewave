@@ -274,39 +274,27 @@ public class VectorWaveCwtAdapter {
             // Extract the coefficients for this scale
             double[] scaleCoeffs = coefficients[scaleIndex];
             
-            // Find the standard deviation for normalization
-            double mean = 0.0;
+            // Find the maximum absolute value for peak normalization
             double maxAbs = 0.0;
             for (int i = 0; i < numSamples; i++) {
-                mean += scaleCoeffs[i];
                 maxAbs = Math.max(maxAbs, Math.abs(scaleCoeffs[i]));
             }
-            mean /= numSamples;
-            
-            // Calculate standard deviation
-            double variance = 0.0;
-            for (int i = 0; i < numSamples; i++) {
-                double diff = scaleCoeffs[i] - mean;
-                variance += diff * diff;
-            }
-            double stdDev = Math.sqrt(variance / numSamples);
-            
-            // Normalize coefficients by standard deviation if it's significant
-            // This brings CWT coefficients to a similar scale as MODWT
-            if (stdDev > 1e-10) {
+
+            // Normalize coefficients by the maximum absolute value
+            // This scales the coefficients to the range [-1, 1]
+            if (maxAbs > 1e-10) {
                 for (int i = 0; i < numSamples; i++) {
-                    levels[level][i] = (scaleCoeffs[i] - mean) / stdDev;
+                    levels[level][i] = scaleCoeffs[i] / maxAbs;
                 }
             } else {
-                // If stdDev is too small, just center the data
-                for (int i = 0; i < numSamples; i++) {
-                    levels[level][i] = scaleCoeffs[i] - mean;
-                }
+                // If all coefficients are zero, no need to do anything
+                // Just copy the array (or fill with zeros)
+                System.arraycopy(scaleCoeffs, 0, levels[level], 0, numSamples);
             }
             
             if (logger.isDebugEnabled()) {
-                logger.debug("CWT Level {} (scale {}): mean={}, stdDev={}, maxAbs={}", 
-                           level, scaleIndex, mean, stdDev, maxAbs);
+                logger.debug("CWT Level {} (scale {}): maxAbs={}", 
+                           level, scaleIndex, maxAbs);
             }
         }
         

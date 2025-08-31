@@ -268,9 +268,11 @@ public class Wavelets extends Study {
             desc.declarePath(value, PATH_KEYS[i]);
             desc.declareIndicator(value, "D" + (i + 1));
         }
-        
+
         // Set range keys for auto-scaling
         desc.setRangeKeys(Values.D1, Values.D2, Values.D3, Values.D4, Values.D5, Values.D6, Values.D7);
+        
+        
         
         // Add zero reference line
         desc.addHorizontalLine(new LineInfo(0.0, null, 1.0f, new float[]{3, 3}));
