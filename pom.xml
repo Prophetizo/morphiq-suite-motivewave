@@ -28,6 +28,7 @@
         <maven.surefire.plugin.version>3.5.3</maven.surefire.plugin.version>
         <maven.shade.plugin.version>3.6.0</maven.shade.plugin.version>
         <maven.assembly.plugin.version>3.7.1</maven.assembly.plugin.version>
+        <vectorwave-core.version>1.0.2</vectorwave-core.version>
     </properties>
 
     <dependencyManagement>
@@ -43,7 +44,7 @@
             <dependency>
                 <groupId>com.morphiqlabs</groupId>
                 <artifactId>vectorwave-core</artifactId>
-                <version>1.0.0</version>
+                <version>${vectorwave-core.version}</version>
             </dependency>
             <!-- Minimal Logging -->
             <dependency>
