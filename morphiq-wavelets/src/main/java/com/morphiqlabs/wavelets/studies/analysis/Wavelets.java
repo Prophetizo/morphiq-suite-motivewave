@@ -1062,9 +1062,11 @@ public class Wavelets extends Study {
         options.add(createPairOption(TransformType.MODWT, WaveletName.COIF3));
         
         // CWT wavelets
+        /* DISABLE UNTIL CWT issues resolved in VectorWave
         options.add(createPairOption(TransformType.CWT, WaveletName.MORLET));
         options.add(createPairOption(TransformType.CWT, WaveletName.MEXICAN_HAT));
         options.add(createPairOption(TransformType.CWT, WaveletName.PAUL));
+         */
         
         return options;
     }
