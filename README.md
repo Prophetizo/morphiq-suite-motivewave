@@ -86,7 +86,7 @@ cp morphiq-wavelets/target/morphiq-wavelets-*-motivewave.jar ~/Documents/MotiveW
 - **[Position Manager Guide](docs/POSITION_MANAGER_GUIDE.md)** - Comprehensive guide to the position management framework
 - **[SWT White Paper](docs/white_papers/SWT_TREND_MOMENTUM_WHITEPAPER.md)** - Technical white paper on the trading methodology
 - **[API Reference](API_REFERENCE.md)** - Class and method reference
-- **[CLAUDE.md](CLAUDE.md)** - Development guide for AI assistants
+- **[AGENTS.md](AGENTS.md)** - Development guide for AI assistants
 - **[Architecture Docs](docs/architecture/)** - System design and specifications
 - **[Blog Posts](docs/blog/)** - Educational articles on wavelet trading
 
