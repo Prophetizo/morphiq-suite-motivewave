@@ -1,4 +1,4 @@
-# Morphiq Suite for MotiveWave
+# Morphiq MotiveWave
 
 Professional wavelet-based trading indicators and strategies for the MotiveWave platform, powered by VectorWave's high-performance wavelet transforms.
 
@@ -63,8 +63,8 @@ Classic wavelet denoising for cleaner price action:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Prophetizo/morphiq-suite-motivewave.git
-cd morphiq-suite-motivewave
+git clone https://github.com/Prophetizo/morphiq-motivewave.git
+cd morphiq-motivewave
 
 # Build the project
 mvn clean package
@@ -93,7 +93,7 @@ cp morphiq-wavelets/target/morphiq-wavelets-*-motivewave.jar ~/Documents/MotiveW
 ## Project Structure
 
 ```
-morphiq-suite-motivewave/
+morphiq-motivewave/
 ├── morphiq-common/         # Shared utilities & position management
 │   ├── LoggerConfig       # Centralized logging
 │   ├── position/          # Position management framework
@@ -160,9 +160,9 @@ Proprietary - See [LICENSE](LICENSE) file.
 
 ## Support
 
-- Issues: [GitHub Issues](https://github.com/Prophetizo/morphiq-suite-motivewave/issues)
+- Issues: [GitHub Issues](https://github.com/Prophetizo/morphiq-motivewave/issues)
 - Documentation: See links above
 
 ---
 
-*Morphiq Suite - Professional Wavelet Analysis for MotiveWave*
+*Morphiq MotiveWave - Professional Wavelet Analysis for MotiveWave*

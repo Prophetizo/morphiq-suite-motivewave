@@ -93,7 +93,7 @@ To report issues:
 2. Include MotiveWave version
 3. Specify indicator settings
 4. Attach screenshots if visual issue
-5. Report at: [GitHub Issues](https://github.com/Prophetizo/morphiq-suite-motivewave/issues)
+5. Report at: [GitHub Issues](https://github.com/Prophetizo/morphiq-motivewave/issues)
 
 ## 📝 Version Compatibility
 

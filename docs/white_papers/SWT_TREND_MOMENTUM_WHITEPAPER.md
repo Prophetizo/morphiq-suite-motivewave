@@ -481,14 +481,14 @@ where σ is estimated using the median absolute deviation (MAD) of the finest sc
 ### Appendix B: Implementation Resources
 
 #### B.1 Source Code Repository
-- **GitHub**: [https://github.com/morphiqlabs/morphiq-suite-motivewave](https://github.com/morphiqlabs/morphiq-suite-motivewave)
+- **GitHub**: [https://github.com/morphiqlabs/morphiq-motivewave](https://github.com/morphiqlabs/morphiq-motivewave)
 - **License**: Proprietary (contact MorphIQ Labs for licensing)
 - **Language**: Java 23
 - **Platform**: MotiveWave 6.0+
 
 #### B.2 Key Implementation Files
 ```
-morphiq-suite-motivewave/
+morphiq-motivewave/
 ├── morphiq-wavelets/
 │   ├── src/main/java/com/morphiqlabs/wavelets/
 │   │   ├── swt/
